@@ -1,46 +1,45 @@
 # CodeAgent 技术栈文档
 
-本文档描述了 CodeAgent (Windows 版 Coding Agent) 的推荐技术栈和架构选型。
+本文档描述了 CodeAgent 的推荐技术栈和架构选型，主要基于 Node.js 和 TypeScript 构建。
 
 ## 1. 核心框架 (Core Framework)
-**技术选型**: .NET 8 (LTS) - C#
+**技术选型**: Node.js + TypeScript
 
 **选择理由**:
-*   **原生 Windows 集成**: 作为 Windows 平台的应用，.NET 提供最完善的 API 支持和系统集成能力。
-*   **高性能**: .NET 8 在性能上有显著提升，适合处理复杂的 Agent 逻辑。
-*   **发布便捷**: 支持 Native AOT 和单文件发布，方便用户分发和使用 (无需安装巨大运行时)。
-*   **类型安全**: C# 的强类型系统有助于构建健壮的 Agent 架构，减少运行时错误。
-*   **生态一致性**: 与现有的 `aiden-windows` 项目保持技术栈一致，便于代码复用和维护。
+*   **跨平台且生态丰富**: Node.js 拥有庞大的 npm 生态，可以非常方便地集成各种 AI 工具包、API 客户端和系统级库。
+*   **类型安全**: TypeScript 的类型系统有助于构建健壮的 Agent 架构，减少开发中的错误，同时保持灵活的开发体验。
+*   **敏捷开发**: JavaScript/TypeScript 极其适合快速开发和迭代 Agent 逻辑。
+*   **执行环境对接**: Node.js 原生对子进程 (child_process) 的支持使得运行 Shell 命令和管理执行环境变得非常高效。
 
 ## 2. LLM 编排与 Agent 框架 (LLM Orchestration)
-**技术选型**: Microsoft Semantic Kernel (SK)
+**技术选型**: LangChain.js / LlamaIndex.TS 或自定义轻量级抽象
 
 **模块映射**:
-*   **LLM Engine**: SK 的 `IChatCompletionService` 提供统一的模型调用接口 (OpenAI, Azure OpenAI, HuggingFace, Local LLMs 等)。
-*   **Tool System**: SK 的 `Plugins` (插件) 机制完美对应设计文档中的 Tool System，支持将 C# 方法 (Native Functions) 暴露给 AI 使用。
-*   **Planner**: SK 内置的 `HandlebarsPlanner` 或 `FunctionCallingStepwisePlanner` 可直接用于实现 Agent 的任务拆解 (Planner) 能力。
-*   **Memory**: SK 的 `ISemanticTextMemory` 抽象和丰富的向量数据库连接器 (如 Qdrant, SQLite 等) 支持长短期记忆的实现。
+*   **LLM Engine**: 通过统一的模型调用接口 (如 OpenAI SDK, Anthropic SDK 等) 接入各类大语言模型。
+*   **Tool System**: 利用框架提供的工具绑定机制 (Tool Binding 或 Function Calling)，将 TypeScript/JavaScript 函数暴露给大模型作为工具调用。
+*   **Planner**: 基于大模型的推理能力构建 Planning Agent，进行任务拆解和多步骤执行。
+*   **Memory**: 可以使用基于内存的上下文管理，或者结合轻量级数据库 (如 SQLite) 和向量数据库 (如 Chroma, Pinecone 等) 提供长短期记忆。
 
 ## 3. 命令行接口 (CLI Framework)
-**技术选型**: System.CommandLine
+**技术选型**: Commander.js / Yargs
 
 **模块映射**:
-*   **CLI Interface**: 微软官方推荐的命令行库，提供现代化的命令行参数解析、强类型绑定、自动生成帮助文档和 Tab 自动补全功能。
+*   **CLI Interface**: 使用 Commander.js 构建现代化的交互式命令行工具，支持命令解析、自动化帮助文档生成和插件化扩展。可以结合 Inquirer.js 提供沉浸式的交互体验。
 
 ## 4. 依赖注入与可观测性 (DI & Observability)
-**技术选型**: Microsoft.Extensions.Hosting / OpenTelemetry
+**技术选型**: Winston / Pino + OpenTelemetry (可选)
 
 **模块映射**:
-*   **Observability (可观测性)**: 使用 .NET 标准的 `ILogger` 抽象。结合 OpenTelemetry，可以标准化地记录 Metrics (Token 消耗, 耗时) 和 Traces (Agent 思考链路)，便于对接 Prometheus/Grafana 或本地日志分析工具。
-*   **Architecture**: 使用通用主机模式 (Generic Host) 管理应用程序生命周期、配置加载 (appsettings.json) 和依赖注入 (DI)，保持架构整洁。
+*   **Observability (可观测性)**: 使用 Pino 或 Winston 提供高性能和结构化的日志记录。可以集成 OpenTelemetry 以实现对 Agent 推理链、Token 消耗及 API 耗时的全局追踪。
+*   **Architecture**: 基于原生的 ES Modules 模块化管理依赖，或者引入轻量级的 DI 容器管理生命周期。
 
 ## 5. 执行环境 (Execution Environment)
-**技术选型**: System.Diagnostics.Process / PowerShell SDK
+**技术选型**: Node.js `child_process` / `zx`
 
 **模块映射**:
 *   **Execution Environment**:
-    *   **命令执行**: 基础命令使用 `System.Diagnostics.Process` 启动外部进程。
-    *   **高级脚本**: 集成 `Microsoft.PowerShell.SDK`，允许 Agent 在进程内直接执行复杂的 PowerShell 脚本，并结构化地获取输出对象，而不仅仅是文本流。
+    *   **命令执行**: 使用 Node.js 的 `child_process` (如 `spawn`, `exec`) 启动外部进程并捕获标准输出和标准错误。
+    *   **高级脚本**: 使用 Google 的 `zx` 库，可以通过编写更优雅的 JavaScript/TypeScript 脚本来直接编写和执行复杂的 Shell 脚本能力。
 
 ## 总结
-该技术栈充分利用了微软在 AI (Semantic Kernel) 和系统编程 (.NET 8) 领域的最新成果，非常适合构建 Windows 平台的高性能本地 Coding Agent。
+该技术栈充分利用了 Node.js 庞大的生态系统和 TypeScript 的强类型优势，能够快速、敏捷且高质量地构建现代化的 Coding Agent。
