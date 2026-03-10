@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import type { LLMEngine } from "../llm/engine.js";
 import type { Message } from "../types.js";
 import type { ToolSystem } from "../tools/tool-system.js";
@@ -10,11 +12,16 @@ export class AgentController {
   ) {}
 
   async run(task: string, model: string): Promise<string> {
+    const systemPrompt = await this.loadSystemPrompt();
+    const developerPrompt = await this.loadDeveloperPrompt();
     const messages: Message[] = [
       {
         role: "system",
-        content:
-          "You are a helpful assistant. Use tools when needed and return final answer to the user.",
+        content: systemPrompt,
+      },
+      {
+        role: "system",
+        content: developerPrompt,
       },
       { role: "user", content: task },
     ];
@@ -51,5 +58,27 @@ export class AgentController {
     }
 
     throw new Error("Max turns exceeded without final response.");
+  }
+
+  private async loadSystemPrompt(): Promise<string> {
+    const defaultPrompt =
+      "You are a helpful assistant. Use tools when needed and return final answer to the user.";
+    const promptPath = path.resolve(process.cwd(), "prompts", "system.md");
+    try {
+      const content = await readFile(promptPath, "utf-8");
+      return content.trim();
+    } catch {
+      return defaultPrompt;
+    }
+  }
+
+  private async loadDeveloperPrompt(): Promise<string> {
+    const promptPath = path.resolve(process.cwd(), "prompts", "developer.md");
+    try {
+      const content = await readFile(promptPath, "utf-8");
+      return content.trim();
+    } catch {
+      return "";
+    }
   }
 }
