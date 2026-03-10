@@ -5,7 +5,7 @@ p0-core-supplement
 
 ## P0 发布必改项
 
-- 工具 schema 单一来源（zod -> JSON Schema 自动转换）【未完成】
+- 工具 schema 单一来源（zod -> JSON Schema 自动转换）【完成】
 - 工具安全边界（ReadFileTool 仅允许仓库内文件）【完成】
 - 错误可诊断（工具/模型错误需要可读输出与上下文）【未完成】
 - RunCommandTool（含白名单、工作目录限制、超时）【未完成】
@@ -22,8 +22,8 @@ p0-core-supplement
 
 ## System Prompt
 
-- 当前实现：`You are a helpful assistant. Use tools when needed and return final answer to the user.`【未完成】
-- 建议版本（工具优先，工程可用）：【未完成】
+- ~~当前实现：`You are a helpful assistant. Use tools when needed and return final answer to the user.`~~【完成】
+- 建议版本（工具优先，工程可用）：【完成】
   ```
   You are a tool-first assistant.
   Always use available tools to gather or verify facts when a tool can help.
@@ -35,9 +35,9 @@ p0-core-supplement
 
 ## 分层提示的文件存放建议
 
-- `prompts/system.md`（全局规则）【未完成】
-- `prompts/developer.md`（产品策略/工具规范）【未完成】
-- `prompts/task_templates/*.md`（任务模板）【未完成】
+- `prompts/system.md`（全局规则）【完成】
+- `prompts/developer.md`（产品策略/工具规范）【完成】
+- `prompts/task_templates/*.md`（任务模板）【完成】
 
 ## Prompt 测试与调优
 
