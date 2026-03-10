@@ -28,17 +28,27 @@ export class ToolSystem {
     }));
   }
 
-  async execute(name: string, rawArgs: string): Promise<unknown> {
+  async execute(
+    name: string,
+    rawArgs: string | Record<string, unknown> | undefined | null
+  ): Promise<unknown> {
     const tool = this.tools.get(name);
     if (!tool) {
       throw new Error(`Tool not found: ${name}`);
     }
 
-    let parsed: unknown;
-    try {
-      parsed = rawArgs ? JSON.parse(rawArgs) : {};
-    } catch (error) {
-      throw new Error(`Invalid JSON arguments for tool ${name}: ${(error as Error).message}`);
+    let parsed: unknown = {};
+    if (rawArgs && typeof rawArgs === "object") {
+      parsed = rawArgs;
+    } else if (typeof rawArgs === "string") {
+      const trimmed = rawArgs.trim();
+      if (trimmed.length > 0) {
+        try {
+          parsed = JSON.parse(trimmed);
+        } catch (error) {
+          throw new Error(`Invalid JSON arguments for tool ${name}: ${(error as Error).message}`);
+        }
+      }
     }
 
     const validated = tool.parameters.safeParse(parsed);
