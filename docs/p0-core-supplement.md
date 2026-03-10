@@ -8,12 +8,14 @@ p0-core-supplement
 - 工具 schema 单一来源（zod -> JSON Schema 自动转换）【完成】
 - 工具安全边界（ReadFileTool 仅允许仓库内文件）【完成】
 - 错误可诊断（工具/模型错误需要可读输出与上下文）【完成】
+- 错误分层（LLM / Tool / Agent 编排阶段区分）【未完成】
 - RunCommandTool（含白名单、工作目录限制、超时）【未完成】
 
 ## P0 强烈建议项
 
 - 验收脚本：读文件并总结，验证闭环可用性【未完成】
 - 可开关日志：记录 tool_call 与 tool_result 便于排错【未完成】
+- 任务拆解策略：由 LLM 生成计划、由 Agent 决定是否/何时要求计划【未完成】
 
 ## 可选但有价值
 
@@ -38,6 +40,8 @@ p0-core-supplement
 - `prompts/system.md`（全局规则）【完成】
 - `prompts/developer.md`（产品策略/工具规范）【完成】
 - `prompts/task_templates/*.md`（任务模板）【完成】
+- developer prompt 内容规范（任务风格、错误处理、工具优先等）【完成】
+  - 原因：统一 developer 层规则可减少行为漂移，稳定工具优先与错误处理策略。
 
 ## Prompt 测试与调优
 
