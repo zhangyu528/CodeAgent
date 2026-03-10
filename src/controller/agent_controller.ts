@@ -16,11 +16,26 @@ export class AgentController extends EventEmitter {
     tools.forEach(tool => this.tools.set(tool.name, tool));
   }
 
-  // Convert Zod schema to JSON Schema for the LLM
   private getProviderTools() {
     return Array.from(this.tools.values()).map(tool => {
-        // Simple mock of JSON schema formatting for MVP
-        // Wait, realistically we'd use zod-to-json-schema
+        // Simple manual conversion from Zod to JSON Schema for MVP
+        // For actual production, use zod-to-json-schema
+        const shape = (tool.parameters as any).shape;
+        const properties: any = {};
+        const required: string[] = [];
+        
+        if (shape) {
+            for (const key of Object.keys(shape)) {
+                properties[key] = {
+                    type: shape[key]._def.typeName === 'ZodString' ? 'string' : 'object',
+                    description: shape[key].description || ''
+                };
+                if (!shape[key].isOptional()) {
+                    required.push(key);
+                }
+            }
+        }
+
         return {
           type: 'function',
           function: {
@@ -28,7 +43,8 @@ export class AgentController extends EventEmitter {
               description: tool.description,
               parameters: {
                   type: 'object',
-                  properties: {}, // Would be parsed from Zod in reality
+                  properties: properties,
+                  required: required
               }
           }
         };
@@ -48,7 +64,8 @@ export class AgentController extends EventEmitter {
       this.emit('onThought', `Thinking (Iteration ${iteration})...`);
 
       try {
-        const response = await this.engine.generate(this.defaultProviderName, messages); // Assuming tools are passed in engine if needed
+        const providerTools = this.getProviderTools();
+        const response = await this.engine.generate(this.defaultProviderName, messages, providerTools);
         const message = response.message;
         
         messages.push(message);
