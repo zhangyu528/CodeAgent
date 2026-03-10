@@ -3,6 +3,7 @@ import { LLMEngine } from "../src/llm/engine.js";
 import { AgentController } from "../src/agent/controller.js";
 import { ToolSystem } from "../src/tools/tool-system.js";
 import { EchoTool } from "../src/tools/echo-tool.js";
+import { ReadFileTool } from "../src/tools/read-file-tool.js";
 import { GLMProvider } from "../src/providers/glm.js";
 
 const apiKey = process.env.GLM_API_KEY;
@@ -26,11 +27,11 @@ if (!process.env.GLM_BASE_URL) {
 const engine = new LLMEngine();
 engine.registerProvider(new GLMProvider({ apiKey, baseUrl }));
 
-const toolSystem = new ToolSystem([EchoTool]);
+const toolSystem = new ToolSystem([EchoTool, ReadFileTool]);
 const controller = new AgentController(engine, toolSystem, "glm");
 
 const task =
-  "Please call the echo tool with text 'hello from tool', then answer with the echoed text.";
+  "Please call the read_file tool to read README.md, then answer with the file content.";
 
 console.log("[demo] Starting LLM -> Tool -> Result loop...");
 

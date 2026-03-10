@@ -33,4 +33,4 @@ npm run demo
 ## Notes
 
 - `GLM_BASE_URL` and `GLM_MODEL` may differ based on your GLM account/plan.
-- The demo uses the `echo` tool and a two-step loop (tool call + final answer).
+- The demo uses the `echo` and `read_file` tools and a two-step loop (tool call + final answer).
