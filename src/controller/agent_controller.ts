@@ -52,8 +52,11 @@ export class AgentController extends EventEmitter {
   }
 
   async run(task: string): Promise<string> {
+    const { getSystemPrompt } = require('../prompts/system_prompt');
+    const systemPromptMessage = getSystemPrompt();
+
     const messages: Message[] = [
-      { role: 'system', content: 'You are a helpful coding agent. Use provided tools to solve the task.' },
+      { role: 'system', content: systemPromptMessage },
       { role: 'user', content: task }
     ];
 
