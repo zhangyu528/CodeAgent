@@ -1,8 +1,10 @@
-import { LLMEngine } from './llm/engine';
-import { AgentController } from './controller/agent_controller';
-import { ReadFileTool } from './tools/read_file_tool';
-import { EchoTool } from './tools/echo_tool';
-import { GLMProvider } from './llm/glm_provider';
+import { LLMEngine } from '../llm/engine';
+import { AgentController } from '../controller/agent_controller';
+import { ReadFileTool } from '../tools/read_file_tool';
+import { EchoTool } from '../tools/echo_tool';
+import { GLMProvider } from '../llm/glm_provider';
+import { WriteFileTool } from '../tools/write_file_tool';
+import { RunCommandTool } from '../tools/run_command_tool';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -16,7 +18,9 @@ async function runTests() {
     // 1. Initialize Tools
     const readFileTool = new ReadFileTool();
     const echoTool = new EchoTool();
-    const tools = [readFileTool, echoTool];
+    const writeFileTool = new WriteFileTool();
+    const runCommandTool = new RunCommandTool();
+    const tools = [readFileTool, echoTool, writeFileTool, runCommandTool];
 
     // 2. Initialize Engine & GLM Provider
     const engine = new LLMEngine();
@@ -36,12 +40,13 @@ async function runTests() {
     });
     controller.on('onError', (err) => console.error('\x1b[31m%s\x1b[0m', `[Fatal Error]`, err.message || err));
 
-    // Test Case: Read file using LLM
+    // Test Case: Read, Write and List Files using LLM
     const testFilePath = 'package.json';
-    const task = `Please read the file ${testFilePath} using read_file tool, and explain what its main scripts are. You can also try using echo tool to output a test message.`;
+    const outputFilePath = 'temp/test_run_output.txt';
+    const task = `Please list all files in the current directory using run_command tool (dir command for windows). Then read package.json, and write a summary into '${outputFilePath}'.`;
 
     console.log(`\n[User Task]: ${task}\n`);
-    const finalAnswer = await controller.run(task);
+    const { content: finalAnswer } = await controller.run(task);
 
     console.log('\n=======================================');
     console.log('\x1b[32m%s\x1b[0m', `[Final Answer]\n${finalAnswer}`);

@@ -7,7 +7,12 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "ts-node src/index.ts",
+    "start:plan": "ts-node src/index.ts --plan",
+    "test:agent": "ts-node src/tests/agent-test.ts",
+    "test:planner": "ts-node src/tests/planner-test.ts",
+    "test:all": "ts-node src/tests/comprehensive-test.ts",
+    "test": "npm run test:all"
   },
   "repository": {
     "type": "git",
