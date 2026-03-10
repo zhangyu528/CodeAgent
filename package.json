@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "demo": "tsx bin/run-demo.ts"
+    "demo": "tsx bin/run-demo.ts",
+    "acceptance": "tsx bin/run-acceptance.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
