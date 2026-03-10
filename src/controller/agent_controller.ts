@@ -51,14 +51,22 @@ export class AgentController extends EventEmitter {
     });
   }
 
-  async run(task: string): Promise<string> {
+  async run(task: string, initialMessages?: Message[]): Promise<{ content: string; messages: Message[] }> {
     const { getSystemPrompt } = require('../prompts/system_prompt');
     const systemPromptMessage = getSystemPrompt();
 
-    const messages: Message[] = [
+    // If initialMessages are provided, we reuse them. 
+    // Otherwise, we start fresh with system prompt + user task.
+    let messages: Message[] = initialMessages || [
       { role: 'system', content: systemPromptMessage },
       { role: 'user', content: task }
     ];
+
+    // If history was provided but it doesn't have the task, add it.
+    // (This helps if we want to "continue" a session with a new instruction)
+    if (initialMessages && initialMessages.length > 0 && task) {
+       messages.push({ role: 'user', content: task });
+    }
 
     let iteration = 0;
 
@@ -101,7 +109,7 @@ export class AgentController extends EventEmitter {
         } else {
           // If no tools are called, returned the LLM's text as the final answer
           this.emit('onFinalAnswer', message.content);
-          return message.content;
+          return { content: message.content, messages };
         }
 
       } catch (error: any) {
