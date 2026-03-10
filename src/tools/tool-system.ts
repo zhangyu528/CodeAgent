@@ -1,11 +1,11 @@
 import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import type { JSONSchema, ToolDefinition } from "../types.js";
 
 export interface Tool<T extends z.ZodTypeAny = z.ZodTypeAny> {
   name: string;
   description: string;
   parameters: T;
-  jsonSchema: JSONSchema;
   execute(args: z.infer<T>): Promise<unknown>;
 }
 
@@ -24,7 +24,9 @@ export class ToolSystem {
     return Array.from(this.tools.values()).map((tool) => ({
       name: tool.name,
       description: tool.description,
-      parameters: tool.jsonSchema,
+      parameters: zodToJsonSchema(tool.parameters, {
+        $refStrategy: "none",
+      }) as JSONSchema,
     }));
   }
 
