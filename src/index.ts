@@ -1,10 +1,9 @@
 #!/usr/bin/env ts-node
 import { input, confirm } from '@inquirer/prompts';
 import * as dotenv from 'dotenv';
-import * as path from 'path';
 
 import { LLMEngine } from './llm/engine';
-import { GLMProvider } from './llm/glm_provider';
+import { registerProvidersFromEnv } from './llm/register_providers';
 import { AgentController } from './controller/agent_controller';
 import { MemoryManager } from './controller/memory_manager';
 import { SecurityLayer } from './controller/security_layer';
@@ -29,15 +28,33 @@ dotenv.config();
 
 const telemetry = new TelemetryMonitor();
 
+function formatProviders(list: string[]) {
+  return list.length > 0 ? list.join(', ') : '(none)';
+}
+
 async function createAgent() {
   const engine = new LLMEngine();
-  
-  if (!process.env.GLM_API_KEY) {
-    logger.error('GLM_API_KEY is missing in .env file.');
+
+  const reg = registerProvidersFromEnv(engine);
+  if (reg.registered.length === 0) {
+    logger.error('No LLM providers configured. Please set provider env vars in .env.');
+    if (reg.skipped.length > 0) {
+      logger.info(`Skipped: ${reg.skipped.map(s => `${s.name}(${s.reason})`).join(' | ')}`);
+    }
     process.exit(1);
   }
 
-  engine.registerProvider(new GLMProvider(process.env.GLM_API_KEY));
+  const providers = engine.listProviders();
+
+  let defaultProvider = (process.env.DEFAULT_PROVIDER || '').trim().toLowerCase();
+  if (defaultProvider && !engine.hasProvider(defaultProvider)) {
+    logger.error(`DEFAULT_PROVIDER=${defaultProvider} is not registered. Available: ${formatProviders(providers)}`);
+    defaultProvider = '';
+  }
+
+  if (!defaultProvider) {
+    defaultProvider = providers.length === 1 ? providers[0]! : (engine.hasProvider('glm') ? 'glm' : providers[0]!);
+  }
 
   const tools = [
     new ReadFileTool(),
@@ -58,7 +75,7 @@ async function createAgent() {
     logger.stopSpinner();
     const answer = await confirm({
       message: `[Security] ${description}. Allow?`,
-      default: false
+      default: false,
     });
     return answer;
   };
@@ -86,26 +103,26 @@ async function createAgent() {
   const memory = new MemoryManager(4000);
   const contextInformer = new ContextInformer();
   const bootSnapshot = await contextInformer.buildBootSnapshot(process.cwd());
-  const controller = new AgentController(engine, tools, 'glm', security, memory, { systemPromptContext: { bootSnapshot } });
+  const controller = new AgentController(engine, tools, defaultProvider, security, memory, { systemPromptContext: { bootSnapshot } });
 
   // Setup Observability with the new Logger
   controller.on('onThought', (text) => {
     logger.startSpinner('Thinking...');
     logger.thought(text);
   });
-  
+
   controller.on('onToolStarted', (name, args) => {
     logger.startSpinner(`Executing ${name}...`);
     logger.action(name, args);
   });
-  
+
   controller.on('onToolFinished', (name, result) => {
     logger.observation(name, result);
   });
 
   controller.on('onCompletion', (usage) => {
-    telemetry.record(usage.inputTokens, usage.outputTokens);
-    logger.tokenUsage(controller.getMemoryUsage(), telemetry);
+    telemetry.record(usage.provider, usage.inputTokens, usage.outputTokens);
+    logger.tokenUsage(controller.getMemoryUsage(), telemetry, controller.getProviderName());
   });
 
   controller.on('onFinalAnswer', (ans) => {
@@ -116,28 +133,59 @@ async function createAgent() {
     logger.error(err.message || String(err));
   });
 
-  return { controller };
+  logger.info(`Registered Providers: ${formatProviders(providers)} | Default: ${defaultProvider}`);
+
+  return { controller, engine };
 }
 
 async function startREPL() {
-  const { controller } = await createAgent();
-  
+  const { controller, engine } = await createAgent();
+
   console.log(require('chalk').bold.cyan('\n=== CodeAgent Interactive Mode ==='));
-  console.log(require('chalk').dim('Type "exit" or "quit" to end the session.\n'));
+  console.log(require('chalk').dim('Type "exit" or "quit" to end the session.'));
+  console.log(require('chalk').dim('Commands: /model [provider] to view/switch provider.\n'));
 
   while (true) {
     try {
-      const task = await input({
+      const line = await input({
         message: require('chalk').blue('CodeAgent >'),
       });
 
-      if (!task || task.trim() === '') continue;
-      if (['exit', 'quit'].includes(task.toLowerCase().trim())) {
+      if (!line || line.trim() === '') continue;
+      const trimmed = line.trim();
+
+      if (['exit', 'quit'].includes(trimmed.toLowerCase())) {
         logger.info('Goodbye!');
         process.exit(0);
       }
 
-      await controller.run(task);
+      // Runtime provider switch
+      if (trimmed.startsWith('/model')) {
+        const parts = trimmed.split(/\s+/).filter(Boolean);
+        const providers = engine.listProviders();
+
+        if (parts.length === 1) {
+          logger.info(`Current Provider: ${controller.getProviderName()} | Available: ${formatProviders(providers)}`);
+          continue;
+        }
+
+        const name = (parts[1] || '').trim().toLowerCase();
+        if (!name) {
+          logger.error(`Usage: /model <provider>. Available: ${formatProviders(providers)}`);
+          continue;
+        }
+
+        if (!engine.hasProvider(name)) {
+          logger.error(`Provider "${name}" is not registered. Available: ${formatProviders(providers)}`);
+          continue;
+        }
+
+        controller.setProviderName(name);
+        logger.info(`Switched provider to: ${name}`);
+        continue;
+      }
+
+      await controller.run(trimmed);
     } catch (e: any) {
       if (e.message?.includes('force closed')) {
         process.exit(0);
