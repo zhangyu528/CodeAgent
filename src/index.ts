@@ -57,6 +57,25 @@ async function createAgent() {
   };
 
   const security = new SecurityLayer(process.cwd(), approvalHandler);
+
+  // F6: Workspace Trust Check
+  const isTrusted = await security.isWorkspaceTrusted();
+  if (!isTrusted) {
+    const root = process.cwd();
+    console.log(`\n\x1b[33m[Security Warning]\x1b[0m Detect start in untrusted directory: \x1b[36m${root}\x1b[0m`);
+    const answer = await confirm({ 
+      message: 'Do you trust this workspace and allow CodeAgent to access and modify files?', 
+      default: false 
+    });
+
+    if (!answer) {
+      console.log('\x1b[31m[Security] Access denied. Exiting.\x1b[0m');
+      process.exit(0);
+    }
+    await security.grantWorkspaceTrust();
+    console.log('\x1b[32m[Security] Workspace authorized.\x1b[0m\n');
+  }
+
   const memory = new MemoryManager(4000);
   const controller = new AgentController(engine, tools, 'glm', security, memory);
 
