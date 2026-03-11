@@ -1,6 +1,6 @@
 #!/usr/bin/env ts-node
 import { input, confirm } from '@inquirer/prompts';
-import * as dotenv from 'dotenv';\n
+import * as dotenv from 'dotenv';
 import { LLMEngine } from './llm/engine';
 import { registerProvidersFromEnv } from './llm/register_providers';
 import { AgentController } from './controller/agent_controller';
@@ -38,6 +38,8 @@ async function createAgent() {
 
   if (!process.env.GLM_API_KEY) {
     logger.error('GLM_API_KEY is missing in .env file.');
+  }
+  
   const reg = registerProvidersFromEnv(engine);
   if (reg.registered.length === 0) {
     logger.error('No LLM providers configured. Please set provider env vars in .env.');
@@ -58,20 +60,6 @@ async function createAgent() {
   if (!defaultProvider) {
     defaultProvider = providers.length === 1 ? providers[0]! : (engine.hasProvider('glm') ? 'glm' : providers[0]!);
   }
-
-  const tools = [
-    new ReadFileTool(),
-    new WriteFileTool(),
-    new RunCommandTool(),
-    new ListDirectoryTool(),
-    new FileSearchTool(),
-    new ReplaceContentTool(),
-    new SystemInfoTool(),
-    new EchoTool(),
-    new SearchCodeTool(),
-    new FindDefinitionTool(),
-    new ListTreeTool(),
-  ];
 
   // HITL Approval Handler using @inquirer/prompts
   const approvalHandler = async (description: string) => {
@@ -96,6 +84,9 @@ async function createAgent() {
     new EchoTool(),
     new WebSearchTool(),
     new BrowsePageTool(security),
+    new SearchCodeTool(),
+    new FindDefinitionTool(),
+    new ListTreeTool(),
   ];
   // F6: Workspace Trust Check
   const isTrusted = await security.isWorkspaceTrusted();
@@ -158,7 +149,7 @@ async function startREPL() {
 
   console.log(require('chalk').bold.cyan('\n=== CodeAgent Interactive Mode ==='));
   console.log(require('chalk').dim('Type "exit" or "quit" to end the session.'));
-  console.log(require('chalk').dim('Commands: /model [provider] to view/switch provider.\n'));
+  console.log(require('chalk').dim('Commands: /model [provider], /clear, /history\n'));
 
   while (true) {
     try {
@@ -200,7 +191,52 @@ async function startREPL() {
         continue;
       }
 
-      await controller.run(trimmed);
+      if (trimmed === '/clear') {
+        controller.getMemory().clearHistory();
+        logger.info('Conversation history cleared.');
+        continue;
+      }
+
+      if (trimmed === '/history') {
+        const msgs = controller.getMemory().getMessages();
+        logger.info(`History: ${msgs.length} messages (approx ${controller.getMemoryUsage()} tokens).`);
+        continue;
+      }
+
+      // If we just want streaming text response:
+      let firstChunkReceived = false;
+      logger.startSpinner('Thinking...');
+      
+      let fullResponse = '';
+      await controller.askStream(trimmed, (chunk) => {
+        if (!firstChunkReceived) {
+          logger.stopSpinner();
+          firstChunkReceived = true;
+        }
+        fullResponse += chunk;
+        process.stdout.write(chunk);
+      });
+      
+      if (!firstChunkReceived) {
+        logger.stopSpinner();
+      }
+      
+      // Clear the raw streaming text and print the syntax-highlighted markdown
+      try {
+        const marked = require('marked');
+        const TerminalRenderer = require('marked-terminal');
+        marked.setOptions({
+          renderer: new TerminalRenderer()
+        });
+        
+        // Use standard clear line escape sequences to overwrite the raw text
+        // This is a simple approach; for long responses it might just append.
+        // A better UX is to let the user see the stream, then when done, reprint nicely.
+        console.log('\n\n' + require('chalk').dim('--- Formatted Output ---'));
+        console.log(marked.parse(fullResponse));
+      } catch (err) {
+        console.log(); // Fallback newline if marked fails
+      }
     } catch (e: any) {
       if (e.message?.includes('force closed')) {
         process.exit(0);

@@ -12,7 +12,7 @@ export class AgentController extends EventEmitter {
   private defaultProviderName: string;
   private memory: MemoryManager;
   private security: SecurityLayer;
-  private systemPromptContext?: { bootSnapshot?: string };
+  private systemPromptContext: { bootSnapshot?: string } | undefined;
 
   constructor(
     engine: LLMEngine,
@@ -67,6 +67,10 @@ export class AgentController extends EventEmitter {
 
   getMemoryUsage(): number {
     return this.memory.getUsage();
+  }
+
+  getMemory(): MemoryManager {
+    return this.memory;
   }
 
   getProviderName(): string {
@@ -191,36 +195,7 @@ export class AgentController extends EventEmitter {
                if (isAllowed) {
                  result = await tool.execute(args);
                }
-              // 1. Security Check
-              let isAllowed = true;
 
-              // Path validation (Files)
-              if (args.filePath && !this.security.validatePath(args.filePath)) {
-                result = `Error: Security Block. Path is outside of workspace: ${args.filePath}`;
-                isAllowed = false;
-              }
-              // Path validation (Directories)
-              else if (args.directoryPath && !this.security.validatePath(args.directoryPath)) {
-                result = `Error: Security Block. Directory is outside of workspace: ${args.directoryPath}`;
-                isAllowed = false;
-              } else if (toolName === 'run_command') {
-                // Command validation
-                const check = this.security.checkCommand(args.command);
-                if (!check.isSafe) {
-                  result = `Error: Security block. ${check.reason}`;
-                  isAllowed = false;
-                } else if (check.needsApproval) {
-                  const approved = await this.security.requestApproval(`Execute command: ${args.command}`);
-                  if (!approved) {
-                    result = 'Error: Command execution denied by user.';
-                    isAllowed = false;
-                  }
-                }
-              }
-
-              if (isAllowed) {
-                result = await tool.execute(args);
-              }
             } else {
               result = `Error: Tool ${toolName} not found.`;
             }
@@ -245,6 +220,34 @@ export class AgentController extends EventEmitter {
     }
 
     throw new Error(`Max iterations (${this.maxIterations}) reached.`);
+  }
+
+  async askStream(prompt: string, onData: (chunk: string) => void): Promise<void> {
+    const { getSystemPrompt } = require('../prompts/system_prompt');
+    const systemPromptMessage = { role: 'system' as const, content: getSystemPrompt(this.systemPromptContext) };
+
+    this.memory.setSystemPrompt(systemPromptMessage);
+    
+    if (prompt) {
+      this.memory.addMessage({ role: 'user', content: prompt });
+    }
+
+    try {
+      const messages = this.memory.getMessages();
+      const stream = this.engine.generateStream(this.defaultProviderName, messages);
+      let fullResponse = '';
+      
+      for await (const chunk of stream) {
+        fullResponse += chunk;
+        onData(chunk);
+      }
+
+      this.memory.addMessage({ role: 'assistant', content: fullResponse });
+      this.emit('onFinalAnswer', fullResponse);
+    } catch (error: any) {
+      this.emit('onError', error);
+      throw error;
+    }
   }
 }
 
