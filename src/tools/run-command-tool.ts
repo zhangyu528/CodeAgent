@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Tool } from "./tool-system.js";
 import { runCommand } from "../execution/runner.js";
+import { SecurityLayer } from "../security/security-layer.js";
 
 const parameters = z.object({
   cmd: z.string().min(1),
@@ -15,9 +16,11 @@ export const RunCommandTool: Tool<typeof parameters> = {
   parameters,
   async execute(args) {
     const resolved = splitCommand(args.cmd, args.args);
+    const securityLayer = new SecurityLayer(process.cwd());
     const result = await runCommand(resolved.cmd, resolved.args, {
       cwd: args.cwd,
       timeoutMs: args.timeout_ms,
+      securityLayer,
     });
     return result;
   },

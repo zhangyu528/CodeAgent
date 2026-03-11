@@ -35,6 +35,11 @@ export async function runCommand(
     cwd?: string;
     timeoutMs?: number;
     interceptors?: ExecutionInterceptor[];
+    securityLayer?: {
+      validatePath(path: string): boolean;
+      validateCommand(command: string, args: string[]): { isAllowed: boolean; requiresApproval: boolean; reason?: string };
+      requestUserApproval(actionDescription: string): Promise<boolean>;
+    };
   }
 ): Promise<ExecutionResult> {
   const timeoutMs = options?.timeoutMs ?? defaultTimeoutMs();
@@ -43,6 +48,24 @@ export async function runCommand(
 
   for (const interceptor of options?.interceptors ?? []) {
     interceptor(context);
+  }
+
+  if (options?.securityLayer) {
+    if (!options.securityLayer.validatePath(cwd)) {
+      throw new Error("Command cwd is outside the workspace.");
+    }
+    const check = options.securityLayer.validateCommand(cmd, args);
+    if (!check.isAllowed) {
+      throw new Error(check.reason ?? "Command blocked by security policy.");
+    }
+    if (check.requiresApproval) {
+      const approved = await options.securityLayer.requestUserApproval(
+        `High-risk command detected: ${[cmd, ...args].join(" ")}`
+      );
+      if (!approved) {
+        throw new Error("Command execution rejected by user.");
+      }
+    }
   }
 
   return new Promise((resolve, reject) => {

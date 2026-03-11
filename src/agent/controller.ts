@@ -3,6 +3,7 @@ import path from "node:path";
 import type { LLMEngine } from "../llm/engine.js";
 import type { Message } from "../types.js";
 import type { ToolSystem } from "../tools/tool-system.js";
+import { MemoryManager } from "../memory/memory-manager.js";
 
 export class AgentController {
   constructor(
@@ -14,24 +15,23 @@ export class AgentController {
   async run(task: string, model: string): Promise<string> {
     const systemPrompt = await this.loadSystemPrompt();
     const developerPrompt = await this.loadDeveloperPrompt();
-    const messages: Message[] = [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-      {
-        role: "system",
-        content: developerPrompt,
-      },
-      { role: "user", content: task },
-    ];
+    const memory = new MemoryManager({ maxItems: this.maxMemoryItems() });
+    await memory.add({
+      role: "system",
+      content: systemPrompt,
+    });
+    await memory.add({
+      role: "system",
+      content: developerPrompt,
+    });
+    await memory.add({ role: "user", content: task });
 
     const maxTurns = 4;
 
     for (let turn = 0; turn < maxTurns; turn += 1) {
       let response;
       try {
-        response = await this.engine.generate(this.providerName, messages, {
+        response = await this.engine.generate(this.providerName, memory.getSnapshot(), {
           model,
           tools: this.toolSystem.listDefinitions(),
           tool_choice: "auto",
@@ -44,7 +44,7 @@ export class AgentController {
       }
 
       if (response.tool_calls && response.tool_calls.length > 0) {
-        messages.push({
+        await memory.add({
           role: "assistant",
           content: response.content ?? "",
           tool_calls: response.tool_calls,
@@ -56,7 +56,7 @@ export class AgentController {
               call.function.name,
               call.function.arguments
             );
-            messages.push({
+            await memory.add({
               role: "tool",
               tool_call_id: call.id,
               content: JSON.stringify(result),
@@ -147,5 +147,17 @@ export class AgentController {
     } catch {
       return "";
     }
+  }
+
+  private maxMemoryItems(): number {
+    const raw = process.env.MEMORY_MAX_ITEMS;
+    if (!raw) {
+      return 40;
+    }
+    const value = Number(raw);
+    if (Number.isNaN(value) || value <= 0) {
+      return 40;
+    }
+    return value;
   }
 }
