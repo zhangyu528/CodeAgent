@@ -37,6 +37,24 @@ async function testSecurityLayer() {
   if (!check3.needsApproval) throw new Error('Sensitive command should need approval');
 
   console.log('✅ Command sensitivity works.');
+
+  /**
+   * Test 3: Trust Mode (F6)
+   */
+  console.log('\n[Test 3] Trust Mode');
+  // Initially should not be trusted in a test environment (unless previously run)
+  const initialTrust = await sl.isWorkspaceTrusted();
+  console.log(`Initial trust status: ${initialTrust}`);
+
+  await sl.grantWorkspaceTrust();
+  const afterTrust = await sl.isWorkspaceTrusted();
+  if (!afterTrust) throw new Error('Granting trust failed');
+  console.log('✅ Trust granted and verified.');
+
+  // Cleanup: optional, but good practice for unit tests to not leave global state
+  // However, since it's in ~/.codeagent, we might leave it or use a mock.
+  // For raw unit test, we just verify the flow.
+
   console.log('\n=== SecurityLayer Unit Test Pass ===');
 }
 
