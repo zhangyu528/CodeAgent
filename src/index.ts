@@ -19,6 +19,9 @@ import { FileSearchTool } from './tools/file_search_tool';
 import { ReplaceContentTool } from './tools/replace_content_tool';
 import { SystemInfoTool } from './tools/system_info_tool';
 import { EchoTool } from './tools/echo_tool';
+import { SearchCodeTool } from './tools/search_code_tool';
+import { FindDefinitionTool } from './tools/find_definition_tool';
+import { ListTreeTool } from './tools/list_tree_tool';
 
 // Load environment variables
 dotenv.config();
@@ -44,6 +47,9 @@ async function createAgent() {
     new ReplaceContentTool(),
     new SystemInfoTool(),
     new EchoTool(),
+    new SearchCodeTool(),
+    new FindDefinitionTool(),
+    new ListTreeTool(),
   ];
 
   // HITL Approval Handler using @inquirer/prompts
