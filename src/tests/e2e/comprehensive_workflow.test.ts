@@ -1,15 +1,15 @@
-import { LLMEngine } from '../llm/engine';
-import { AgentController } from '../controller/agent_controller';
-import { Planner } from '../controller/planner';
-import { ReadFileTool } from '../tools/read_file_tool';
-import { WriteFileTool } from '../tools/write_file_tool';
-import { RunCommandTool } from '../tools/run_command_tool';
-import { ListDirectoryTool } from '../tools/list_directory_tool';
-import { FileSearchTool } from '../tools/file_search_tool';
-import { ReplaceContentTool } from '../tools/replace_content_tool';
-import { GLMProvider } from '../llm/glm_provider';
-import { SecurityLayer } from '../controller/security_layer';
-import { MemoryManager } from '../controller/memory_manager';
+import { LLMEngine } from '../../llm/engine';
+import { AgentController } from '../../controller/agent_controller';
+import { Planner } from '../../controller/planner';
+import { ReadFileTool } from '../../tools/read_file_tool';
+import { WriteFileTool } from '../../tools/write_file_tool';
+import { RunCommandTool } from '../../tools/run_command_tool';
+import { ListDirectoryTool } from '../../tools/list_directory_tool';
+import { FileSearchTool } from '../../tools/file_search_tool';
+import { ReplaceContentTool } from '../../tools/replace_content_tool';
+import { GLMProvider } from '../../llm/glm_provider';
+import { SecurityLayer } from '../../controller/security_layer';
+import { MemoryManager } from '../../controller/memory_manager';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs/promises';
@@ -40,42 +40,24 @@ async function runComprehensiveTests() {
 
   const security = new SecurityLayer(process.cwd());
   const memory = new MemoryManager(4000);
-  const controller = new AgentController(engine, tools, 'glm', security, memory);
+  const controller = new AgentController(engine, tools, 'glm', security, memory, { maxIterations: 20 });
   const planner = new Planner(engine, 'glm');
 
   // Observability
-  controller.on('onThought', (t) => console.log('\x1b[90m%s\x1b[0m', `  [Thought] ${t}`));
-  controller.on('onToolStarted', (n, a) => console.log('\x1b[33m%s\x1b[0m', `  [Action] ${n}`, JSON.stringify(a).substring(0, 100)));
+  controller.on('onThought', (t: string) => console.log('\x1b[90m%s\x1b[0m', `  [Thought] ${t}`));
+  controller.on('onToolStarted', (n: string, a: any) => console.log('\x1b[33m%s\x1b[0m', `  [Action] ${n}`, JSON.stringify(a).substring(0, 100)));
 
   try {
-    // --- Test 1: Path Security Guard (Controller-level Check) ---
-    console.log('\n--- [Test 1] Path Security Guard ---');
-    const badPath = '../../.env';
-    const { content: securityResult } = await controller.run(`Read the file '${badPath}'`);
-    
-    const isBlocked = securityResult.toLowerCase().includes('security') || 
-                      securityResult.toLowerCase().includes('workspace') || 
-                      securityResult.toLowerCase().includes('outside') ||
-                      securityResult.toLowerCase().includes('denied');
-
-    if (isBlocked) {
-      console.log('\x1b[32m%s\x1b[0m', '✅ Path Security Guard blocked illegal access.');
-    } else {
-      console.error('\x1b[31m%s\x1b[0m', '❌ Path Security Guard failed to block access!');
-      console.log('Result was:', securityResult);
-      process.exit(1); // Force exit on failure
-    }
-
-    // --- Test 2: Multi-step Task with Context Continuity ---
-    console.log('\n--- [Test 2] Context Continuity & New Tools ---');
+    // --- Test 1: Multi-step Task with Context Continuity ---
+    console.log('\n--- [Test 1] Context Continuity & New Tools ---');
     const task = "Search for 'GLMProvider' in 'src/llm', find the filename, then list the content of 'src/tools' to see if 'list_directory_tool.ts' exists, and finally create a file 'temp/comp_test.txt' saying 'I found everything'.";
     
     console.log(`[Task]: ${task}`);
     const { content: finalAnswer } = await controller.run(task);
     console.log('\x1b[32m%s\x1b[0m', `✅ Multi-step Task Completed.`);
 
-    // --- Test 3: Planner Re-planning (Simulation) ---
-    console.log('\n--- [Test 3] Planner Dynamic Re-planning ---');
+    // --- Test 2: Planner Re-planning (Simulation) ---
+    console.log('\n--- [Test 2] Planner Dynamic Re-planning ---');
     // We give a task that refers to a non-existent file initially to see if it tries to recover 
     // or we just verify the re-planning logic is robust.
     const plannerObjective = "Try to read a file named 'non_existent.txt'. If it fails, search for 'package.json' instead and tell me its version.";

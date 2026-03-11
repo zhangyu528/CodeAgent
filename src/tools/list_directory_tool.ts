@@ -7,7 +7,7 @@ export class ListDirectoryTool implements Tool {
   name = 'list_directory';
   description = 'List the contents of a directory. Returns a structured list of files and folders.';
   parameters = z.object({
-    directoryPath: z.string().optional().default('.').describe('The path to the directory to list (relative to project root).'),
+    directoryPath: z.string().optional().default('.').describe('The path to the directory to list (relative to project root). Use forward slashes (/) for paths even on Windows to avoid escape character issues.'),
   });
 
   async execute(args: { directoryPath: string }): Promise<string> {

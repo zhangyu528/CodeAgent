@@ -56,12 +56,18 @@ export class MemoryManager {
   private truncateIfNeeded() {
     // We always keep the system prompt.
     // We truncate from the beginning of the history (excluding system prompt).
+    // CRITICAL: GLM API requires alternation and tool message consistency.
     
     while (this.history.length > 0 && this.estimateTokens(this.getMessages()) > this.maxTokens) {
       // Remove the oldest message
       this.history.shift();
       
-      // If we still have too many tokens, continue shifting.
+      // Recovery: Ensure the history always starts with a 'user' message.
+      // If we shifted a 'user' message, we might be left with an 'assistant' or 'tool' message.
+      // We must continue shifting until the first message is a 'user' message.
+      while (this.history.length > 0 && this.history[0] && this.history[0].role !== 'user') {
+        this.history.shift();
+      }
     }
   }
 }

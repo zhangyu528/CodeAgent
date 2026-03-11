@@ -18,13 +18,15 @@ export class AgentController extends EventEmitter {
     tools: Tool[], 
     defaultProviderName: string,
     security: SecurityLayer,
-    memory?: MemoryManager
+    memory?: MemoryManager,
+    options?: { maxIterations?: number }
   ) {
     super();
     this.engine = engine;
     this.defaultProviderName = defaultProviderName;
     this.security = security;
     this.memory = memory || new MemoryManager();
+    this.maxIterations = options?.maxIterations ?? 10;
     tools.forEach(tool => this.tools.set(tool.name, tool));
   }
 
@@ -92,6 +94,11 @@ export class AgentController extends EventEmitter {
         const response = await this.engine.generate(this.defaultProviderName, messages, providerTools);
         const message = response.message;
         
+        this.emit('onCompletion', {
+          inputTokens: response.usage?.promptTokens || 0,
+          outputTokens: response.usage?.completionTokens || 0
+        });
+
         this.memory.addMessage(message);
 
         // If LLM wants to call a tool

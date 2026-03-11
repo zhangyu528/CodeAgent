@@ -4,10 +4,12 @@ import { LLMProvider, Message, GenerateOptions, LLMResponse } from './provider';
 export class GLMProvider implements LLMProvider {
   name = 'glm';
   private apiKey: string;
-  private baseUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+  private baseUrl: string;
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey || process.env.GLM_API_KEY || '';
+    this.baseUrl = process.env.GLM_API_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+    
     if (!this.apiKey) {
       throw new Error('GLM_API_KEY is missing. Please set it in .env file.');
     }
@@ -18,9 +20,13 @@ export class GLMProvider implements LLMProvider {
       model: options?.model || 'glm-4',
       temperature: options?.temperature ?? 0.7,
       messages: messages.map(m => {
-        const out: any = { role: m.role, content: m.content || "" };
-        if (m.toolCalls) out.tool_calls = m.toolCalls;
-        if (m.toolCallId) out.tool_call_id = m.toolCallId;
+        const out: any = { role: m.role, content: m.content || (m.toolCalls ? null : "") };
+        if (m.role === 'assistant' && m.toolCalls) {
+          out.tool_calls = m.toolCalls;
+        }
+        if (m.role === 'tool' && m.toolCallId) {
+          out.tool_call_id = m.toolCallId;
+        }
         return out;
       }),
     };
@@ -40,6 +46,11 @@ export class GLMProvider implements LLMProvider {
 
     if (!response.ok) {
       const errorData = await response.text();
+      if (response.status === 400) {
+        console.error('--- GLM 400 Payload Debug ---');
+        console.error(JSON.stringify(payload, null, 2));
+        console.error('-----------------------------');
+      }
       throw new Error(`GLM API Error: ${response.status} - ${errorData}`);
     }
 

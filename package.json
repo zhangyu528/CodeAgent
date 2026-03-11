@@ -6,12 +6,16 @@
   "directories": {
     "doc": "docs"
   },
+  "bin": {
+    "codeagent": "src/index.ts"
+  },
   "scripts": {
     "start": "ts-node src/index.ts",
-    "start:plan": "ts-node src/index.ts --plan",
-    "test:agent": "ts-node src/tests/agent-test.ts",
-    "test:planner": "ts-node src/tests/planner-test.ts",
-    "test:all": "ts-node src/tests/comprehensive-test.ts",
+    "test:unit": "ts-node src/tests/unit/memory_manager.test.ts && ts-node src/tests/unit/security_layer.test.ts",
+    "test:integration": "ts-node src/tests/integration/agent_controller.test.ts && ts-node src/tests/integration/planner.test.ts",
+    "test:security": "ts-node src/tests/security/path_guard.test.ts",
+    "test:e2e": "ts-node src/tests/e2e/comprehensive_workflow.test.ts",
+    "test:all": "npm run test:unit && npm run test:security && npm run test:integration && npm run test:e2e",
     "test": "npm run test:all"
   },
   "repository": {
@@ -26,10 +30,19 @@
   },
   "homepage": "https://github.com/zhangyu528/CodeAgent#readme",
   "dependencies": {
+    "@inquirer/prompts": "^7.10.1",
     "@types/node": "^25.4.0",
+    "chalk": "^4.1.2",
+    "commander": "^14.0.3",
     "dotenv": "^17.3.1",
+    "ora": "^5.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/chalk": "^0.4.31",
+    "@types/commander": "^2.12.0",
+    "@types/ora": "^3.1.0"
   }
 }

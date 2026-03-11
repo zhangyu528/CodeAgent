@@ -1,34 +1,40 @@
+#!/usr/bin/env ts-node
+import { input, confirm } from '@inquirer/prompts';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
 import { LLMEngine } from './llm/engine';
+import { GLMProvider } from './llm/glm_provider';
 import { AgentController } from './controller/agent_controller';
-import { Planner } from './controller/planner';
+import { MemoryManager } from './controller/memory_manager';
+import { SecurityLayer } from './controller/security_layer';
+import { logger, TelemetryMonitor } from './utils/logger';
+
+// Tools
 import { ReadFileTool } from './tools/read_file_tool';
 import { WriteFileTool } from './tools/write_file_tool';
 import { RunCommandTool } from './tools/run_command_tool';
-import { GLMProvider } from './llm/glm_provider';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
-import * as readline from 'readline';
-
 import { ListDirectoryTool } from './tools/list_directory_tool';
 import { FileSearchTool } from './tools/file_search_tool';
 import { ReplaceContentTool } from './tools/replace_content_tool';
 import { SystemInfoTool } from './tools/system_info_tool';
-import { SecurityLayer } from './controller/security_layer';
-import { MemoryManager } from './controller/memory_manager';
+import { EchoTool } from './tools/echo_tool';
 
 // Load environment variables
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config();
 
-const PROVIDER_NAME = 'glm';
+const telemetry = new TelemetryMonitor();
 
-/** Check if --plan flag is present in CLI args */
-function isPlanMode(): boolean {
-  return process.argv.includes('--plan');
-}
+async function createAgent() {
+  const engine = new LLMEngine();
+  
+  if (!process.env.GLM_API_KEY) {
+    logger.error('GLM_API_KEY is missing in .env file.');
+    process.exit(1);
+  }
 
-/** Create the standard tool set, LLM engine, and controller */
-function createAgent(rl: readline.Interface) {
-  // 1. Tools
+  engine.registerProvider(new GLMProvider(process.env.GLM_API_KEY));
+
   const tools = [
     new ReadFileTool(),
     new WriteFileTool(),
@@ -37,125 +43,83 @@ function createAgent(rl: readline.Interface) {
     new FileSearchTool(),
     new ReplaceContentTool(),
     new SystemInfoTool(),
+    new EchoTool(),
   ];
 
-  // 2. LLM Engine
-  const engine = new LLMEngine();
-  const apiKey = process.env.GLM_API_KEY;
-  if (!apiKey) {
-    console.error('\x1b[31m%s\x1b[0m', '[Error] GLM_API_KEY not set. Please configure it in .env');
-    process.exit(1);
-  }
-  const glmProvider = new GLMProvider(apiKey);
-  engine.registerProvider(glmProvider);
-
-  // 3. Security Layer with HITL Handler
-  const security = new SecurityLayer(process.cwd(), async (description) => {
-    console.log('\n\x1b[33m%s\x1b[0m', `⚠️  [Security Approval Required]`);
-    console.log(`Action: ${description}`);
-    
-    return new Promise((resolve) => {
-      rl.question('\x1b[33mApprove this action? (y/n): \x1b[0m', (answer) => {
-        const approved = answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes';
-        resolve(approved);
-      });
+  // HITL Approval Handler using @inquirer/prompts
+  const approvalHandler = async (description: string) => {
+    logger.stopSpinner();
+    const answer = await confirm({
+      message: `[Security] ${description}. Allow?`,
+      default: false
     });
-  });
-
-  // 4. Memory Manager (Sliding Window: 4000 tokens)
-  const memory = new MemoryManager(4000);
-
-  // 5. Controller
-  const controller = new AgentController(engine, tools, PROVIDER_NAME, security, memory);
-
-  // 6. Observability hooks
-  controller.on('onThought', (text) =>
-    console.log('\x1b[90m%s\x1b[0m', `  [Thought] ${text}`)
-  );
-  controller.on('onToolStarted', (name, args) =>
-    console.log('\x1b[33m%s\x1b[0m', `  [Action] ${name}`, JSON.stringify(args).substring(0, 120))
-  );
-  controller.on('onToolFinished', (name, result) => {
-    const preview = typeof result === 'string' ? result : JSON.stringify(result);
-    console.log(
-      '\x1b[35m%s\x1b[0m',
-      `  [Observation] ${name} →`,
-      (preview || '').substring(0, 150) + (preview && preview.length > 150 ? '...' : '')
-    );
-  });
-  controller.on('onFinalAnswer', (text) =>
-    console.log('\x1b[32m%s\x1b[0m', `\n[Answer]\n${text}`)
-  );
-  controller.on('onError', (err) =>
-    console.error('\x1b[31m%s\x1b[0m', `[Error]`, err.message || err)
-  );
-
-  // 7. Planner (only used when --plan flag is given)
-  const planner = new Planner(engine, PROVIDER_NAME);
-
-  return { controller, planner };
-}
-
-/** Interactive CLI read-eval loop */
-async function startCLI() {
-  const planMode = isPlanMode();
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  const { controller, planner } = createAgent(rl);
-
-  console.log('╔══════════════════════════════════════╗');
-  console.log('║        CodeAgent P1 — CLI Mode       ║');
-  console.log(`║   Mode: ${planMode ? 'Planner (multi-step)  ' : 'Direct  (single-step) '}     ║`);
-  console.log('╚══════════════════════════════════════╝');
-  console.log('Type your task below. Enter "exit" or "quit" to stop.\n');
-
-  // Handle Ctrl+C
-  rl.on('SIGINT', () => {
-    console.log('\nStopping CodeAgent...');
-    rl.close();
-    process.exit(0);
-  });
-
-  const askPrompt = () => {
-    rl.question('\x1b[36mYou > \x1b[0m', async (input) => {
-      const trimmed = input.trim();
-      if (!trimmed || trimmed === 'exit' || trimmed === 'quit') {
-        console.log('Goodbye!');
-        rl.close();
-        return;
-      }
-
-      try {
-        if (planMode) {
-          // Planner mode: decompose → execute step-by-step
-          console.log('\n[Planner] Generating plan...');
-          const plan = await planner.createPlan(trimmed);
-          console.log('[Planner] Steps:');
-          plan.steps.forEach(s => console.log(`  ${s.id}. ${s.description}`));
-          console.log('');
-          await planner.executePlan(plan, controller);
-        } else {
-          // Direct mode: single AgentController.run
-          await controller.run(trimmed);
-        }
-        
-        // Show Memory Usage after turn
-        const usage = controller.getMemoryUsage();
-        console.log('\x1b[90m%s\x1b[0m', `[System] Current Context: ~${usage} Tokens`);
-        
-      } catch (err: any) {
-        console.error('\x1b[31m%s\x1b[0m', `[Error] ${err.message || err}`);
-      }
-
-      console.log(''); // blank line separator
-      askPrompt();
-    });
+    return answer;
   };
 
-  askPrompt();
+  const security = new SecurityLayer(process.cwd(), approvalHandler);
+  const memory = new MemoryManager(4000);
+  const controller = new AgentController(engine, tools, 'glm', security, memory);
+
+  // Setup Observability with the new Logger
+  controller.on('onThought', (text) => {
+    logger.startSpinner('Thinking...');
+    logger.thought(text);
+  });
+  
+  controller.on('onToolStarted', (name, args) => {
+    logger.startSpinner(`Executing ${name}...`);
+    logger.action(name, args);
+  });
+  
+  controller.on('onToolFinished', (name, result) => {
+    logger.observation(name, result);
+  });
+
+  controller.on('onCompletion', (usage) => {
+    telemetry.record(usage.inputTokens, usage.outputTokens);
+    logger.tokenUsage(controller.getMemoryUsage(), telemetry);
+  });
+
+  controller.on('onFinalAnswer', (ans) => {
+    logger.answer(ans);
+  });
+
+  controller.on('onError', (err) => {
+    logger.error(err.message || String(err));
+  });
+
+  return { controller };
 }
 
-startCLI().catch(console.error);
+async function startREPL() {
+  const { controller } = await createAgent();
+  
+  console.log(require('chalk').bold.cyan('\n=== CodeAgent Interactive Mode ==='));
+  console.log(require('chalk').dim('Type "exit" or "quit" to end the session.\n'));
+
+  while (true) {
+    try {
+      const task = await input({
+        message: require('chalk').blue('CodeAgent >'),
+      });
+
+      if (!task || task.trim() === '') continue;
+      if (['exit', 'quit'].includes(task.toLowerCase().trim())) {
+        logger.info('Goodbye!');
+        process.exit(0);
+      }
+
+      await controller.run(task);
+    } catch (e: any) {
+      if (e.message?.includes('force closed')) {
+        process.exit(0);
+      }
+      logger.error('Error during execution: ' + e.message);
+    }
+  }
+}
+
+startREPL().catch(err => {
+  logger.error('Fatal error: ' + err.message);
+  process.exit(1);
+});
