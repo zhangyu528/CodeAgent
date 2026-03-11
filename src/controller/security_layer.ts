@@ -8,6 +8,37 @@ export interface SecurityCheckResult {
 
 export type ApprovalHandler = (description: string) => Promise<boolean>;
 
+function isPrivateIpv4(ip: string): boolean {
+  const parts = ip.split('.').map(p => Number(p));
+  if (parts.length !== 4 || parts.some(n => !Number.isInteger(n) || n < 0 || n > 255)) return false;
+
+  const a = parts[0];
+  const b = parts[1];
+  if (a === undefined || b === undefined) return false;
+
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 0) return true;
+  if (a === 169 && b === 254) return true; // link-local
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+
+  return false;
+}
+
+function isPrivateIpv6(host: string): boolean {
+  const h = host.toLowerCase();
+  if (h === '::1') return true;
+  if (h.startsWith('fc') || h.startsWith('fd')) return true; // unique local
+  if (h.startsWith('fe80')) return true; // link-local
+  return false;
+}
+
+function looksLikeIpv4(host: string): boolean {
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host);
+}
+
 export class SecurityLayer {
   private workspaceRoot: string;
   private blockedPatterns: string[] = [
@@ -32,6 +63,24 @@ export class SecurityLayer {
     'wget ',
     '> ',
     '>> ',
+  ];
+
+  private webSensitivePatterns: (string | RegExp)[] = [
+    'password',
+    'passwd',
+    'api_key',
+    'apikey',
+    'secret',
+    'credential',
+    'bearer ',
+    'private key',
+    'ssh-rsa',
+    'token=',
+    'access_token',
+    'refresh_token',
+    '密钥',
+    '密码',
+    /-----begin [a-z0-9 ]*private key-----/i,
   ];
 
   private approvalHandler?: ApprovalHandler | undefined;
@@ -81,15 +130,84 @@ export class SecurityLayer {
   }
 
   /**
+   * Web text check (query/url text): flags sensitive patterns for HITL.
+   */
+  checkWebText(text: string): SecurityCheckResult {
+    const t = (text || '').toLowerCase();
+    for (const p of this.webSensitivePatterns) {
+      if (typeof p === 'string') {
+        if (t.includes(p)) {
+          return { isSafe: true, needsApproval: true, reason: `Web text contains sensitive pattern: "${p}"` };
+        }
+      } else {
+        if (p.test(text || '')) {
+          return { isSafe: true, needsApproval: true, reason: `Web text matches sensitive pattern: ${p.toString()}` };
+        }
+      }
+    }
+    return { isSafe: true, needsApproval: false };
+  }
+
+  /**
+   * URL security check (SSRF guard). Blocks localhost/private IPs and non-http(s) schemes.
+   */
+  checkUrl(url: string): SecurityCheckResult {
+    const raw = String(url || '').trim();
+    if (!raw) return { isSafe: false, needsApproval: false, reason: 'URL is empty' };
+    if (raw.length > 2048) return { isSafe: false, needsApproval: false, reason: 'URL is too long' };
+
+    let u: URL;
+    try {
+      u = new URL(raw);
+    } catch {
+      return { isSafe: false, needsApproval: false, reason: 'Invalid URL' };
+    }
+
+    const protocol = u.protocol.toLowerCase();
+    if (protocol !== 'http:' && protocol !== 'https:') {
+      return { isSafe: false, needsApproval: false, reason: `Disallowed URL scheme: ${protocol}` };
+    }
+
+    const host = u.hostname.toLowerCase();
+    if (host === 'localhost' || host.endsWith('.localhost')) {
+      return { isSafe: false, needsApproval: false, reason: 'Localhost is not allowed' };
+    }
+    if (host.endsWith('.local') || host.endsWith('.internal')) {
+      return { isSafe: false, needsApproval: false, reason: 'Local/internal domains are not allowed' };
+    }
+
+    if (looksLikeIpv4(host)) {
+      if (isPrivateIpv4(host)) {
+        return { isSafe: false, needsApproval: false, reason: `Private IPv4 is not allowed: ${host}` };
+      }
+    } else if (host.includes(':') && isPrivateIpv6(host)) {
+      return { isSafe: false, needsApproval: false, reason: `Private IPv6 is not allowed: ${host}` };
+    }
+
+    if (u.port) {
+      const port = Number(u.port);
+      if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+        return { isSafe: false, needsApproval: false, reason: `Invalid port: ${u.port}` };
+      }
+      if (port !== 80 && port !== 443) {
+        return { isSafe: true, needsApproval: true, reason: `Non-standard port requires approval: ${port}` };
+      }
+    }
+
+    return { isSafe: true, needsApproval: false };
+  }
+
+  /**
    * Request user approval for a sensitive action.
    */
   async requestApproval(description: string): Promise<boolean> {
     if (!this.approvalHandler) {
-      // If no handler (e.g., in automated tests), we might want to fail-closed or fail-open.
-      // For MVP, if HITL is required but no handler exists, we'll be cautious and deny.
       console.warn('[SecurityLayer] Approval required but no handler configured. Denying by default.');
       return false;
     }
     return this.approvalHandler(description);
   }
 }
+
+
+

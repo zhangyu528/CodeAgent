@@ -126,6 +126,42 @@ export class AgentController extends EventEmitter {
                  result = `Error: Security Block. Directory is outside of workspace: ${args.directoryPath}`;
                  isAllowed = false;
                }
+               else if (toolName === 'web_search') {
+                 const check = this.security.checkWebText(String(args.query || ''));
+                 if (!check.isSafe) {
+                   result = `Error: Security block. ${check.reason}`;
+                   isAllowed = false;
+                 } else if (check.needsApproval) {
+                   const approved = await this.security.requestApproval(`Web search approval required: ${check.reason}. Query: ${args.query}`);
+                   if (!approved) {
+                     result = 'Error: Web search denied by user.';
+                     isAllowed = false;
+                   }
+                 }
+               }
+               else if (toolName === 'browse_page') {
+                 const urlStr = String(args.url || '');
+                 const urlCheck = this.security.checkUrl(urlStr);
+                 if (!urlCheck.isSafe) {
+                   result = `Error: Security block. ${urlCheck.reason}`;
+                   isAllowed = false;
+                 } else if (urlCheck.needsApproval) {
+                   const approved = await this.security.requestApproval(`Browse approval required: ${urlCheck.reason}. URL: ${urlStr}`);
+                   if (!approved) {
+                     result = 'Error: Browse denied by user.';
+                     isAllowed = false;
+                   }
+                 }
+
+                 const textCheck = this.security.checkWebText(urlStr);
+                 if (isAllowed && textCheck.needsApproval) {
+                   const approved = await this.security.requestApproval(`Browse URL contains sensitive pattern: ${textCheck.reason}. URL: ${urlStr}`);
+                   if (!approved) {
+                     result = 'Error: Browse denied by user.';
+                     isAllowed = false;
+                   }
+                 }
+               }
                else if (toolName === 'run_command') {
                  // Command validation
                  const check = this.security.checkCommand(args.command);
@@ -171,3 +207,5 @@ export class AgentController extends EventEmitter {
     throw new Error(`Max iterations (${this.maxIterations}) reached.`);
   }
 }
+
+

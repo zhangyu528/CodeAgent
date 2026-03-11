@@ -66,3 +66,10 @@ Other test scripts:
 - `src/controller/`: Agent and Planner logic.
 - `src/llm/`: LLM provider implementations.
 - `src/tests/`: Integration and unit tests.
+## Web Tools (F5)
+
+- web_search: Real-time web search (provider-based).
+- rowse_page: Fetch and extract main page content with summary.
+
+See docs/F5_BROWSER_ENHANCEMENT.md for configuration and safety rules.
+
