@@ -13,12 +13,6 @@ export class ListDirectoryTool implements Tool {
   async execute(args: { directoryPath: string }): Promise<string> {
     try {
       const resolvedPath = path.resolve(process.cwd(), args.directoryPath);
-      
-      // Basic workspace check
-      if (!resolvedPath.startsWith(process.cwd())) {
-        return `Error: Access denied. Path is outside of workspace: ${args.directoryPath}`;
-      }
-
       const entries = await fs.readdir(resolvedPath, { withFileTypes: true });
       
       const result = entries.map(entry => {

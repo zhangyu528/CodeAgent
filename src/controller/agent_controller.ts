@@ -2,24 +2,34 @@ import { LLMEngine } from '../llm/engine';
 import { Tool } from '../tools/tool';
 import { Message } from '../llm/provider';
 import { EventEmitter } from 'events';
+import { MemoryManager } from './memory_manager';
+import { SecurityLayer } from './security_layer';
 
 export class AgentController extends EventEmitter {
   private engine: LLMEngine;
   private tools: Map<string, Tool> = new Map();
   private maxIterations = 10;
   private defaultProviderName: string;
+  private memory: MemoryManager;
+  private security: SecurityLayer;
 
-  constructor(engine: LLMEngine, tools: Tool[], defaultProviderName: string) {
+  constructor(
+    engine: LLMEngine, 
+    tools: Tool[], 
+    defaultProviderName: string,
+    security: SecurityLayer,
+    memory?: MemoryManager
+  ) {
     super();
     this.engine = engine;
     this.defaultProviderName = defaultProviderName;
+    this.security = security;
+    this.memory = memory || new MemoryManager();
     tools.forEach(tool => this.tools.set(tool.name, tool));
   }
 
   private getProviderTools() {
     return Array.from(this.tools.values()).map(tool => {
-        // Simple manual conversion from Zod to JSON Schema for MVP
-        // For actual production, use zod-to-json-schema
         const shape = (tool.parameters as any).shape;
         const properties: any = {};
         const required: string[] = [];
@@ -51,21 +61,22 @@ export class AgentController extends EventEmitter {
     });
   }
 
+  getMemoryUsage(): number {
+    return this.memory.getUsage();
+  }
+
   async run(task: string, initialMessages?: Message[]): Promise<{ content: string; messages: Message[] }> {
     const { getSystemPrompt } = require('../prompts/system_prompt');
-    const systemPromptMessage = getSystemPrompt();
+    const systemPromptMessage = { role: 'system' as const, content: getSystemPrompt() };
 
-    // If initialMessages are provided, we reuse them. 
-    // Otherwise, we start fresh with system prompt + user task.
-    let messages: Message[] = initialMessages || [
-      { role: 'system', content: systemPromptMessage },
-      { role: 'user', content: task }
-    ];
+    this.memory.setSystemPrompt(systemPromptMessage);
 
-    // If history was provided but it doesn't have the task, add it.
-    // (This helps if we want to "continue" a session with a new instruction)
-    if (initialMessages && initialMessages.length > 0 && task) {
-       messages.push({ role: 'user', content: task });
+    if (initialMessages && initialMessages.length > 0) {
+      this.memory.addMessages(initialMessages.filter(m => m.role !== 'system'));
+    }
+    
+    if (task) {
+      this.memory.addMessage({ role: 'user', content: task });
     }
 
     let iteration = 0;
@@ -76,10 +87,12 @@ export class AgentController extends EventEmitter {
 
       try {
         const providerTools = this.getProviderTools();
+        const messages = this.memory.getMessages();
+        
         const response = await this.engine.generate(this.defaultProviderName, messages, providerTools);
         const message = response.message;
         
-        messages.push(message);
+        this.memory.addMessage(message);
 
         // If LLM wants to call a tool
         if (message.toolCalls && message.toolCalls.length > 0) {
@@ -90,34 +103,64 @@ export class AgentController extends EventEmitter {
             this.emit('onToolStarted', toolName, args);
             
             const tool = this.tools.get(toolName);
-            let result: string;
+            let result = '';
             
             if (tool) {
-               result = await tool.execute(args);
+               // 1. Security Check
+               let isAllowed = true;
+               
+               // Path validation (Files)
+               if (args.filePath && !this.security.validatePath(args.filePath)) {
+                 result = `Error: Security Block. Path is outside of workspace: ${args.filePath}`;
+                 isAllowed = false;
+               } 
+               // Path validation (Directories)
+               else if (args.directoryPath && !this.security.validatePath(args.directoryPath)) {
+                 result = `Error: Security Block. Directory is outside of workspace: ${args.directoryPath}`;
+                 isAllowed = false;
+               }
+               else if (toolName === 'run_command') {
+                 // Command validation
+                 const check = this.security.checkCommand(args.command);
+                 if (!check.isSafe) {
+                   result = `Error: Security block. ${check.reason}`;
+                   isAllowed = false;
+                 } else if (check.needsApproval) {
+                   const approved = await this.security.requestApproval(`Execute command: ${args.command}`);
+                   if (!approved) {
+                     result = 'Error: Command execution denied by user.';
+                     isAllowed = false;
+                   }
+                 }
+               }
+
+               if (isAllowed) {
+                 result = await tool.execute(args);
+               }
             } else {
                result = `Error: Tool ${toolName} not found.`;
             }
             
             this.emit('onToolFinished', toolName, result);
             
-            messages.push({
+            this.memory.addMessage({
               role: 'tool',
               content: result,
               toolCallId: toolCall.id
             });
           }
         } else {
-          // If no tools are called, returned the LLM's text as the final answer
+          // If no tools are called, return the LLM's text as the final answer
           this.emit('onFinalAnswer', message.content);
-          return { content: message.content, messages };
+          return { content: message.content, messages: this.memory.getMessages() };
         }
 
       } catch (error: any) {
         this.emit('onError', error);
-        throw error; // Or handle/retry
+        throw error;
       }
     }
 
-    throw new Error(`Max iterations (${this.maxIterations}) reached without a final answer.`);
+    throw new Error(`Max iterations (${this.maxIterations}) reached.`);
   }
 }

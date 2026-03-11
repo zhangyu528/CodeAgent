@@ -15,12 +15,6 @@ export class ReplaceContentTool implements Tool {
   async execute(args: { filePath: string; targetContent: string; replacementContent: string }): Promise<string> {
     try {
       const resolvedPath = path.resolve(process.cwd(), args.filePath);
-      
-      // Basic workspace check
-      if (!resolvedPath.startsWith(process.cwd())) {
-        return `Error: Access denied. Path is outside of workspace: ${args.filePath}`;
-      }
-
       const content = await fs.readFile(resolvedPath, 'utf-8');
       
       if (!content.includes(args.targetContent)) {
