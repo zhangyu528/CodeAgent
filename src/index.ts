@@ -7,6 +7,7 @@ import { registerProvidersFromEnv } from './llm/register_providers';
 import { AgentController } from './controller/agent_controller';
 import { MemoryManager } from './controller/memory_manager';
 import { SecurityLayer } from './controller/security_layer';
+import { ContextInformer } from './controller/context_informer';
 import { logger, TelemetryMonitor } from './utils/logger';
 
 // Tools
@@ -18,6 +19,9 @@ import { FileSearchTool } from './tools/file_search_tool';
 import { ReplaceContentTool } from './tools/replace_content_tool';
 import { SystemInfoTool } from './tools/system_info_tool';
 import { EchoTool } from './tools/echo_tool';
+import { SearchCodeTool } from './tools/search_code_tool';
+import { FindDefinitionTool } from './tools/find_definition_tool';
+import { ListTreeTool } from './tools/list_tree_tool';
 
 // Load environment variables
 dotenv.config();
@@ -61,6 +65,9 @@ async function createAgent() {
     new ReplaceContentTool(),
     new SystemInfoTool(),
     new EchoTool(),
+    new SearchCodeTool(),
+    new FindDefinitionTool(),
+    new ListTreeTool(),
   ];
 
   // HITL Approval Handler using @inquirer/prompts
@@ -74,8 +81,29 @@ async function createAgent() {
   };
 
   const security = new SecurityLayer(process.cwd(), approvalHandler);
+
+  // F6: Workspace Trust Check
+  const isTrusted = await security.isWorkspaceTrusted();
+  if (!isTrusted) {
+    const root = process.cwd();
+    console.log(`\n\x1b[33m[Security Warning]\x1b[0m Detect start in untrusted directory: \x1b[36m${root}\x1b[0m`);
+    const answer = await confirm({ 
+      message: 'Do you trust this workspace and allow CodeAgent to access and modify files?', 
+      default: false 
+    });
+
+    if (!answer) {
+      console.log('\x1b[31m[Security] Access denied. Exiting.\x1b[0m');
+      process.exit(0);
+    }
+    await security.grantWorkspaceTrust();
+    console.log('\x1b[32m[Security] Workspace authorized.\x1b[0m\n');
+  }
+
   const memory = new MemoryManager(4000);
-  const controller = new AgentController(engine, tools, defaultProvider, security, memory);
+  const contextInformer = new ContextInformer();
+  const bootSnapshot = await contextInformer.buildBootSnapshot(process.cwd());
+  const controller = new AgentController(engine, tools, defaultProvider, security, memory, { systemPromptContext: { bootSnapshot } });
 
   // Setup Observability with the new Logger
   controller.on('onThought', (text) => {
@@ -171,3 +199,4 @@ startREPL().catch(err => {
   logger.error('Fatal error: ' + err.message);
   process.exit(1);
 });
+

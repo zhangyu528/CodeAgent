@@ -12,6 +12,7 @@ export class AgentController extends EventEmitter {
   private defaultProviderName: string;
   private memory: MemoryManager;
   private security: SecurityLayer;
+  private systemPromptContext?: { bootSnapshot?: string };
 
   constructor(
     engine: LLMEngine,
@@ -19,7 +20,7 @@ export class AgentController extends EventEmitter {
     defaultProviderName: string,
     security: SecurityLayer,
     memory?: MemoryManager,
-    options?: { maxIterations?: number }
+    options?: { maxIterations?: number; systemPromptContext?: { bootSnapshot?: string } }
   ) {
     super();
     this.engine = engine;
@@ -27,6 +28,7 @@ export class AgentController extends EventEmitter {
     this.security = security;
     this.memory = memory || new MemoryManager();
     this.maxIterations = options?.maxIterations ?? 10;
+    this.systemPromptContext = options?.systemPromptContext;
     tools.forEach(tool => this.tools.set(tool.name, tool));
   }
 
@@ -77,7 +79,7 @@ export class AgentController extends EventEmitter {
 
   async run(task: string, initialMessages?: Message[]): Promise<{ content: string; messages: Message[] }> {
     const { getSystemPrompt } = require('../prompts/system_prompt');
-    const systemPromptMessage = { role: 'system' as const, content: getSystemPrompt() };
+    const systemPromptMessage = { role: 'system' as const, content: getSystemPrompt(this.systemPromptContext) };
 
     this.memory.setSystemPrompt(systemPromptMessage);
 
@@ -178,3 +180,4 @@ export class AgentController extends EventEmitter {
     throw new Error(`Max iterations (${this.maxIterations}) reached.`);
   }
 }
+
