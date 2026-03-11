@@ -7,8 +7,9 @@ CodeAgent is an AI-powered coding assistant that can plan and execute complex de
 - **Advanced Toolset**: Read/Write files, run shell commands, structured directory listing, global text search, and precise content replacement.
 - **Task Planning**: Decomposes complex user objectives into actionable multi-step plans.
 - **Self-Correction**: Automatically analyzes command errors (stderr) and attempts to fix them.
-- **Context Continuity**: Maintains conversation history across multiple planning steps.
-- **Safety Guards**: Includes workspace path validation and a basic command blocklist.
+- **Safety Guards**: Workspace path validation, command blocklist, and **Human-in-the-Loop (HITL)** for sensitive operations.
+- **Memory Management**: Token-aware sliding window memory (~4000 tokens) ensuring context stability.
+- **Observability**: Real-time token usage display and detailed turn-by-turn action logging.
 
 ## Prerequisites
 

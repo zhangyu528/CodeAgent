@@ -13,12 +13,6 @@ export class ReadFileTool implements Tool {
   async execute(args: { filePath: string }): Promise<string> {
     try {
       const resolvedPath = path.resolve(process.cwd(), args.filePath);
-      
-      // Security Layer: Resolve to absolute, check workspace
-      if (!resolvedPath.startsWith(process.cwd())) {
-        return `Error: Access denied. Path is outside of workspace: ${args.filePath}`;
-      }
-
       const content = await fs.readFile(resolvedPath, 'utf-8');
       return content;
     } catch (error: any) {

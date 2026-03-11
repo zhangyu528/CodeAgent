@@ -5,6 +5,8 @@ import { ReadFileTool } from '../tools/read_file_tool';
 import { WriteFileTool } from '../tools/write_file_tool';
 import { RunCommandTool } from '../tools/run_command_tool';
 import { GLMProvider } from '../llm/glm_provider';
+import { SecurityLayer } from '../controller/security_layer';
+import { MemoryManager } from '../controller/memory_manager';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -24,13 +26,15 @@ async function testPlanner() {
       new RunCommandTool()
     ];
 
-    const controller = new AgentController(engine, tools, 'glm');
+    const security = new SecurityLayer(process.cwd());
+    const memory = new MemoryManager(4000);
+    const controller = new AgentController(engine, tools, 'glm', security, memory);
     const planner = new Planner(engine, 'glm');
 
     // Observability
-    controller.on('onThought', (t) => console.log('\x1b[90m%s\x1b[0m', `  [Thought] ${t}`));
-    controller.on('onToolStarted', (n, a) => console.log('\x1b[33m%s\x1b[0m', `  [Action] ${n}`, a));
-    controller.on('onFinalAnswer', (ans) => console.log('\x1b[32m%s\x1b[0m', `  [Answer] ${ans}`));
+    controller.on('onThought', (t: string) => console.log('\x1b[90m%s\x1b[0m', `  [Thought] ${t}`));
+    controller.on('onToolStarted', (n: string, a: any) => console.log('\x1b[33m%s\x1b[0m', `  [Action] ${n}`, a));
+    controller.on('onFinalAnswer', (ans: string) => console.log('\x1b[32m%s\x1b[0m', `  [Answer] ${ans}`));
 
     const objective = "Create a directory 'temp/p1_dist', create a file 'info.txt' inside it with the text 'Hello from Planner', and list the directory to confirm.";
 
@@ -40,7 +44,7 @@ async function testPlanner() {
     console.log('--- Generating Plan ---');
     const plan = await planner.createPlan(objective);
     console.log('Detected Steps:');
-    plan.steps.forEach(s => console.log(` - ${s.id}: ${s.description}`));
+    plan.steps.forEach((s: any) => console.log(` - ${s.id}: ${s.description}`));
 
     // Step 2: Execute Plan
     console.log('\n--- Executing Plan ---');

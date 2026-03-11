@@ -8,6 +8,8 @@ import { ListDirectoryTool } from '../tools/list_directory_tool';
 import { FileSearchTool } from '../tools/file_search_tool';
 import { ReplaceContentTool } from '../tools/replace_content_tool';
 import { GLMProvider } from '../llm/glm_provider';
+import { SecurityLayer } from '../controller/security_layer';
+import { MemoryManager } from '../controller/memory_manager';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs/promises';
@@ -36,7 +38,9 @@ async function runComprehensiveTests() {
     new ReplaceContentTool(),
   ];
 
-  const controller = new AgentController(engine, tools, 'glm');
+  const security = new SecurityLayer(process.cwd());
+  const memory = new MemoryManager(4000);
+  const controller = new AgentController(engine, tools, 'glm', security, memory);
   const planner = new Planner(engine, 'glm');
 
   // Observability
@@ -44,15 +48,22 @@ async function runComprehensiveTests() {
   controller.on('onToolStarted', (n, a) => console.log('\x1b[33m%s\x1b[0m', `  [Action] ${n}`, JSON.stringify(a).substring(0, 100)));
 
   try {
-    // --- Test 1: Path Security (Programmatic Check) ---
+    // --- Test 1: Path Security Guard (Controller-level Check) ---
     console.log('\n--- [Test 1] Path Security Guard ---');
-    const readFile = new ReadFileTool();
     const badPath = '../../.env';
-    const securityResult = await readFile.execute({ filePath: badPath });
-    if (securityResult.includes('Access denied')) {
+    const { content: securityResult } = await controller.run(`Read the file '${badPath}'`);
+    
+    const isBlocked = securityResult.toLowerCase().includes('security') || 
+                      securityResult.toLowerCase().includes('workspace') || 
+                      securityResult.toLowerCase().includes('outside') ||
+                      securityResult.toLowerCase().includes('denied');
+
+    if (isBlocked) {
       console.log('\x1b[32m%s\x1b[0m', '✅ Path Security Guard blocked illegal access.');
     } else {
       console.error('\x1b[31m%s\x1b[0m', '❌ Path Security Guard failed to block access!');
+      console.log('Result was:', securityResult);
+      process.exit(1); // Force exit on failure
     }
 
     // --- Test 2: Multi-step Task with Context Continuity ---

@@ -14,12 +14,6 @@ export class WriteFileTool implements Tool {
   async execute(args: { filePath: string; content: string }): Promise<string> {
     try {
       const resolvedPath = path.resolve(process.cwd(), args.filePath);
-      
-      // Security Layer: Resolve to absolute, check workspace
-      if (!resolvedPath.startsWith(process.cwd())) {
-        return `Error: Access denied. Path is outside of workspace: ${args.filePath}`;
-      }
-
       const parentDir = path.dirname(resolvedPath);
 
       // Ensure parent directory exists (recursive)

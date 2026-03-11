@@ -27,18 +27,6 @@ function truncateOutput(text: string, maxLen: number = MAX_OUTPUT_LENGTH): strin
   );
 }
 
-/** Basic command blocklist for safety */
-const BLOCKED_COMMANDS = [
-  'rm -rf /',
-  'rm -rf *',
-  'format',
-  'mkfs',
-  'shutdown',
-  'reboot',
-  '> /dev/',
-  'chmod -R 777 /',
-];
-
 export class RunCommandTool implements Tool {
   name = 'run_command';
   description = 'Execute a shell command in the local environment and return the output (stdout and stderr).';
@@ -48,14 +36,6 @@ export class RunCommandTool implements Tool {
   });
 
   async execute(args: { command: string; timeout?: number }): Promise<string> {
-    // Basic safety check
-    const lowerCmd = args.command.toLowerCase();
-    for (const blocked of BLOCKED_COMMANDS) {
-      if (lowerCmd.includes(blocked)) {
-        return `Error: Command contains blocked pattern: "${blocked}". This operation is restricted for safety.`;
-      }
-    }
-
     try {
       const { stdout, stderr } = await execAsync(args.command, {
         timeout: args.timeout,

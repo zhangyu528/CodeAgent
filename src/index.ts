@@ -13,6 +13,8 @@ import { ListDirectoryTool } from './tools/list_directory_tool';
 import { FileSearchTool } from './tools/file_search_tool';
 import { ReplaceContentTool } from './tools/replace_content_tool';
 import { SystemInfoTool } from './tools/system_info_tool';
+import { SecurityLayer } from './controller/security_layer';
+import { MemoryManager } from './controller/memory_manager';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -25,7 +27,7 @@ function isPlanMode(): boolean {
 }
 
 /** Create the standard tool set, LLM engine, and controller */
-function createAgent() {
+function createAgent(rl: readline.Interface) {
   // 1. Tools
   const tools = [
     new ReadFileTool(),
@@ -47,10 +49,26 @@ function createAgent() {
   const glmProvider = new GLMProvider(apiKey);
   engine.registerProvider(glmProvider);
 
-  // 3. Controller
-  const controller = new AgentController(engine, tools, PROVIDER_NAME);
+  // 3. Security Layer with HITL Handler
+  const security = new SecurityLayer(process.cwd(), async (description) => {
+    console.log('\n\x1b[33m%s\x1b[0m', `⚠️  [Security Approval Required]`);
+    console.log(`Action: ${description}`);
+    
+    return new Promise((resolve) => {
+      rl.question('\x1b[33mApprove this action? (y/n): \x1b[0m', (answer) => {
+        const approved = answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes';
+        resolve(approved);
+      });
+    });
+  });
 
-  // 4. Observability hooks
+  // 4. Memory Manager (Sliding Window: 4000 tokens)
+  const memory = new MemoryManager(4000);
+
+  // 5. Controller
+  const controller = new AgentController(engine, tools, PROVIDER_NAME, security, memory);
+
+  // 6. Observability hooks
   controller.on('onThought', (text) =>
     console.log('\x1b[90m%s\x1b[0m', `  [Thought] ${text}`)
   );
@@ -72,7 +90,7 @@ function createAgent() {
     console.error('\x1b[31m%s\x1b[0m', `[Error]`, err.message || err)
   );
 
-  // 5. Planner (only used when --plan flag is given)
+  // 7. Planner (only used when --plan flag is given)
   const planner = new Planner(engine, PROVIDER_NAME);
 
   return { controller, planner };
@@ -81,18 +99,18 @@ function createAgent() {
 /** Interactive CLI read-eval loop */
 async function startCLI() {
   const planMode = isPlanMode();
-  const { controller, planner } = createAgent();
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const { controller, planner } = createAgent(rl);
 
   console.log('╔══════════════════════════════════════╗');
   console.log('║        CodeAgent P1 — CLI Mode       ║');
   console.log(`║   Mode: ${planMode ? 'Planner (multi-step)  ' : 'Direct  (single-step) '}     ║`);
   console.log('╚══════════════════════════════════════╝');
   console.log('Type your task below. Enter "exit" or "quit" to stop.\n');
-
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
 
   // Handle Ctrl+C
   rl.on('SIGINT', () => {
@@ -123,6 +141,11 @@ async function startCLI() {
           // Direct mode: single AgentController.run
           await controller.run(trimmed);
         }
+        
+        // Show Memory Usage after turn
+        const usage = controller.getMemoryUsage();
+        console.log('\x1b[90m%s\x1b[0m', `[System] Current Context: ~${usage} Tokens`);
+        
       } catch (err: any) {
         console.error('\x1b[31m%s\x1b[0m', `[Error] ${err.message || err}`);
       }

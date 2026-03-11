@@ -3,6 +3,8 @@ import { AgentController } from '../controller/agent_controller';
 import { ReadFileTool } from '../tools/read_file_tool';
 import { EchoTool } from '../tools/echo_tool';
 import { GLMProvider } from '../llm/glm_provider';
+import { SecurityLayer } from '../controller/security_layer';
+import { MemoryManager } from '../controller/memory_manager';
 import { WriteFileTool } from '../tools/write_file_tool';
 import { RunCommandTool } from '../tools/run_command_tool';
 import * as dotenv from 'dotenv';
@@ -28,17 +30,19 @@ async function runTests() {
     engine.registerProvider(glmProvider);
 
     // 3. Initialize Controller
-    const controller = new AgentController(engine, tools, 'glm');
+    const security = new SecurityLayer(process.cwd());
+    const memory = new MemoryManager(4000);
+    const controller = new AgentController(engine, tools, 'glm', security, memory);
 
     // 4. Setup Observability Hooks
-    controller.on('onThought', (text) => console.log('\x1b[36m%s\x1b[0m', `[Thought] ${text}`));
-    controller.on('onToolStarted', (name, args) => console.log('\x1b[33m%s\x1b[0m', `[Action] Calling Tool: ${name}`, args));
-    controller.on('onToolFinished', (name, result) => {
+    controller.on('onThought', (text: string) => console.log('\x1b[36m%s\x1b[0m', `[Thought] ${text}`));
+    controller.on('onToolStarted', (name: string, args: any) => console.log('\x1b[33m%s\x1b[0m', `[Action] Calling Tool: ${name}`, args));
+    controller.on('onToolFinished', (name: string, result: any) => {
       let resStr = typeof result === 'string' ? result : JSON.stringify(result);
       if (!resStr) resStr = '';
       console.log('\x1b[35m%s\x1b[0m', `[Observation] Tool ${name} returned:`, resStr.substring(0, 150) + (resStr.length > 150 ? '...' : ''));
     });
-    controller.on('onError', (err) => console.error('\x1b[31m%s\x1b[0m', `[Fatal Error]`, err.message || err));
+    controller.on('onError', (err: any) => console.error('\x1b[31m%s\x1b[0m', `[Fatal Error]`, err.message || err));
 
     // Test Case: Read, Write and List Files using LLM
     const testFilePath = 'package.json';
