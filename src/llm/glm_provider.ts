@@ -1,15 +1,24 @@
 import { LLMProvider, Message, GenerateOptions, LLMResponse } from './provider';
 
+function normalizeGLMUsage(usage: any | undefined) {
+  const promptTokens = usage?.promptTokens ?? usage?.prompt_tokens ?? usage?.input_tokens ?? 0;
+  const completionTokens = usage?.completionTokens ?? usage?.completion_tokens ?? usage?.output_tokens ?? 0;
+  const totalTokens = usage?.totalTokens ?? usage?.total_tokens ?? (promptTokens + completionTokens);
+  return { promptTokens, completionTokens, totalTokens };
+}
+
 // A provider implementation for Zhipu AI (GLM models)
 export class GLMProvider implements LLMProvider {
   name = 'glm';
   private apiKey: string;
   private baseUrl: string;
+  private defaultModel: string;
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey || process.env.GLM_API_KEY || '';
     this.baseUrl = process.env.GLM_API_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-    
+    this.defaultModel = process.env.GLM_MODEL || process.env.DEFAULT_MODEL_NAME || 'glm-4';
+
     if (!this.apiKey) {
       throw new Error('GLM_API_KEY is missing. Please set it in .env file.');
     }
@@ -17,10 +26,10 @@ export class GLMProvider implements LLMProvider {
 
   async generate(messages: Message[], tools?: any[], options?: GenerateOptions): Promise<LLMResponse> {
     const payload: any = {
-      model: options?.model || 'glm-4',
+      model: options?.model || this.defaultModel,
       temperature: options?.temperature ?? 0.7,
       messages: messages.map(m => {
-        const out: any = { role: m.role, content: m.content || (m.toolCalls ? null : "") };
+        const out: any = { role: m.role, content: m.content || (m.toolCalls ? null : '') };
         if (m.role === 'assistant' && m.toolCalls) {
           out.tool_calls = m.toolCalls;
         }
@@ -39,9 +48,9 @@ export class GLMProvider implements LLMProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
+        Authorization: `Bearer ${this.apiKey}`,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -57,13 +66,15 @@ export class GLMProvider implements LLMProvider {
     const data = await response.json();
     const message = data.choices[0].message;
 
+    const outMsg: any = {
+      role: message.role,
+      content: message.content || '',
+    };
+    if (message.tool_calls) outMsg.toolCalls = message.tool_calls;
+
     return {
-      message: {
-        role: message.role,
-        content: message.content || '',
-        toolCalls: message.tool_calls
-      },
-      usage: data.usage
+      message: outMsg,
+      usage: normalizeGLMUsage(data.usage),
     };
   }
 }

@@ -10,12 +10,13 @@ CodeAgent is an AI-powered coding assistant that can plan and execute complex de
 - **Safety Guards**: Workspace path validation, command blocklist, and **Human-in-the-Loop (HITL)** for sensitive operations.
 - **Memory Management**: Token-aware sliding window memory (~4000 tokens) ensuring context stability.
 - **Observability**: Real-time token usage display and detailed turn-by-turn action logging.
+- **Multi-Provider LLM**: Register OpenAI/Anthropic/DeepSeek/Ollama (and legacy GLM) via `.env`, switch at runtime with `/model`.
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v16+)
 - [npm](https://www.npmjs.com/)
-- A valid GLM API Key (Zhipu AI).
+- At least one configured LLM provider in `.env` (see `.env.example`).
 
 ## Setup
 
@@ -25,11 +26,10 @@ CodeAgent is an AI-powered coding assistant that can plan and execute complex de
     ```
 
 2.  **Configure environment**:
-    Copy `.env.example` to `.env` and fill in your API key:
+    Copy `.env.example` to `.env` and fill in your provider config:
     ```bash
     cp .env.example .env
     ```
-    Required field: `GLM_API_KEY`.
 
 ## Usage
 
@@ -42,11 +42,12 @@ Or use the global command if installed:
 ```bash
 codeagent
 ```
-Once started, you can type instructions at the `CodeAgent >` prompt. The agent maintains context throughout the entire session.
 
 ### Commands inside REPL
 - Type your instruction (e.g., "Create a file temp/test.txt")
 - Type **exit** or **quit** to end the session.
+- Type `/model` to show current/available providers.
+- Type `/model <provider>` to switch provider (e.g., `/model deepseek`).
 
 ## Testing
 

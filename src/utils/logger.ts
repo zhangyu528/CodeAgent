@@ -1,31 +1,62 @@
 import chalk from 'chalk';
 import ora from 'ora';
 
+type ProviderUsage = {
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export class TelemetryMonitor {
-  private totalInputTokens: number = 0;
-  private totalOutputTokens: number = 0;
-  
-  // Base rates (approximate for GLM/OpenAI style models)
-  // These are example rates per 1K tokens
+  private byProvider: Map<string, ProviderUsage> = new Map();
+
+  // Base rates (approximate)
+  // Example rates per 1K tokens
   private rates = {
-    input: 0.005, // $0.005 per 1K tokens
-    output: 0.015 // $0.015 per 1K tokens
+    input: 0.005,
+    output: 0.015,
   };
 
-  record(input: number, output: number) {
-    this.totalInputTokens += input;
-    this.totalOutputTokens += output;
+  // Backward compatible: record(input, output) or record(provider, input, output)
+  record(providerOrInput: string | number, inputOrOutput: number, outputMaybe?: number) {
+    const provider = typeof providerOrInput === 'string' ? providerOrInput : 'unknown';
+    const input = typeof providerOrInput === 'string' ? inputOrOutput : providerOrInput;
+    const output = typeof providerOrInput === 'string' ? (outputMaybe ?? 0) : inputOrOutput;
+
+    const key = (provider || 'unknown').toLowerCase();
+    const existing = this.byProvider.get(key) || { inputTokens: 0, outputTokens: 0 };
+    existing.inputTokens += input;
+    existing.outputTokens += output;
+    this.byProvider.set(key, existing);
   }
 
   getSummary() {
-    const cost = ((this.totalInputTokens * this.rates.input) / 1000) + 
-                 ((this.totalOutputTokens * this.rates.output) / 1000);
-    
+    const byProvider = Array.from(this.byProvider.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, usage]) => {
+        const cost = ((usage.inputTokens * this.rates.input) / 1000) + ((usage.outputTokens * this.rates.output) / 1000);
+        return {
+          provider: name,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.inputTokens + usage.outputTokens,
+          estimatedCost: cost,
+        };
+      });
+
+    const totalInputTokens = byProvider.reduce((sum, p) => sum + p.inputTokens, 0);
+    const totalOutputTokens = byProvider.reduce((sum, p) => sum + p.outputTokens, 0);
+    const totalCost = byProvider.reduce((sum, p) => sum + p.estimatedCost, 0);
+
     return {
-      inputTokens: this.totalInputTokens,
-      outputTokens: this.totalOutputTokens,
-      totalTokens: this.totalInputTokens + this.totalOutputTokens,
-      estimatedCost: cost.toFixed(4)
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      totalTokens: totalInputTokens + totalOutputTokens,
+      estimatedCost: totalCost.toFixed(4),
+      byProvider: byProvider.map(p => ({
+        provider: p.provider,
+        totalTokens: p.totalTokens,
+        estimatedCost: p.estimatedCost.toFixed(4),
+      })),
     };
   }
 }
@@ -77,13 +108,24 @@ export class Logger {
     console.log(chalk.cyan(`\n[Info] ${msg}`));
   }
 
-  tokenUsage(usage: number, telemetry?: TelemetryMonitor) {
+  tokenUsage(usage: number, telemetry?: TelemetryMonitor, currentProvider?: string) {
     this.stopSpinner();
     let text = `[System] Current Context: ~${usage} Tokens`;
+
     if (telemetry) {
       const summary = telemetry.getSummary();
+      const providerLabel = currentProvider ? currentProvider : 'unknown';
+      text += ` | Current Provider: ${providerLabel}`;
       text += ` | Total Session: ${summary.totalTokens} Tokens ($${summary.estimatedCost})`;
+
+      if (summary.byProvider && summary.byProvider.length > 0) {
+        const breakdown = summary.byProvider
+          .map(p => `${p.provider}: ${p.totalTokens} ($${p.estimatedCost})`)
+          .join(' | ');
+        text += ` | ${breakdown}`;
+      }
     }
+
     console.log(chalk.dim(`  ${text}`));
   }
 }

@@ -11,7 +11,7 @@
   },
   "scripts": {
     "start": "ts-node src/index.ts",
-    "test:unit": "ts-node src/tests/unit/memory_manager.test.ts && ts-node src/tests/unit/security_layer.test.ts",
+    "test:unit": "ts-node src/tests/unit/memory_manager.test.ts && ts-node src/tests/unit/security_layer.test.ts && ts-node src/tests/unit/telemetry_monitor.test.ts && ts-node src/tests/unit/register_providers.test.ts",
     "test:integration": "ts-node src/tests/integration/agent_controller.test.ts && ts-node src/tests/integration/planner.test.ts",
     "test:security": "ts-node src/tests/security/path_guard.test.ts",
     "test:e2e": "ts-node src/tests/e2e/comprehensive_workflow.test.ts",
