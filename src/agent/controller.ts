@@ -4,6 +4,8 @@ import type { LLMEngine } from "../llm/engine.js";
 import type { Message } from "../types.js";
 import type { ToolSystem } from "../tools/tool-system.js";
 import { MemoryManager } from "../memory/memory-manager.js";
+import { VectorStore } from "../memory/vector-store.js";
+import { GLMEmbeddingProvider, HashEmbeddingProvider } from "../memory/embedding-provider.js";
 
 export class AgentController {
   constructor(
@@ -15,6 +17,7 @@ export class AgentController {
   async run(task: string, model: string): Promise<string> {
     const systemPrompt = await this.loadSystemPrompt();
     const developerPrompt = await this.loadDeveloperPrompt();
+    const retrieved = await this.maybeRetrieve(task);
     const memory = new MemoryManager({ maxItems: this.maxMemoryItems() });
     await memory.add({
       role: "system",
@@ -24,6 +27,12 @@ export class AgentController {
       role: "system",
       content: developerPrompt,
     });
+    if (retrieved) {
+      await memory.add({
+        role: "system",
+        content: `Retrieved memory:\n${retrieved}`,
+      });
+    }
     await memory.add({ role: "user", content: task });
 
     const maxTurns = 4;
@@ -159,5 +168,56 @@ export class AgentController {
       return 40;
     }
     return value;
+  }
+
+  private async maybeRetrieve(task: string): Promise<string | null> {
+    if (!this.shouldRetrieve(task)) {
+      return null;
+    }
+    const store = new VectorStore({ provider: this.resolveEmbeddingProvider() });
+    await store.load();
+    const results = await store.search(task, 3);
+    if (results.length === 0) {
+      return null;
+    }
+    return results.map((item) => `- ${item.text}`).join("\n");
+  }
+
+  private shouldRetrieve(task: string): boolean {
+    const keywords = [
+      "previous",
+      "earlier",
+      "last time",
+      "history",
+      "remember",
+      "prior",
+      "before",
+      "之前",
+      "上次",
+      "历史",
+      "记住",
+    ];
+    const lower = task.toLowerCase();
+    return keywords.some((keyword) => lower.includes(keyword));
+  }
+
+  private resolveEmbeddingProvider() {
+    const provider = (process.env.EMBEDDING_PROVIDER ?? "hash").toLowerCase();
+    if (provider === "glm") {
+      const apiKey = process.env.GLM_API_KEY;
+      const baseUrl = process.env.GLM_BASE_URL || "https://open.bigmodel.cn/api/paas/v4";
+      const model = process.env.EMBEDDING_MODEL ?? "embedding-3";
+      if (!apiKey) {
+        throw new Error("Missing GLM_API_KEY env var for embedding.");
+      }
+      return new GLMEmbeddingProvider({
+        apiKey,
+        baseUrl,
+        model,
+        dimension: Number(process.env.EMBEDDING_DIMENSION ?? "1024"),
+      });
+    }
+    const dimension = Number(process.env.EMBEDDING_DIMENSION ?? "128");
+    return new HashEmbeddingProvider(Number.isNaN(dimension) ? 128 : dimension);
   }
 }

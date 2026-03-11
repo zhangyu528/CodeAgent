@@ -8,8 +8,8 @@ p0-core-supplement
 - 工具 schema 单一来源（zod -> JSON Schema 自动转换）【完成】
 - 工具安全边界（ReadFileTool 仅允许仓库内文件）【完成】
 - 错误可诊断（工具/模型错误需要可读输出与上下文）【完成】
-- 错误分层（LLM / Tool / Agent 编排阶段区分）【未完成】
-- RunCommandTool（含白名单、工作目录限制、超时）【未完成】
+- 错误分层（LLM / Tool / Agent 编排阶段区分）【完成】
+- RunCommandTool（含白名单、工作目录限制、超时）【完成】
 
 ## P0 强烈建议项
 
@@ -20,7 +20,7 @@ p0-core-supplement
 ## 可选但有价值
 
 - generateStream（流式输出）【未完成】
-- 最基本上下文策略（比如保留最近 N 轮）【未完成】
+- 最基本上下文策略（比如保留最近 N 轮）【完成】
 
 ## System Prompt
 
@@ -48,3 +48,14 @@ p0-core-supplement
 - 固定用例集（`eval/cases.json`）与回归脚本【未完成】
 - 固定模型与温度（如温度=0）以减少随机性【未完成】
 - 验证工具调用是否出现（tool_call 断言）【未完成】
+
+## P2 进展（里程碑标记）
+
+- Memory 最小可用：短期记忆 + JSON 持久化【完成】
+- Security Layer：路径校验 + 命令校验 + CLI HITL【完成】
+
+## P3 进展（里程碑标记）
+
+- 向量存储与检索（VectorStore + 搜索脚本）【完成】
+- Embedding Provider 切换（hash/glm）【完成】
+- 服务化接口（/health, /run）【完成】

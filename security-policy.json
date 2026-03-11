@@ -1,0 +1,9 @@
+{
+  "levels": {
+    "low": ["read_file", "list_dir", "rg", "cat", "ls", "npm test"],
+    "medium": ["git checkout", "git commit", "npm install", "npm run build", "rm", "mv", "cp"],
+    "high": ["rm -rf", "mkfs", "dd", "chmod", "chown", "curl", "wget", "git push", "npm publish"]
+  },
+  "default": "medium",
+  "notes": "Commands are matched by prefix. High-risk commands require explicit approval or are blocked."
+}

@@ -16,7 +16,8 @@ export const RunCommandTool: Tool<typeof parameters> = {
   parameters,
   async execute(args) {
     const resolved = splitCommand(args.cmd, args.args);
-    const securityLayer = new SecurityLayer(process.cwd());
+    const securityLayer = new SecurityLayer(process.cwd(), { policyPath: "security-policy.json" });
+    await securityLayer.loadPolicy("security-policy.json");
     const result = await runCommand(resolved.cmd, resolved.args, {
       cwd: args.cwd,
       timeoutMs: args.timeout_ms,

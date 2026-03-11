@@ -1,6 +1,7 @@
 import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { readFile } from "node:fs/promises";
 
 export interface CommandCheckResult {
   isAllowed: boolean;
@@ -11,6 +12,7 @@ export interface CommandCheckResult {
 export interface SecurityLayerOptions {
   blockedCommands?: string[];
   reviewCommands?: string[];
+  policyPath?: string;
 }
 
 export class SecurityLayer {
@@ -23,6 +25,22 @@ export class SecurityLayer {
     this.blockedCommands = options?.blockedCommands ?? ["rm -rf", "mkfs", "dd", "shutdown", "reboot", "halt"];
     this.reviewCommands =
       options?.reviewCommands ?? ["rm", "chmod", "chown", "mv", "cp", "curl", "wget", "git push", "npm publish"];
+    if (options?.policyPath) {
+      // caller should invoke loadPolicy to avoid race conditions
+    }
+  }
+
+  async loadPolicy(policyPath: string): Promise<void> {
+    const raw = await readFile(policyPath, "utf-8");
+    const parsed = JSON.parse(raw) as {
+      levels?: { high?: string[]; medium?: string[]; low?: string[] };
+    };
+    if (parsed.levels?.high) {
+      this.blockedCommands = parsed.levels.high;
+    }
+    if (parsed.levels?.medium) {
+      this.reviewCommands = parsed.levels.medium;
+    }
   }
 
   validatePath(targetPath: string): boolean {

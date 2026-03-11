@@ -8,7 +8,9 @@
     "acceptance": "tsx bin/run-acceptance.ts",
     "p1-acceptance": "tsx bin/run-p1-acceptance.ts",
     "p2-memory": "tsx bin/run-p2-memory.ts",
-    "p2-security": "tsx bin/run-p2-security.ts"
+    "p2-security": "tsx bin/run-p2-security.ts",
+    "p3-memory-search": "tsx bin/run-p3-memory-search.ts",
+    "serve": "tsx src/server/http-server.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
