@@ -27,4 +27,12 @@ export class LLMEngine {
     const provider = this.getProvider(providerName);
     return provider.generate(messages, tools, options);
   }
+
+  async *generateStream(providerName: string, messages: Message[], tools?: any[], options?: GenerateOptions): AsyncIterable<string> {
+    const provider = this.getProvider(providerName);
+    if (!provider.generateStream) {
+      throw new Error(`Provider ${providerName} does not support streaming`);
+    }
+    yield* provider.generateStream(messages, tools, options);
+  }
 }
