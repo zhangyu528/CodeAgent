@@ -24,6 +24,14 @@ export class Planner {
     this.maxReplans = maxReplans;
   }
 
+  getProviderName(): string {
+    return this.providerName;
+  }
+
+  setProviderName(name: string) {
+    this.providerName = name;
+  }
+
   /**
    * Use LLM to decompose a complex objective into a structured plan (list of steps).
    */
@@ -52,7 +60,7 @@ Guidelines:
 
     const response = await this.engine.generate(this.providerName, [
       { role: 'system', content: 'You are a technical task planner.' },
-      { role: 'user', content: prompt }
+      { role: 'user', content: prompt },
     ]);
 
     return this.parsePlanResponse(response.message.content);
@@ -68,9 +76,7 @@ Guidelines:
     failedStep: PlanStep,
     errorMessage: string
   ): Promise<PlanStep[]> {
-    const completedSummary = completedSteps
-      .map(s => `- Step ${s.id}: ${s.description} → ✅ Done`)
-      .join('\n');
+    const completedSummary = completedSteps.map(s => `- Step ${s.id}: ${s.description} → ✅ Done`).join('\n');
 
     const prompt = `
 You are a task planner for a Coding Agent.
@@ -97,7 +103,7 @@ Output ONLY the JSON:
 
     const response = await this.engine.generate(this.providerName, [
       { role: 'system', content: 'You are a technical task planner handling error recovery.' },
-      { role: 'user', content: prompt }
+      { role: 'user', content: prompt },
     ]);
 
     const parsed = this.parsePlanResponse(response.message.content);
@@ -110,7 +116,7 @@ Output ONLY the JSON:
   private parsePlanResponse(content: string): Plan {
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("Failed to parse Plan JSON from LLM response");
+      if (!jsonMatch) throw new Error('Failed to parse Plan JSON from LLM response');
 
       const parsed = JSON.parse(jsonMatch[0]);
       return {
@@ -137,7 +143,7 @@ Output ONLY the JSON:
     let steps = [...plan.steps];
     let completedSteps: PlanStep[] = [];
     let i = 0;
-    
+
     // Maintain conversational history across steps for context continuity
     let conversationHistory: any[] = [];
 
@@ -151,11 +157,11 @@ Output ONLY the JSON:
           `Current Objective: ${plan.objective}\nYour current task is: ${step.description}`,
           conversationHistory.length > 0 ? conversationHistory : undefined
         );
-        
+
         step.status = 'completed';
         step.result = runResult.content;
         conversationHistory = runResult.messages; // Inherit history for next step
-        
+
         completedSteps.push(step);
         console.log(`\x1b[32m%s\x1b[0m`, `<<< [Step ${step.id}] Finished successfully.\n`);
         i++;
@@ -172,9 +178,7 @@ Output ONLY the JSON:
           );
 
           try {
-            const newSteps = await this.replanRemaining(
-              plan.objective, completedSteps, step, errMsg
-            );
+            const newSteps = await this.replanRemaining(plan.objective, completedSteps, step, errMsg);
             console.log('[Planner] Revised steps:');
             newSteps.forEach(s => console.log(`  - ${s.id}: ${s.description}`));
 
@@ -195,4 +199,3 @@ Output ONLY the JSON:
     console.log(`\n[Planner] Objective reached successfully!`);
   }
 }
-

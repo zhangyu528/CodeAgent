@@ -1,4 +1,6 @@
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 
 export interface SecurityCheckResult {
   isSafe: boolean;
@@ -88,6 +90,55 @@ export class SecurityLayer {
   constructor(workspaceRoot: string, approvalHandler?: ApprovalHandler) {
     this.workspaceRoot = path.resolve(workspaceRoot);
     this.approvalHandler = approvalHandler;
+  }
+
+  /**
+   * Checks if the current workspace is trusted.
+   */
+  async isWorkspaceTrusted(): Promise<boolean> {
+    const configPath = this.getGlobalConfigPath();
+    if (!fs.existsSync(configPath)) return false;
+
+    try {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const trustedPaths: string[] = config.trustedWorkspaces || [];
+      return trustedPaths.includes(this.workspaceRoot);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Adds the current workspace to the trusted list.
+   */
+  async grantWorkspaceTrust(): Promise<void> {
+    const configPath = this.getGlobalConfigPath();
+    const configDir = path.dirname(configPath);
+
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+
+    let config: any = {};
+    if (fs.existsSync(configPath)) {
+      try {
+        config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      } catch {
+        config = {};
+      }
+    }
+
+    const trustedPaths: string[] = config.trustedWorkspaces || [];
+    if (!trustedPaths.includes(this.workspaceRoot)) {
+      trustedPaths.push(this.workspaceRoot);
+    }
+
+    config.trustedWorkspaces = trustedPaths;
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  }
+
+  private getGlobalConfigPath(): string {
+    return path.join(os.homedir(), '.codeagent', 'config.json');
   }
 
   /**

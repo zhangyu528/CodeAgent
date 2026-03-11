@@ -7,6 +7,14 @@ export class LLMEngine {
     this.providers.set(provider.name, provider);
   }
 
+  hasProvider(name: string): boolean {
+    return this.providers.has(name);
+  }
+
+  listProviders(): string[] {
+    return Array.from(this.providers.keys()).sort();
+  }
+
   getProvider(name: string): LLMProvider {
     const provider = this.providers.get(name);
     if (!provider) {
