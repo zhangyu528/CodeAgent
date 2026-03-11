@@ -1,12 +1,12 @@
-import { LLMEngine } from '../llm/engine';
-import { AgentController } from '../controller/agent_controller';
-import { ReadFileTool } from '../tools/read_file_tool';
-import { EchoTool } from '../tools/echo_tool';
-import { GLMProvider } from '../llm/glm_provider';
-import { SecurityLayer } from '../controller/security_layer';
-import { MemoryManager } from '../controller/memory_manager';
-import { WriteFileTool } from '../tools/write_file_tool';
-import { RunCommandTool } from '../tools/run_command_tool';
+import { LLMEngine } from '../../llm/engine';
+import { AgentController } from '../../controller/agent_controller';
+import { ReadFileTool } from '../../tools/read_file_tool';
+import { EchoTool } from '../../tools/echo_tool';
+import { GLMProvider } from '../../llm/glm_provider';
+import { SecurityLayer } from '../../controller/security_layer';
+import { MemoryManager } from '../../controller/memory_manager';
+import { WriteFileTool } from '../../tools/write_file_tool';
+import { RunCommandTool } from '../../tools/run_command_tool';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 

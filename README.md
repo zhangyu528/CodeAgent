@@ -33,19 +33,20 @@ CodeAgent is an AI-powered coding assistant that can plan and execute complex de
 
 ## Usage
 
-### Direct Mode (Single Task)
-Run a specific instruction directly:
+### Interactive Mode (Chat)
+Run the agent in a continuous interactive session:
 ```bash
 npm start
 ```
-Then type your instruction at the `You >` prompt (e.g., "List files in src").
-
-### Planner Mode (Complex Task)
-Run multi-step tasks with automatic planning and execution:
+Or use the global command if installed:
 ```bash
-npm run start:plan
+codeagent
 ```
-Example: "Search for all TODOs in the project and save the results to a new file in temp/."
+Once started, you can type instructions at the `CodeAgent >` prompt. The agent maintains context throughout the entire session.
+
+### Commands inside REPL
+- Type your instruction (e.g., "Create a file temp/test.txt")
+- Type **exit** or **quit** to end the session.
 
 ## Testing
 
