@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "demo": "tsx bin/run-demo.ts",
-    "acceptance": "tsx bin/run-acceptance.ts"
+    "acceptance": "tsx bin/run-acceptance.ts",
+    "p1-acceptance": "tsx bin/run-p1-acceptance.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
