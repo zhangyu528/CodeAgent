@@ -24,6 +24,7 @@ const model = process.env.GLM_MODEL;
 const serverApiKey = process.env.SERVER_API_KEY;
 const requestTimeoutMs = Number(process.env.REQUEST_TIMEOUT_MS ?? "60000");
 const maxConcurrency = Number(process.env.MAX_CONCURRENCY ?? "2");
+const logFilePath = process.env.LOG_FILE_PATH;
 
 if (!apiKey || !model) {
   throw new Error("Missing GLM_API_KEY or GLM_MODEL env var.");
@@ -129,7 +130,20 @@ function logRequest(
     `durationMs=${duration}`,
     error ? `error=${JSON.stringify(error)}` : undefined,
   ].filter(Boolean);
-  console.log(parts.join(" "));
+  const line = parts.join(" ");
+  console.log(line);
+  if (logFilePath) {
+    void appendLog(line);
+  }
+}
+
+async function appendLog(line: string) {
+  try {
+    const { appendFile } = await import("node:fs/promises");
+    await appendFile(logFilePath, `${line}\n`, "utf-8");
+  } catch {
+    // best-effort logging
+  }
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
