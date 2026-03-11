@@ -8,6 +8,7 @@ import { GLMProvider } from './llm/glm_provider';
 import { AgentController } from './controller/agent_controller';
 import { MemoryManager } from './controller/memory_manager';
 import { SecurityLayer } from './controller/security_layer';
+import { ContextInformer } from './controller/context_informer';
 import { logger, TelemetryMonitor } from './utils/logger';
 
 // Tools
@@ -58,7 +59,9 @@ async function createAgent() {
 
   const security = new SecurityLayer(process.cwd(), approvalHandler);
   const memory = new MemoryManager(4000);
-  const controller = new AgentController(engine, tools, 'glm', security, memory);
+  const contextInformer = new ContextInformer();
+  const bootSnapshot = await contextInformer.buildBootSnapshot(process.cwd());
+  const controller = new AgentController(engine, tools, 'glm', security, memory, { systemPromptContext: { bootSnapshot } });
 
   // Setup Observability with the new Logger
   controller.on('onThought', (text) => {
@@ -123,3 +126,4 @@ startREPL().catch(err => {
   logger.error('Fatal error: ' + err.message);
   process.exit(1);
 });
+

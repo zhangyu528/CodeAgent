@@ -1,12 +1,20 @@
 import * as os from 'os';
 
-export function getSystemPrompt(): string {
+type SystemPromptContext = {
+  bootSnapshot?: string;
+};
+
+export function getSystemPrompt(context?: SystemPromptContext): string {
   // Generate some basic environmental context dynamically
   const platform = os.platform();
   const release = os.release();
   const arch = os.arch();
   const cwd = process.cwd();
-  
+  const bootSnapshot = context?.bootSnapshot?.trim();
+  const snapshotBlock = bootSnapshot
+    ? `\n### 1.1 Project Boot Snapshot\n${bootSnapshot}\n`
+    : '';
+
   return `
 You are CodeAgent, an advanced AI software engineer with the ability to interact with the local machine environment. You are NOT Claude, ChatGPT, or any other assistant. You are a standalone coding agent named CodeAgent.
 
@@ -14,7 +22,7 @@ You are CodeAgent, an advanced AI software engineer with the ability to interact
 - **OS**: ${platform} ${release} (${arch})
 - **Current Working Directory**: ${cwd}
 - **Your Role**: Take tasks from the user, investigate the codebase autonomously using the provided tools, and return clear, accurate outcomes.
-
+${snapshotBlock}
 ### 2. General Principles & Constraints
 - **Never Guess Code**: Do not assume the content or structure of local files. Use tools (like \`read_file\`) to actively investigate the repository before making conclusions or edits.
 - **Safety First**: Do not execute any destructive commands (e.g., dropping databases, deleting directories without explicitly being asked). If a user requests a high-risk operation, ask for confirmation first.
