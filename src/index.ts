@@ -1,7 +1,6 @@
 #!/usr/bin/env ts-node
 import { input, confirm } from '@inquirer/prompts';
-import * as dotenv from 'dotenv';
-
+import * as dotenv from 'dotenv';\n
 import { LLMEngine } from './llm/engine';
 import { registerProvidersFromEnv } from './llm/register_providers';
 import { AgentController } from './controller/agent_controller';
@@ -19,6 +18,8 @@ import { FileSearchTool } from './tools/file_search_tool';
 import { ReplaceContentTool } from './tools/replace_content_tool';
 import { SystemInfoTool } from './tools/system_info_tool';
 import { EchoTool } from './tools/echo_tool';
+import { WebSearchTool } from './tools/web_search_tool';
+import { BrowsePageTool } from './tools/browse_page_tool';
 import { SearchCodeTool } from './tools/search_code_tool';
 import { FindDefinitionTool } from './tools/find_definition_tool';
 import { ListTreeTool } from './tools/list_tree_tool';
@@ -35,6 +36,8 @@ function formatProviders(list: string[]) {
 async function createAgent() {
   const engine = new LLMEngine();
 
+  if (!process.env.GLM_API_KEY) {
+    logger.error('GLM_API_KEY is missing in .env file.');
   const reg = registerProvidersFromEnv(engine);
   if (reg.registered.length === 0) {
     logger.error('No LLM providers configured. Please set provider env vars in .env.');
@@ -82,6 +85,18 @@ async function createAgent() {
 
   const security = new SecurityLayer(process.cwd(), approvalHandler);
 
+  const tools = [
+    new ReadFileTool(),
+    new WriteFileTool(),
+    new RunCommandTool(),
+    new ListDirectoryTool(),
+    new FileSearchTool(),
+    new ReplaceContentTool(),
+    new SystemInfoTool(),
+    new EchoTool(),
+    new WebSearchTool(),
+    new BrowsePageTool(security),
+  ];
   // F6: Workspace Trust Check
   const isTrusted = await security.isWorkspaceTrusted();
   if (!isTrusted) {
