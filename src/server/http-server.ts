@@ -8,6 +8,7 @@ import { EchoTool } from "../tools/echo-tool.js";
 import { ReadFileTool } from "../tools/read-file-tool.js";
 import { RunCommandTool } from "../tools/run-command-tool.js";
 import { GLMProvider } from "../providers/glm.js";
+import { Logger } from "../logging/logger.js";
 
 interface RunRequest {
   task: string;
@@ -35,6 +36,7 @@ engine.registerProvider(new GLMProvider({ apiKey, baseUrl }));
 
 const toolSystem = new ToolSystem([EchoTool, ReadFileTool, RunCommandTool]);
 const controller = new AgentController(engine, toolSystem, "glm");
+const logger = new Logger();
 let activeRequests = 0;
 
 const server = http.createServer(async (req, res) => {
@@ -131,19 +133,15 @@ function logRequest(
     error ? `error=${JSON.stringify(error)}` : undefined,
   ].filter(Boolean);
   const line = parts.join(" ");
-  console.log(line);
-  if (logFilePath) {
-    void appendLog(line);
+  if (status >= 500) {
+    logger.error(line);
+    return;
   }
-}
-
-async function appendLog(line: string) {
-  try {
-    const { appendFile } = await import("node:fs/promises");
-    await appendFile(logFilePath, `${line}\n`, "utf-8");
-  } catch {
-    // best-effort logging
+  if (status >= 400) {
+    logger.warn(line);
+    return;
   }
+  logger.info(line);
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

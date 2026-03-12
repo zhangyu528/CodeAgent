@@ -2,9 +2,11 @@ import { Command } from "commander";
 import { input } from "@inquirer/prompts";
 import { ConfigStore } from "../config/config-store.js";
 import { resolveConfig } from "../config/resolve-config.js";
+import { Logger } from "../logging/logger.js";
 
 const program = new Command();
 const store = new ConfigStore();
+const logger = new Logger();
 
 program.name("codeagent").description("CodeAgent CLI").version("0.1.0");
 
@@ -19,15 +21,17 @@ program
 
     if (!action || action === "list") {
       const resolved = await resolveConfig();
+      logger.info("config list");
       console.log(JSON.stringify(resolved, null, 2));
       return;
     }
 
     if (action === "get") {
       if (!key) {
-        console.error("Missing key for config get");
+        logger.error("Missing key for config get");
         process.exit(1);
       }
+      logger.info(`config get ${key}`);
       console.log(current[key] ?? "");
       return;
     }
@@ -41,7 +45,7 @@ program
         resolvedValue = parts.slice(1).join("=");
       }
       if (!resolvedKey) {
-        console.error("Missing key for config set");
+        logger.error("Missing key for config set");
         process.exit(1);
       }
       if (resolvedValue === undefined) {
@@ -49,11 +53,12 @@ program
       }
       current[resolvedKey] = resolvedValue;
       await store.write(current);
+      logger.info(`config set ${resolvedKey}`, { path: store.getPath() });
       console.log(`Saved ${resolvedKey} to ${store.getPath()}`);
       return;
     }
 
-    console.error(`Unknown action: ${action}`);
+    logger.error(`Unknown action: ${action}`);
     process.exit(1);
   });
 
