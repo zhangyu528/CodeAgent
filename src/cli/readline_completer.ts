@@ -12,6 +12,7 @@ function splitTokens(line: string): string[] {
 export function buildCompleter(opts: {
   cwd: string;
   slashCommands: string[];
+  getModelProviders?: () => string[];
 }): (line: string, callback: (err: any, result: [string[], string]) => void) => void {
   const slash = [...opts.slashCommands].sort();
 
@@ -19,6 +20,14 @@ export function buildCompleter(opts: {
     try {
       const tokens = splitTokens(line);
       const lastToken = tokens.length > 0 ? tokens[tokens.length - 1]! : '';
+
+      // /model provider completion
+      if (tokens[0] === '/model' && tokens.length <= 2) {
+        const providers = (opts.getModelProviders ? opts.getModelProviders() : []).sort();
+        const partial = tokens.length === 2 ? tokens[1]! : '';
+        const hits = providers.filter(p => p.startsWith(partial.toLowerCase()));
+        return callback(null, [hits.length ? hits : providers, partial]);
+      }
 
       if (lastToken.startsWith('/')) {
         const hits = slash.filter(c => c.startsWith(lastToken));
