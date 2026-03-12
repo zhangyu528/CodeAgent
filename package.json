@@ -15,7 +15,7 @@
     "cli": "tsx src/cli/index.ts"
   },
   "bin": {
-    "codeagent": "dist/cli/index.js"
+    "codeagent": "dist/src/cli/index.js"
   },
   "dependencies": {
     "@inquirer/prompts": "^5.3.6",

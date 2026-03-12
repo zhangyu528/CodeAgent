@@ -8,6 +8,7 @@ import { EchoTool } from "../src/tools/echo-tool.js";
 import { ReadFileTool } from "../src/tools/read-file-tool.js";
 import { RunCommandTool } from "../src/tools/run-command-tool.js";
 import { GLMProvider } from "../src/providers/glm.js";
+import type { Message } from "../src/types.js";
 
 const apiKey = process.env.GLM_API_KEY;
 const baseUrl = process.env.GLM_BASE_URL || "https://open.bigmodel.cn/api/paas/v4";
@@ -74,7 +75,7 @@ const summaryTask = [
   JSON.stringify(toolResults),
 ].join("\n");
 
-const messages = [
+const messages: Message[] = [
   { role: "system", content: await loadPrompt("system.md") },
   { role: "system", content: await loadPrompt("developer.md") },
   { role: "user", content: summaryTask },

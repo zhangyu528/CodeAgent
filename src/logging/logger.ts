@@ -1,4 +1,5 @@
-import { appendFile } from "node:fs/promises";
+import { appendFile, mkdir } from "node:fs/promises";
+import path from "node:path";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -42,7 +43,7 @@ export class Logger {
     const line = `[${level}] ${payload}`;
     this.writeConsole(level, line);
     if (this.logFilePath) {
-      void appendFile(this.logFilePath, `${line}\n`, "utf-8");
+      void this.appendToFile(line);
     }
   }
 
@@ -64,6 +65,15 @@ export class Logger {
       return raw;
     }
     return "info";
+  }
+
+  private async appendToFile(line: string) {
+    try {
+      await mkdir(path.dirname(this.logFilePath ?? "."), { recursive: true });
+      await appendFile(this.logFilePath ?? "", `${line}\n`, "utf-8");
+    } catch {
+      // best-effort logging
+    }
   }
 
   private safeSerialize(value: unknown): string {
