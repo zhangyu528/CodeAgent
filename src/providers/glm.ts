@@ -13,6 +13,9 @@ export class GLMProvider implements LLMProvider {
 
   async generate(messages: Message[], options: GenerateOptions): Promise<LLMResponse> {
     const url = this.resolveUrl(this.config.baseUrl);
+    const timeoutMs = this.resolveTimeoutMs();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     const payload = {
       model: options.model,
@@ -23,14 +26,27 @@ export class GLMProvider implements LLMProvider {
       max_tokens: options.max_tokens,
     };
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.config.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.config.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (this.isAbortError(error)) {
+        throw new Error(
+          `GLM request timed out after ${timeoutMs}ms. Check network/DNS or increase LLM_REQUEST_TIMEOUT_MS.`
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       const text = await response.text();
@@ -52,6 +68,25 @@ export class GLMProvider implements LLMProvider {
     }
 
     return `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+  }
+
+  private resolveTimeoutMs(): number {
+    const raw = process.env.LLM_REQUEST_TIMEOUT_MS;
+    if (!raw) {
+      return 20_000;
+    }
+    const value = Number(raw);
+    if (Number.isNaN(value) || value <= 0) {
+      return 20_000;
+    }
+    return value;
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return (
+      error instanceof Error &&
+      (error.name === "AbortError" || error.message.toLowerCase().includes("aborted"))
+    );
   }
 
   private toToolPayload(tools: ToolDefinition[]) {

@@ -54,6 +54,49 @@ Result:
 - **FAILED** due to provider rate limit (retry still limited):
   - `GLM request failed: 429 Too Many Requests (code 1302)`
 
+### Test 4 — `PLANNING_MODE=on` (acceptance retry)
+
+Command:
+```
+PLANNING_MODE=on LOG_TOOL_CALLS=true npm run acceptance
+```
+
+Result:
+- **INCONCLUSIVE**. Request hung without output; process terminated.
+
+### Test 5 — `PLANNING_MODE=on` (acceptance with timeout 5s)
+
+Command:
+```
+PLANNING_MODE=on LOG_TOOL_CALLS=true LLM_REQUEST_TIMEOUT_MS=5000 npm run acceptance
+```
+
+Result:
+- **FAILED**. Provider request timed out:
+  - `GLM request timed out after 5000ms`
+
+### Test 6 — `PLANNING_MODE=on` (acceptance with timeout 10s)
+
+Command:
+```
+PLANNING_MODE=on LOG_TOOL_CALLS=true LLM_REQUEST_TIMEOUT_MS=10000 npm run acceptance
+```
+
+Result:
+- **FAILED**. Provider request timed out:
+  - `GLM request timed out after 10000ms`
+
+### Test 7 — `PLANNING_MODE=on` (acceptance with timeout 10s, retry)
+
+Command:
+```
+PLANNING_MODE=on LOG_TOOL_CALLS=true LLM_REQUEST_TIMEOUT_MS=10000 npm run acceptance
+```
+
+Result:
+- **FAILED**. Provider request timed out:
+  - `GLM request timed out after 10000ms`
+
 ## Notes
 
 - Planning-mode verification needs retry once provider rate limits clear.
