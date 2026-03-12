@@ -138,6 +138,13 @@ export class SecurityLayer {
   }
 
   private getGlobalConfigPath(): string {
+    // Allow tests / restricted environments to override config location
+    const override = (process.env.CODEAGENT_CONFIG_PATH || '').trim();
+    if (override) return path.resolve(override);
+
+    const homeOverride = (process.env.CODEAGENT_HOME || '').trim();
+    if (homeOverride) return path.join(path.resolve(homeOverride), 'config.json');
+
     return path.join(os.homedir(), '.codeagent', 'config.json');
   }
 
@@ -259,6 +266,7 @@ export class SecurityLayer {
     return this.approvalHandler(description);
   }
 }
+
 
 
 

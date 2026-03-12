@@ -129,7 +129,7 @@ export class AnthropicProvider implements LLMProvider {
     if (system) payload.system = system;
     if (anthropicTools && anthropicTools.length > 0) payload.tools = anthropicTools;
 
-    const response = await fetch(this.baseUrl, {
+    const init: any = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -138,7 +138,10 @@ export class AnthropicProvider implements LLMProvider {
         'anthropic-beta': 'tools-2024-04-04',
       },
       body: JSON.stringify(payload),
-    });
+    };
+    if (options?.signal) init.signal = options.signal;
+
+    const response = await fetch(this.baseUrl, init);
 
     if (!response.ok) {
       const errorText = await response.text();

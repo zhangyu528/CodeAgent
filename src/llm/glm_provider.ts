@@ -44,14 +44,17 @@ export class GLMProvider implements LLMProvider {
       payload.tools = tools;
     }
 
-    const response = await fetch(this.baseUrl, {
+    const init: any = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(payload),
-    });
+    };
+    if (options?.signal) init.signal = options.signal;
+
+    const response = await fetch(this.baseUrl, init);
 
     if (!response.ok) {
       const errorData = await response.text();
@@ -99,92 +102,85 @@ export class GLMProvider implements LLMProvider {
       payload.tools = tools;
     }
 
-    // Not all fetch implementations support getReader() in Node.js properly without polyfill,
-    // but assuming standard node fetch is used (Node 18+).
-    const response = await fetch(this.baseUrl, {
+    const init: any = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(payload),
-    });
+    };
+    if (options?.signal) init.signal = options.signal;
+
+    const response = await fetch(this.baseUrl, init);
 
     if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`GLM API Stream Error: ${response.status} - ${errorData}`);
+      const errorData = await response.text();
+      throw new Error(`GLM API Stream Error: ${response.status} - ${errorData}`);
     }
 
     if (!response.body) {
-        throw new Error('No response body from GLM API');
+      throw new Error('No response body from GLM API');
     }
 
-    const body: any = response.body; 
-    let reader: any;
-    
-    // Polyfill support for different Node fetch runtimes
-    if (body.getReader) {
-        reader = body.getReader();
-    } else {
-        // Fallback for some Node.js readable streams
-        reader = body[Symbol.asyncIterator] ? body[Symbol.asyncIterator]() : null;
-    }
+    const body: any = response.body;
 
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
 
-    if (reader && reader.read) {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            for (const line of lines) {
-                if (line.trim() === '') continue;
-                if (line.startsWith('data: ')) {
-                    const dataStr = line.substring(6).trim();
-                    if (dataStr === '[DONE]') break;
-                    try {
-                        const data = JSON.parse(dataStr);
-                        if (data.choices && data.choices.length > 0) {
-                            const delta = data.choices[0].delta;
-                            if (delta && delta.content) {
-                                yield delta.content;
-                            }
-                        }
-                    } catch (e) {
-                        // ignore JSON parse error for partial stream chunks
-                    }
-                }
-            }
+    // Web Streams API (Node 18+)
+    if (body.getReader) {
+      const reader = body.getReader();
+      while (true) {
+        if (options?.signal?.aborted) throw new Error('Aborted');
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
+          const dataStr = line.substring(6).trim();
+          if (dataStr === '[DONE]') return;
+          try {
+            const data = JSON.parse(dataStr);
+            const delta = data?.choices?.[0]?.delta;
+            if (delta?.content) yield delta.content;
+          } catch {
+            // ignore
+          }
         }
-    } else if (reader && body[Symbol.asyncIterator]) {
-        for await (const chunk of body) {
-            buffer += decoder.decode(chunk, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            for (const line of lines) {
-                if (line.trim() === '') continue;
-                if (line.startsWith('data: ')) {
-                    const dataStr = line.substring(6).trim();
-                    if (dataStr === '[DONE]') break;
-                    try {
-                        const data = JSON.parse(dataStr);
-                        if (data.choices && data.choices.length > 0) {
-                            const delta = data.choices[0].delta;
-                            if (delta && delta.content) {
-                                yield delta.content;
-                            }
-                        }
-                    } catch (e) {
-                         // ignore JSON parse error for partial stream chunks
-                    }
-                }
-            }
-        }
-    } else {
-        throw new Error('Stream reading not supported in current fetch implementation');
+      }
+      return;
     }
+
+    // Async iterator fallback
+    if (body[Symbol.asyncIterator]) {
+      for await (const chunk of body) {
+        if (options?.signal?.aborted) throw new Error('Aborted');
+        buffer += decoder.decode(chunk, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
+          const dataStr = line.substring(6).trim();
+          if (dataStr === '[DONE]') return;
+          try {
+            const data = JSON.parse(dataStr);
+            const delta = data?.choices?.[0]?.delta;
+            if (delta?.content) yield delta.content;
+          } catch {
+            // ignore
+          }
+        }
+      }
+      return;
+    }
+
+    throw new Error('Stream reading not supported in current fetch implementation');
   }
 }
