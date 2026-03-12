@@ -1,5 +1,6 @@
-﻿import * as dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 import * as readline from 'readline';
+import chalk = require('chalk');
 
 import { LLMEngine } from './llm/engine';
 import { registerProvidersFromEnv } from './llm/register_providers';
@@ -35,7 +36,7 @@ import { UserCheckboxTool } from './tools/user_checkbox_tool';
 import { UserEditorTool } from './tools/user_editor_tool';
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const telemetry = new TelemetryMonitor();
 
@@ -49,6 +50,38 @@ function envEnabled(name: string, defaultOn: boolean) {
 
 function formatProviders(list: string[]) {
   return list.length > 0 ? list.join(', ') : '(none)';
+}
+
+function getCliVersion(): string {
+  try {
+    // `src/index.ts` -> `../package.json`
+    const pkg = require('../package.json') as { version?: string };
+    const v = String(pkg?.version || '').trim();
+    return v || 'dev';
+  } catch {
+    return 'dev';
+  }
+}
+
+function renderWelcomeCard(opts: { version: string; provider: string; providers: string[] }): string {
+  const leftRaw = ['  ▝▜▄', '    ▝▜▄', '   ▗▟▀', '  ▝▀'];
+  const leftWidth = Math.max(...leftRaw.map(s => s.length));
+
+  const leftColored = [
+    chalk.dim.cyan(leftRaw[0]),
+    chalk.cyan(leftRaw[1]),
+    chalk.green(leftRaw[2]),
+    chalk.greenBright(leftRaw[3]),
+  ].map((s, idx) => s + ' '.repeat(leftWidth - leftRaw[idx]!.length));
+
+  const providersText = opts.providers.length > 0 ? opts.providers.join(', ') : '无';
+  const right = [
+    chalk.cyan.bold(`CodeAgent CLI v${opts.version}`),
+    '',
+    chalk.cyan(`Provider: ${opts.provider} (可用: ${providersText})`),
+  ];
+
+  return leftColored.map((l, i) => `${l}  ${right[i] ?? ''}`).join('\n') + '\n';
 }
 
 async function createAgent(ui: DefaultUIAdapter) {
@@ -131,8 +164,6 @@ async function createAgent(ui: DefaultUIAdapter) {
     systemPromptContext: { bootSnapshot },
     ui,
   });
-
-  logger.info(`Registered Providers: ${formatProviders(providers)} | Default: ${defaultProvider}`);
 
   return { controller, engine, ui };
 }
@@ -252,11 +283,13 @@ async function startREPL() {
   });
 
   // Welcome
-  console.log(require('chalk').bold.cyan('\n=== CodeAgent Interactive Mode ==='));
-  console.log(require('chalk').dim('Type "exit" or "quit" to end the session.'));
-  console.log(require('chalk').dim('Commands: /help, /model [provider], /clear, /history, /edit, /tools, /tool <id>'));
-  console.log(require('chalk').dim('Multiline: type <<EOF then end with EOF'));
-  console.log();
+  console.log(
+    renderWelcomeCard({
+      version: getCliVersion(),
+      provider: controller.getProviderName(),
+      providers: engine.listProviders(),
+    }),
+  );
 
   hud.setProvider(controller.getProviderName());
   hud.setMode('IDLE');
@@ -476,5 +509,4 @@ startREPL().catch(err => {
   logger.error('Fatal error: ' + (err?.message || String(err)));
   process.exit(1);
 });
-
 
