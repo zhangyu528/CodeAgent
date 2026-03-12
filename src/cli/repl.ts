@@ -1,5 +1,7 @@
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import ora from "ora";
+import chalk from "chalk";
 import { AgentController } from "../agent/controller.js";
 import { VectorStore } from "../memory/vector-store.js";
 import { GLMEmbeddingProvider, HashEmbeddingProvider } from "../memory/embedding-provider.js";
@@ -42,10 +44,17 @@ export async function startRepl(controller: AgentController, model: string): Pro
 
     const task = buildTask(line, history);
     let answer = "";
+    const spinner = ora(chalk.gray("Thinking...")).start();
     answer = await controller.runStream(task, model, (chunk) => {
+      if (spinner.isSpinning) {
+        spinner.stop();
+      }
       process.stdout.write(chunk);
       answer += chunk;
     });
+    if (spinner.isSpinning) {
+      spinner.stop();
+    }
     process.stdout.write("\n");
 
     history.push({ role: "user", content: line });

@@ -12,6 +12,7 @@ import { ReadFileTool } from "../tools/read-file-tool.js";
 import { RunCommandTool } from "../tools/run-command-tool.js";
 import { AgentController } from "../agent/controller.js";
 import { startRepl } from "./repl.js";
+import chalk from "chalk";
 
 const program = new Command();
 const store = new ConfigStore();
@@ -63,7 +64,7 @@ program
       current[resolvedKey] = resolvedValue;
       await store.write(current);
       logger.info(`config set ${resolvedKey}`, { path: store.getPath() });
-      console.log(`Saved ${resolvedKey} to ${store.getPath()}`);
+      console.log(chalk.green(`Saved ${resolvedKey} to ${store.getPath()}`));
       return;
     }
 
@@ -88,6 +89,7 @@ program
     engine.registerProvider(new GLMProvider({ apiKey, baseUrl }));
     const toolSystem = new ToolSystem([EchoTool, ReadFileTool, RunCommandTool]);
     const controller = new AgentController(engine, toolSystem, "glm");
+    console.log(chalk.blue("Running task..."));
     const result = await controller.run(task, model);
     console.log(result);
   });
@@ -108,6 +110,7 @@ program
     engine.registerProvider(new GLMProvider({ apiKey, baseUrl }));
     const toolSystem = new ToolSystem([EchoTool, ReadFileTool, RunCommandTool]);
     const controller = new AgentController(engine, toolSystem, "glm");
+    console.log(chalk.blue("Starting REPL..."));
     await startRepl(controller, model);
   });
 

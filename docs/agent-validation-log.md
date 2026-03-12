@@ -122,6 +122,19 @@ Result:
   - `/exit` exited cleanly.
   - `.memory/vector-store.json` updated with new entry.
 
+### Test 10 — CLI UX (run + chat)
+
+Commands:
+```
+npm run cli -- run "Read README.md and summarize"
+npm run cli -- chat
+```
+
+Result:
+- **PASS**.
+  - `run` printed colored status line and returned a valid summary.
+  - `chat` showed spinner ("Thinking...") and streamed output.
+
 ## Notes
 
 - Planning-mode verification needs retry once provider rate limits clear.
