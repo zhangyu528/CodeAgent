@@ -1,5 +1,4 @@
-#!/usr/bin/env ts-node
-import * as dotenv from 'dotenv';
+﻿import * as dotenv from 'dotenv';
 import * as readline from 'readline';
 
 import { LLMEngine } from './llm/engine';
@@ -13,6 +12,9 @@ import { logger, TelemetryMonitor } from './utils/logger';
 import { DefaultUIAdapter } from './cli/default_ui_adapter';
 import { ToolBubbles } from './cli/tool_bubbles';
 import { buildCompleter } from './cli/readline_completer';
+import { HUD } from './cli/hud';
+import { attachKeybindings } from './cli/keybindings';
+import { dispatchSlash, getDefaultSlashCommands } from './cli/slash_commands';
 
 // Tools
 import { ReadFileTool } from './tools/read_file_tool';
@@ -36,6 +38,14 @@ import { UserEditorTool } from './tools/user_editor_tool';
 dotenv.config();
 
 const telemetry = new TelemetryMonitor();
+
+function envEnabled(name: string, defaultOn: boolean) {
+  const raw = String(process.env[name] || '').trim();
+  if (!raw) return defaultOn;
+  if (raw === '0' || raw.toLowerCase() === 'false' || raw.toLowerCase() === 'off') return false;
+  if (raw === '1' || raw.toLowerCase() === 'true' || raw.toLowerCase() === 'on') return true;
+  return defaultOn;
+}
 
 function formatProviders(list: string[]) {
   return list.length > 0 ? list.join(', ') : '(none)';
@@ -140,42 +150,100 @@ function renderFormattedOutput(fullResponse: string) {
 }
 
 async function startREPL() {
-  const slashCommands = ['/model', '/clear', '/history', '/edit', '/tools', '/tool'];
+  const hud = new HUD();
+  await hud.init();
 
+  const bubblesEnabled = Boolean(process.stdout.isTTY) && envEnabled('TOOL_BUBBLES', true);
+  const bubbles = new ToolBubbles({ maxItems: 8, enabled: bubblesEnabled });
+
+  let rl: readline.Interface | null = null;
   let inputSuspended = false;
-
-  const bubbles = new ToolBubbles({ maxItems: 8, enabled: Boolean(process.stdout.isTTY) });
+  let capturing = false;
+  const captureLines: string[] = [];
+  let currentAbort: AbortController | null = null;
 
   const ui = new DefaultUIAdapter({
     suspendInput: async (fn) => {
       inputSuspended = true;
+      const prevMode = hud.getMode();
+      hud.setMode('CONFIRM');
+      hud.setBubbleLines(bubbles.getLines());
+      hud.setLastTool(bubbles.getLastLabel());
+      hud.render({ includeBubbles: true });
+
+      // Pause readline + raw mode so inquirer can safely read stdin.
+      try {
+        rl?.pause();
+      } catch {
+        // ignore
+      }
+      if (process.stdin.isTTY) {
+        try { process.stdin.setRawMode(false); } catch { /* ignore */ }
+      }
+
       try {
         return await fn();
       } finally {
+        if (process.stdin.isTTY) {
+          try { process.stdin.setRawMode(true); } catch { /* ignore */ }
+        }
+        try {
+          rl?.resume();
+        } catch {
+          // ignore
+        }
         inputSuspended = false;
+        hud.setMode(prevMode);
+        hud.render({ includeBubbles: true });
+        try {
+          rl?.prompt(true);
+        } catch {
+          // ignore
+        }
       }
     },
   });
 
   const { controller, engine } = await createAgent(ui);
 
+  const commands = getDefaultSlashCommands();
+  const slashNames = commands.map(c => c.name);
+
   // Observability hooks
-  controller.on('onThought', (text) => {
+  controller.on('onThought', (_text) => {
+    hud.setMode('THINKING');
+    hud.setContextTokens(controller.getMemoryUsage());
+    hud.setTelemetry(telemetry.getSummary() as any);
+    hud.setLastTool(bubbles.getLastLabel());
+    hud.setBubbleLines(bubbles.getLines());
+    hud.render({ includeBubbles: true });
+
     logger.startSpinner('Thinking...');
-    logger.thought(text);
   });
 
   controller.on('onToolStarted', (name, args) => {
     logger.stopSpinner();
     bubbles.onToolStarted(name, args);
+    hud.setLastTool(bubbles.getLastLabel());
+    hud.setBubbleLines(bubbles.getLines());
+    hud.render({ includeBubbles: true });
   });
 
   controller.on('onToolFinished', (name, result) => {
     bubbles.onToolFinished(name, result);
+    hud.setLastTool(bubbles.getLastLabel());
+    hud.setBubbleLines(bubbles.getLines());
+    hud.render({ includeBubbles: true });
   });
 
   controller.on('onCompletion', (usage) => {
     telemetry.record(usage.provider, usage.inputTokens, usage.outputTokens);
+    hud.setTelemetry(telemetry.getSummary() as any);
+    hud.setContextTokens(controller.getMemoryUsage());
+    hud.setLastTool(bubbles.getLastLabel());
+    hud.setBubbleLines(bubbles.getLines());
+    hud.render({ includeBubbles: true });
+
     logger.tokenUsage(controller.getMemoryUsage(), telemetry, controller.getProviderName());
   });
 
@@ -183,180 +251,112 @@ async function startREPL() {
     logger.error(err.message || String(err));
   });
 
+  // Welcome
   console.log(require('chalk').bold.cyan('\n=== CodeAgent Interactive Mode ==='));
   console.log(require('chalk').dim('Type "exit" or "quit" to end the session.'));
-  console.log(require('chalk').dim('Commands: /model [provider], /clear, /history, /edit, /tools, /tool <id>'));
+  console.log(require('chalk').dim('Commands: /help, /model [provider], /clear, /history, /edit, /tools, /tool <id>'));
   console.log(require('chalk').dim('Multiline: type <<EOF then end with EOF'));
   console.log();
 
-  const completer = buildCompleter({ cwd: process.cwd(), slashCommands });
+  hud.setProvider(controller.getProviderName());
+  hud.setMode('IDLE');
+  hud.setContextTokens(controller.getMemoryUsage());
+  hud.setTelemetry(telemetry.getSummary() as any);
+  hud.setLastTool(bubbles.getLastLabel());
+  hud.setBubbleLines(bubbles.getLines());
+  hud.render({ includeBubbles: true });
 
-  readline.emitKeypressEvents(process.stdin);
-  if (process.stdin.isTTY) {
-    process.stdin.setRawMode(true);
-  }
+  const completer = buildCompleter({
+    cwd: process.cwd(),
+    slashCommands: slashNames,
+    getModelProviders: () => engine.listProviders(),
+  });
 
-  let currentAbort: AbortController | null = null;
-
-  const onKeypress = (_str: string, key: any) => {
-    if (inputSuspended) return;
-    if (!key) return;
-
-    if (key.ctrl && key.name === 'l') {
-      console.clear();
-      controller.getMemory().clearHistory();
-      bubbles.reset();
-      logger.info('Session cleared.');
-    }
-
-    if (key.ctrl && key.name === 'c') {
-      if (currentAbort) {
-        currentAbort.abort();
-      }
-    }
-  };
-
-  process.stdin.on('keypress', onKeypress);
-
-  const rl = readline.createInterface({
+  rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     completer,
+    historySize: 1000,
   });
 
-  let capturing = false;
-  const captureLines: string[] = [];
-
-  const question = (prompt: string) => {
-    return new Promise<string>(resolve => rl.question(prompt, resolve));
+  const refreshPrompt = () => {
+    rl!.setPrompt(capturing ? require('chalk').blue('... ') : require('chalk').blue('CodeAgent > '));
   };
 
-  while (true) {
-    try {
-      const promptText = capturing ? require('chalk').blue('... ') : require('chalk').blue('CodeAgent > ');
-      const line = await question(promptText);
-
-      if (!line && !capturing) continue;
-
-      if (capturing) {
-        if (line.trim() === 'EOF') {
-          capturing = false;
-          const text = captureLines.join('\n');
-          captureLines.length = 0;
-          if (!text.trim()) continue;
-          await handleUserPrompt(text);
-        } else {
-          captureLines.push(line);
-        }
-        continue;
+  const keybindings = attachKeybindings({
+    rl,
+    isTTY: Boolean(process.stdin.isTTY),
+    getMode: () => hud.getMode() as any,
+    isInputSuspended: () => inputSuspended,
+    isCapturing: () => capturing,
+    cancelCapture: () => {
+      capturing = false;
+      captureLines.length = 0;
+      hud.setMode('IDLE');
+      hud.setBubbleLines(bubbles.getLines());
+      hud.setLastTool(bubbles.getLastLabel());
+      hud.render({ includeBubbles: true });
+      refreshPrompt();
+      rl!.prompt(true);
+    },
+    abortCurrent: () => {
+      const mode = hud.getMode();
+      if ((mode === 'STREAMING' || mode === 'THINKING') && currentAbort) {
+        currentAbort.abort();
+        return true;
       }
+      return false;
+    },
+    onClearScreen: () => {
+      console.clear();
+      hud.render({ includeBubbles: true });
+      rl!.prompt(true);
+    },
+    onExit: () => {
+      logger.info('Goodbye!');
+      keybindings.detach();
+      try { rl!.close(); } catch { /* ignore */ }
+      process.exit(0);
+    },
+    onHint: (text) => {
+      logger.info(text);
+    },
+  });
 
-      const trimmed = String(line || '').trim();
-      if (!trimmed) continue;
+  refreshPrompt();
+  rl.prompt();
 
-      if (trimmed === '<<EOF' || trimmed === '<< EOF') {
-        capturing = true;
-        captureLines.length = 0;
-        continue;
-      }
+  let processing = false;
 
-      if (['exit', 'quit'].includes(trimmed.toLowerCase())) {
-        logger.info('Goodbye!');
-        process.exit(0);
-      }
+  const ctx: any = {
+    controller,
+    engine,
+    ui,
+    bubbles,
+    hud,
+    commands,
+    info: (m: string) => logger.info(m),
+    error: (m: string) => logger.error(m),
+    print: (t: string) => console.log(t),
+    handleUserPrompt: async (_t: string) => {},
+  };
 
-      if (trimmed.startsWith('/model')) {
-        const parts = trimmed.split(/\s+/).filter(Boolean);
-        const providers = engine.listProviders();
-
-        if (parts.length === 1) {
-          logger.info(`Current Provider: ${controller.getProviderName()} | Available: ${formatProviders(providers)}`);
-          continue;
-        }
-
-        const name = (parts[1] || '').trim().toLowerCase();
-        if (!name) {
-          logger.error(`Usage: /model <provider>. Available: ${formatProviders(providers)}`);
-          continue;
-        }
-
-        if (!engine.hasProvider(name)) {
-          logger.error(`Provider "${name}" is not registered. Available: ${formatProviders(providers)}`);
-          continue;
-        }
-
-        controller.setProviderName(name);
-        logger.info(`Switched provider to: ${name}`);
-        continue;
-      }
-
-      if (trimmed === '/clear') {
-        controller.getMemory().clearHistory();
-        bubbles.reset();
-        logger.info('Conversation history cleared.');
-        continue;
-      }
-
-      if (trimmed === '/history') {
-        const msgs = controller.getMemory().getMessages();
-        logger.info(`History: ${msgs.length} messages (approx ${controller.getMemoryUsage()} tokens).`);
-        continue;
-      }
-
-      if (trimmed === '/tools') {
-        const items = bubbles.list();
-        if (items.length === 0) {
-          logger.info('No recent tools.');
-        } else {
-          console.log(items.map(i => `${i.id}: ${i.toolName} (${i.status})`).join('\n'));
-        }
-        continue;
-      }
-
-      if (trimmed.startsWith('/tool')) {
-        const parts = trimmed.split(/\s+/).filter(Boolean);
-        const id = Number(parts[1]);
-        if (!Number.isFinite(id)) {
-          logger.error('Usage: /tool <id>');
-          continue;
-        }
-        const item = bubbles.getById(id);
-        if (!item) {
-          logger.error(`Tool id not found: ${id}`);
-          continue;
-        }
-        console.log(require('chalk').dim(`\n--- Tool ${id}: ${item.toolName} ---`));
-        console.log(require('chalk').dim('Args:'));
-        console.log(JSON.stringify(item.args, null, 2));
-        console.log(require('chalk').dim('\nResult:'));
-        console.log(typeof item.result === 'string' ? item.result : JSON.stringify(item.result, null, 2));
-        console.log(require('chalk').dim('--- End ---\n'));
-        continue;
-      }
-
-      if (trimmed === '/edit') {
-        const text = await ui.openEditor('Edit your prompt, then save and close:', '');
-        if (text.trim()) {
-          await handleUserPrompt(text);
-        }
-        continue;
-      }
-
-      await handleUserPrompt(trimmed);
-    } catch (e: any) {
-      if (e?.message?.includes('force closed')) {
-        process.exit(0);
-      }
-      logger.error('Error during REPL: ' + (e?.message || String(e)));
-    }
-  }
-
-  async function handleUserPrompt(prompt: string) {
+  const handleUserPrompt = async (prompt: string) => {
     let firstChunkReceived = false;
+    let fullResponse = '';
+
+    hud.setMode('THINKING');
+    hud.setContextTokens(controller.getMemoryUsage());
+    hud.setLastTool(bubbles.getLastLabel());
+    hud.setBubbleLines(bubbles.getLines());
+    hud.render({ includeBubbles: true });
+
     logger.startSpinner('Thinking...');
 
-    let fullResponse = '';
     currentAbort = new AbortController();
+
+    // Avoid cursor-control interleaving during streaming output
+    hud.suspend(true);
 
     try {
       await controller.askStream(
@@ -364,12 +364,13 @@ async function startREPL() {
         (chunk) => {
           if (!firstChunkReceived) {
             logger.stopSpinner();
+            hud.setMode('STREAMING');
             firstChunkReceived = true;
           }
           fullResponse += chunk;
           process.stdout.write(chunk);
         },
-        { signal: currentAbort.signal }
+        { signal: currentAbort!.signal }
       );
 
       if (!firstChunkReceived) {
@@ -386,11 +387,94 @@ async function startREPL() {
       throw err;
     } finally {
       currentAbort = null;
+      hud.suspend(false);
+      hud.setMode('IDLE');
+      hud.setContextTokens(controller.getMemoryUsage());
+      hud.setTelemetry(telemetry.getSummary() as any);
+      hud.setLastTool(bubbles.getLastLabel());
+      hud.setBubbleLines(bubbles.getLines());
+      hud.render({ includeBubbles: true });
     }
-  }
+  };
+
+  ctx.handleUserPrompt = handleUserPrompt;
+
+  rl.on('line', async (line) => {
+    if (processing) return;
+    processing = true;
+
+    try {
+      const raw = String(line || '');
+      const trimmed = raw.trim();
+
+      if (!trimmed && !capturing) {
+        return;
+      }
+
+      // Capture mode
+      if (capturing) {
+        if (trimmed === 'EOF') {
+          capturing = false;
+          const text = captureLines.join('\n');
+          captureLines.length = 0;
+          if (text.trim()) {
+            await handleUserPrompt(text);
+          }
+        } else {
+          captureLines.push(raw);
+        }
+        return;
+      }
+
+      if (trimmed === '<<EOF' || trimmed === '<< EOF') {
+        capturing = true;
+        captureLines.length = 0;
+        hud.setMode('CAPTURE');
+        hud.render({ includeBubbles: true });
+        return;
+      }
+
+      if (['exit', 'quit'].includes(trimmed.toLowerCase())) {
+        logger.info('Goodbye!');
+        keybindings.detach();
+        rl!.close();
+        process.exit(0);
+      }
+
+      // Slash commands
+      const handled = await dispatchSlash(ctx, trimmed, commands);
+      if (handled) {
+        return;
+      }
+
+      // If it looks like a slash command but not recognized, dispatchSlash already handled.
+      await handleUserPrompt(trimmed);
+    } catch (e: any) {
+      logger.error('Error during REPL: ' + (e?.message || String(e)));
+    } finally {
+      processing = false;
+      hud.setProvider(controller.getProviderName());
+      hud.setMode(capturing ? 'CAPTURE' : 'IDLE');
+      hud.setContextTokens(controller.getMemoryUsage());
+      hud.setTelemetry(telemetry.getSummary() as any);
+      hud.setLastTool(bubbles.getLastLabel());
+      hud.setBubbleLines(bubbles.getLines());
+      hud.render({ includeBubbles: true });
+
+      refreshPrompt();
+      rl!.prompt();
+    }
+  });
+
+  rl.on('close', () => {
+    keybindings.detach();
+    process.exit(0);
+  });
 }
 
 startREPL().catch(err => {
   logger.error('Fatal error: ' + (err?.message || String(err)));
   process.exit(1);
 });
+
+

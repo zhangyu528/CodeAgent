@@ -1,5 +1,7 @@
 import chalk from 'chalk';
 
+if (process.env.NO_COLOR) (chalk as any).level = 0;
+
 export type BubbleStatus = 'running' | 'ok' | 'err';
 
 export type ToolBubbleItem = {
@@ -28,33 +30,24 @@ function formatMs(ms: number) {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function tryRequireLogUpdate(): any | null {
-  try {
-    // optional dependency
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require('log-update');
-  } catch {
-    return null;
-  }
-}
-
 export class ToolBubbles {
   private items: ToolBubbleItem[] = [];
   private nextId = 1;
   private maxItems: number;
   private enabled: boolean;
-  private logUpdate: any | null;
 
   constructor(opts?: { maxItems?: number; enabled?: boolean }) {
     this.maxItems = opts?.maxItems ?? 8;
     this.enabled = opts?.enabled ?? Boolean(process.stdout.isTTY);
-    this.logUpdate = tryRequireLogUpdate();
+  }
+
+  isEnabled(): boolean {
+    return this.enabled;
   }
 
   reset() {
     this.items = [];
     this.nextId = 1;
-    if (this.enabled && this.logUpdate) this.logUpdate.clear();
   }
 
   onToolStarted(toolName: string, args: any) {
@@ -69,7 +62,6 @@ export class ToolBubbles {
 
     this.items.push(item);
     if (this.items.length > this.maxItems) this.items.shift();
-    this.render();
   }
 
   onToolFinished(toolName: string, result: any) {
@@ -79,7 +71,6 @@ export class ToolBubbles {
       item.endedAt = Date.now();
       item.result = result;
     }
-    this.render();
   }
 
   list(): ToolBubbleItem[] {
@@ -90,6 +81,17 @@ export class ToolBubbles {
     return this.items.find(i => i.id === id);
   }
 
+  getLastLabel(): string {
+    const last = this.items[this.items.length - 1];
+    if (!last) return '';
+    return `${last.toolName}(${last.status})`;
+  }
+
+  getLines(): string[] {
+    if (!this.enabled) return [];
+    return this.items.map(i => this.formatItem(i));
+  }
+
   private formatItem(i: ToolBubbleItem): string {
     const duration = i.endedAt ? ` ${chalk.dim(formatMs(i.endedAt - i.startedAt))}` : '';
     const status =
@@ -98,19 +100,5 @@ export class ToolBubbles {
       chalk.red('❌');
 
     return `${chalk.dim(String(i.id).padStart(2, '0'))} ${status} ${chalk.white(i.toolName)} ${chalk.dim(i.argsPreview)}${duration}`;
-  }
-
-  render() {
-    if (!this.enabled) return;
-
-    const content = this.items.map(i => this.formatItem(i)).join('\n');
-
-    if (this.logUpdate) {
-      this.logUpdate(content);
-      return;
-    }
-
-    const last = this.items[this.items.length - 1];
-    if (last) console.log(this.formatItem(last));
   }
 }

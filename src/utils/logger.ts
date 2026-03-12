@@ -1,6 +1,8 @@
 import chalk from 'chalk';
 import ora from 'ora';
 
+if (process.env.NO_COLOR) (chalk as any).level = 0;
+
 type ProviderUsage = {
   inputTokens: number;
   outputTokens: number;

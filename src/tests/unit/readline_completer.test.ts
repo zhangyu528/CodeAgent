@@ -10,12 +10,21 @@ async function testCompleter() {
   await fs.writeFile(path.join(base, 'alpha.txt'), 'a', 'utf-8');
   await fs.mkdir(path.join(base, 'srcdir'), { recursive: true });
 
-  const completer = buildCompleter({ cwd: base, slashCommands: ['/clear', '/model'] });
+  const completer = buildCompleter({
+    cwd: base,
+    slashCommands: ['/clear', '/model', '/help'],
+    getModelProviders: () => ['glm', 'openai', 'deepseek'],
+  });
 
   const res1 = await new Promise<[string[], string]>(resolve => {
     completer('/c', (_err, out) => resolve(out));
   });
   if (!res1[0].includes('/clear')) throw new Error('slash completion missing /clear');
+
+  const resModel = await new Promise<[string[], string]>(resolve => {
+    completer('/model g', (_err, out) => resolve(out));
+  });
+  if (!resModel[0].includes('glm')) throw new Error('model provider completion missing glm');
 
   const res2 = await new Promise<[string[], string]>(resolve => {
     completer('a', (_err, out) => resolve(out));
