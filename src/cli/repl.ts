@@ -16,11 +16,23 @@ Commands:
 `.trim();
 
 export async function startRepl(controller: AgentController, model: string): Promise<void> {
+  const isInteractive = Boolean(input.isTTY && output.isTTY);
+  if (!isInteractive) {
+    const raw = await readAllStdin();
+    const line = raw.trim();
+    if (!line) {
+      return;
+    }
+    await runSingleTurn(controller, model, line);
+    return;
+  }
+
   const rl = readline.createInterface({ input, output });
   const history: ChatTurn[] = [];
   const store = new VectorStore({ provider: resolveEmbeddingProvider() });
   await store.load();
   let exitReason: "user" | "eof" | null = null;
+  let shouldExit = false;
 
   console.log("CodeAgent REPL started. Type /help for commands.");
 
@@ -30,12 +42,11 @@ export async function startRepl(controller: AgentController, model: string): Pro
     rl.close();
   });
 
-  input.on("end", () => {
-    exitReason = "eof";
-    rl.close();
-  });
-
   rl.on("close", () => {
+    shouldExit = true;
+    if (!exitReason) {
+      exitReason = "eof";
+    }
     if (exitReason === "user") {
       console.log("REPL exiting by user command.");
       return;
@@ -47,13 +58,16 @@ export async function startRepl(controller: AgentController, model: string): Pro
   });
 
   while (true) {
+    if (shouldExit) {
+      break;
+    }
     let raw: string;
     try {
       raw = await rl.question("> ");
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         exitReason = "eof";
-        rl.close();
+        shouldExit = true;
         break;
       }
       throw error;
@@ -69,6 +83,7 @@ export async function startRepl(controller: AgentController, model: string): Pro
     }
     if (line === "/exit") {
       exitReason = "user";
+      shouldExit = true;
       rl.close();
       break;
     }
@@ -101,8 +116,6 @@ export async function startRepl(controller: AgentController, model: string): Pro
       timestamp: new Date().toISOString(),
     });
   }
-
-  rl.close();
 }
 
 function buildTask(inputText: string, history: ChatTurn[]): string {
@@ -131,4 +144,39 @@ function resolveEmbeddingProvider() {
   }
   const dimension = Number(process.env.EMBEDDING_DIMENSION ?? "128");
   return new HashEmbeddingProvider(Number.isNaN(dimension) ? 128 : dimension);
+}
+
+async function readAllStdin(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    input.setEncoding("utf8");
+    input.on("data", (chunk) => {
+      data += chunk;
+    });
+    input.on("end", () => resolve(data));
+    input.on("error", (error) => reject(error));
+  });
+}
+
+async function runSingleTurn(controller: AgentController, model: string, line: string) {
+  const store = new VectorStore({ provider: resolveEmbeddingProvider() });
+  await store.load();
+  const spinner = ora(chalk.gray("Thinking...")).start();
+  let answer = "";
+  answer = await controller.runStream(line, model, (chunk) => {
+    if (spinner.isSpinning) {
+      spinner.stop();
+    }
+    process.stdout.write(chunk);
+    answer += chunk;
+  });
+  if (spinner.isSpinning) {
+    spinner.stop();
+  }
+  process.stdout.write("\n");
+
+  await store.add(`User: ${line}\nAssistant: ${answer}`, {
+    source: "repl",
+    timestamp: new Date().toISOString(),
+  });
 }
