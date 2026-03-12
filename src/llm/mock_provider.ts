@@ -108,6 +108,33 @@ export class MockProvider implements LLMProvider {
       return { message: { role: 'assistant', content: JSON.stringify({ steps: plan.steps }) } };
     }
 
+
+    // F8 diff preview tests
+    if (userText.includes('F8_DIFF_TEST_WRITE')) {
+      if (toolsSinceUser === 0) {
+        return {
+          message: {
+            role: 'assistant',
+            content: '',
+            toolCalls: [makeToolCall('write_file', { filePath: 'temp/f8_diff_test.txt', content: 'Hello from diff test' }, 'call_f8_write')],
+          },
+        };
+      }
+      return { message: { role: 'assistant', content: 'F8 diff write test done.' } };
+    }
+
+    if (userText.includes('F8_DIFF_TEST_REPLACE')) {
+      if (toolsSinceUser === 0) {
+        return {
+          message: {
+            role: 'assistant',
+            content: '',
+            toolCalls: [makeToolCall('replace_content', { filePath: 'temp/f8_replace_test.txt', targetContent: 'OLD', replacementContent: 'NEW' }, 'call_f8_replace')],
+          },
+        };
+      }
+      return { message: { role: 'assistant', content: 'F8 diff replace test done.' } };
+    }
     // AgentController integration test (fixed task)
     if (userText.includes('Please list all files in the current directory') && userText.includes('write a summary')) {
       if (toolsSinceUser === 0) {
@@ -291,6 +318,7 @@ export class MockProvider implements LLMProvider {
     };
   }
 }
+
 
 
 

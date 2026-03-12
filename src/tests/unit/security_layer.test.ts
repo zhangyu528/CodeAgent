@@ -1,7 +1,16 @@
 import { SecurityLayer } from '../../controller/security_layer';
+import * as path from 'path';
+import * as fs from 'fs/promises';
 
 async function testSecurityLayer() {
   console.log('=== Running Unit Test: SecurityLayer ===');
+
+  // Redirect global config into workspace to avoid permissions / global state
+  const configPath = path.resolve(process.cwd(), 'temp/unit_security_config.json');
+  process.env.CODEAGENT_CONFIG_PATH = configPath;
+
+  // Cleanup previous runs
+  try { await fs.unlink(configPath); } catch {}
 
   const workspace = process.cwd();
   const sl = new SecurityLayer(workspace);
@@ -42,7 +51,6 @@ async function testSecurityLayer() {
    * Test 3: Trust Mode (F6)
    */
   console.log('\n[Test 3] Trust Mode');
-  // Initially should not be trusted in a test environment (unless previously run)
   const initialTrust = await sl.isWorkspaceTrusted();
   console.log(`Initial trust status: ${initialTrust}`);
 
@@ -50,10 +58,6 @@ async function testSecurityLayer() {
   const afterTrust = await sl.isWorkspaceTrusted();
   if (!afterTrust) throw new Error('Granting trust failed');
   console.log('✅ Trust granted and verified.');
-
-  // Cleanup: optional, but good practice for unit tests to not leave global state
-  // However, since it's in ~/.codeagent, we might leave it or use a mock.
-  // For raw unit test, we just verify the flow.
 
   console.log('\n=== SecurityLayer Unit Test Pass ===');
 }

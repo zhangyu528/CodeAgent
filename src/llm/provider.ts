@@ -9,6 +9,7 @@ export interface GenerateOptions {
   temperature?: number;
   maxTokens?: number;
   model?: string;
+  signal?: AbortSignal;
 }
 
 export interface LLMResponse {
@@ -25,3 +26,5 @@ export interface LLMProvider {
   generate(messages: Message[], tools?: any[], options?: GenerateOptions): Promise<LLMResponse>;
   generateStream?(messages: Message[], tools?: any[], options?: GenerateOptions): AsyncIterable<string>;
 }
+
+

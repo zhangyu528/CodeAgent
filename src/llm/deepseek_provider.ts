@@ -41,14 +41,17 @@ export class DeepSeekProvider implements LLMProvider {
 
     if (tools && tools.length > 0) payload.tools = tools;
 
-    const response = await fetch(this.baseUrl, {
+    const init: any = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(payload),
-    });
+    };
+    if (options?.signal) init.signal = options.signal;
+
+    const response = await fetch(this.baseUrl, init);
 
     if (!response.ok) {
       const errorText = await response.text();
