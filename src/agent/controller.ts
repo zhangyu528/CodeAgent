@@ -6,6 +6,7 @@ import type { ToolSystem } from "../tools/tool-system.js";
 import { MemoryManager } from "../memory/memory-manager.js";
 import { VectorStore } from "../memory/vector-store.js";
 import { GLMEmbeddingProvider, HashEmbeddingProvider } from "../memory/embedding-provider.js";
+import { Planner, PlanStep } from "./planner.js";
 
 export class AgentController {
   constructor(
@@ -15,6 +16,12 @@ export class AgentController {
   ) {}
 
   async run(task: string, model: string): Promise<string> {
+    const planningMode = this.planningMode();
+    const planningContext = (process.env.PLANNING_CONTEXT ?? "true").toLowerCase() === "true";
+    if (planningMode !== "off" && this.shouldPlan(task, planningMode) && planningContext) {
+      return this.runWithPlan(task, model);
+    }
+
     const systemPrompt = await this.loadSystemPrompt();
     const developerPrompt = await this.loadDeveloperPrompt();
     const retrieved = await this.maybeRetrieve(task);
@@ -61,10 +68,18 @@ export class AgentController {
 
         for (const call of response.tool_calls) {
           try {
+            if (this.logToolCalls()) {
+              console.log(
+                `[tool_call] ${call.function.name} ${this.truncateJson(call.function.arguments ?? {})}`
+              );
+            }
             const result = await this.toolSystem.execute(
               call.function.name,
               call.function.arguments
             );
+            if (this.logToolCalls()) {
+              console.log(`[tool_result] ${call.function.name} -> ${this.truncateJson(result)}`);
+            }
             await memory.add({
               role: "tool",
               tool_call_id: call.id,
@@ -88,6 +103,52 @@ export class AgentController {
     }
 
     throw new Error("Max turns exceeded without final response.");
+  }
+
+  private async runWithPlan(task: string, model: string): Promise<string> {
+    const plan = await this.createPlan(task, model);
+    const results: Array<{ stepId: string; tool: string; result: unknown }> = [];
+
+    for (const step of plan) {
+      if (this.logToolCalls()) {
+        console.log(`[tool_call] ${step.tool} ${this.truncateJson(step.args ?? {})}`);
+      }
+      const result = await this.toolSystem.execute(step.tool, step.args ?? {});
+      results.push({ stepId: step.id, tool: step.tool, result });
+      if (this.logToolCalls()) {
+        console.log(`[tool_result] ${step.tool} -> ${this.truncateJson(result)}`);
+      }
+    }
+
+    const summaryTask = [
+      "You are given a task, its plan, and tool results.",
+      "Provide a concise final response strictly based on the tool results.",
+      "If the tool results show a failure, explain the failure and suggest next steps.",
+      "Do not claim actions were executed unless shown in tool results.",
+      "Task:",
+      task,
+      "Plan:",
+      JSON.stringify(plan),
+      "Tool Results:",
+      JSON.stringify(results),
+    ].join("\n");
+
+    const planningContext = process.env.PLANNING_CONTEXT ?? "true";
+    process.env.PLANNING_CONTEXT = "false";
+    try {
+      return await this.run(summaryTask, model);
+    } finally {
+      process.env.PLANNING_CONTEXT = planningContext;
+    }
+  }
+
+  private async createPlan(task: string, model: string): Promise<PlanStep[]> {
+    const planner = new Planner(
+      this.engine,
+      this.providerName,
+      this.toolSystem.listDefinitions().map((tool) => tool.name)
+    );
+    return planner.plan(task, model);
   }
 
   private formatError(payload: {
@@ -219,5 +280,30 @@ export class AgentController {
     }
     const dimension = Number(process.env.EMBEDDING_DIMENSION ?? "128");
     return new HashEmbeddingProvider(Number.isNaN(dimension) ? 128 : dimension);
+  }
+
+  private logToolCalls(): boolean {
+    return (process.env.LOG_TOOL_CALLS ?? "false").toLowerCase() === "true";
+  }
+
+  private planningMode(): "off" | "on" | "auto" {
+    const mode = (process.env.PLANNING_MODE ?? "off").toLowerCase();
+    if (mode === "on" || mode === "auto") {
+      return mode;
+    }
+    return "off";
+  }
+
+  private shouldPlan(task: string, mode: "on" | "auto"): boolean {
+    if (mode === "on") {
+      return true;
+    }
+    const keywords = ["plan", "steps", "fix", "refactor", "test", "analyze", "compile", "build"];
+    return task.length > 120 || keywords.some((keyword) => task.toLowerCase().includes(keyword));
+  }
+
+  private truncateJson(value: unknown, maxLength = 400): string {
+    const text = this.safeSerialize(value);
+    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
   }
 }
