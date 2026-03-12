@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "tsc",
     "demo": "tsx bin/run-demo.ts",
     "acceptance": "tsx bin/run-acceptance.ts",
     "p1-acceptance": "tsx bin/run-p1-acceptance.ts",
@@ -12,6 +13,9 @@
     "p3-memory-search": "tsx bin/run-p3-memory-search.ts",
     "serve": "tsx src/server/http-server.ts",
     "cli": "tsx src/cli/index.ts"
+  },
+  "bin": {
+    "codeagent": "dist/cli/index.js"
   },
   "dependencies": {
     "@inquirer/prompts": "^5.3.6",

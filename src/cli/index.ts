@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import "dotenv/config";
 import { Command } from "commander";
 import { input } from "@inquirer/prompts";
@@ -13,10 +14,16 @@ import { RunCommandTool } from "../tools/run-command-tool.js";
 import { AgentController } from "../agent/controller.js";
 import { startRepl } from "./repl.js";
 import chalk from "chalk";
+import { confirm } from "@inquirer/prompts";
+import { setApprovalHandler } from "../security/approval-handler.js";
 
 const program = new Command();
 const store = new ConfigStore();
 const logger = new Logger();
+
+setApprovalHandler(async (message) => {
+  return confirm({ message, default: false });
+});
 
 program.name("codeagent").description("CodeAgent CLI").version("0.1.0");
 
@@ -77,7 +84,7 @@ program
   .description("Run a single task")
   .argument("<task>", "task description")
   .action(async (task) => {
-    const { values } = await resolveConfig();
+    const { values, sources } = await resolveConfig();
     const apiKey = values.GLM_API_KEY ?? process.env.GLM_API_KEY;
     const model = values.GLM_MODEL ?? process.env.GLM_MODEL;
     const baseUrl = values.GLM_BASE_URL ?? process.env.GLM_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4";
@@ -85,6 +92,11 @@ program
       logger.error("Missing GLM_API_KEY or GLM_MODEL");
       process.exit(1);
     }
+    logger.info("config sources", {
+      GLM_API_KEY: sources.GLM_API_KEY ?? "env",
+      GLM_MODEL: sources.GLM_MODEL ?? "env",
+      GLM_BASE_URL: sources.GLM_BASE_URL ?? "env",
+    });
     const engine = new LLMEngine();
     engine.registerProvider(new GLMProvider({ apiKey, baseUrl }));
     const toolSystem = new ToolSystem([EchoTool, ReadFileTool, RunCommandTool]);
@@ -98,7 +110,7 @@ program
   .command("chat")
   .description("Start interactive REPL")
   .action(async () => {
-    const { values } = await resolveConfig();
+    const { values, sources } = await resolveConfig();
     const apiKey = values.GLM_API_KEY ?? process.env.GLM_API_KEY;
     const model = values.GLM_MODEL ?? process.env.GLM_MODEL;
     const baseUrl = values.GLM_BASE_URL ?? process.env.GLM_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4";
@@ -106,6 +118,11 @@ program
       logger.error("Missing GLM_API_KEY or GLM_MODEL");
       process.exit(1);
     }
+    logger.info("config sources", {
+      GLM_API_KEY: sources.GLM_API_KEY ?? "env",
+      GLM_MODEL: sources.GLM_MODEL ?? "env",
+      GLM_BASE_URL: sources.GLM_BASE_URL ?? "env",
+    });
     const engine = new LLMEngine();
     engine.registerProvider(new GLMProvider({ apiKey, baseUrl }));
     const toolSystem = new ToolSystem([EchoTool, ReadFileTool, RunCommandTool]);

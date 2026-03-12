@@ -2,6 +2,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { readFile } from "node:fs/promises";
+import { getApprovalHandler } from "./approval-handler.js";
 
 export interface CommandCheckResult {
   isAllowed: boolean;
@@ -67,6 +68,10 @@ export class SecurityLayer {
   }
 
   async requestUserApproval(actionDescription: string): Promise<boolean> {
+    const handler = getApprovalHandler();
+    if (handler) {
+      return handler(actionDescription);
+    }
     const rl = readline.createInterface({ input, output });
     const answer = await rl.question(`${actionDescription} (y/n): `);
     rl.close();
