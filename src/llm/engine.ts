@@ -23,4 +23,12 @@ export class LLMEngine {
   ): Promise<LLMResponse> {
     return this.getProvider(providerName).generate(messages, options);
   }
+
+  generateStream(
+    providerName: string,
+    messages: Message[],
+    options: GenerateOptions
+  ): AsyncIterable<string> {
+    return this.getProvider(providerName).generateStream(messages, options);
+  }
 }

@@ -97,6 +97,31 @@ Result:
 - **FAILED**. Provider request timed out:
   - `GLM request timed out after 10000ms`
 
+### Test 8 — CLI REPL minimal check
+
+Command:
+```
+npm run cli -- chat
+```
+
+Result:
+- **PARTIAL PASS**. REPL launched and `/help` responded.
+- Streaming response to a normal prompt did not produce output (likely network/LLM availability).
+
+### Test 9 — CLI REPL streaming + memory check
+
+Command:
+```
+npm run cli -- chat
+```
+
+Result:
+- **PASS**.
+  - REPL launched.
+  - User input produced streaming response.
+  - `/exit` exited cleanly.
+  - `.memory/vector-store.json` updated with new entry.
+
 ## Notes
 
 - Planning-mode verification needs retry once provider rate limits clear.

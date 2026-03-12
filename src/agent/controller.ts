@@ -105,6 +105,106 @@ export class AgentController {
     throw new Error("Max turns exceeded without final response.");
   }
 
+  async runStream(
+    task: string,
+    model: string,
+    onChunk: (chunk: string) => void
+  ): Promise<string> {
+    const planningMode = this.planningMode();
+    const planningContext = (process.env.PLANNING_CONTEXT ?? "true").toLowerCase() === "true";
+    if (planningMode !== "off" && this.shouldPlan(task, planningMode) && planningContext) {
+      return this.runWithPlanStream(task, model, onChunk);
+    }
+
+    const systemPrompt = await this.loadSystemPrompt();
+    const developerPrompt = await this.loadDeveloperPrompt();
+    const retrieved = await this.maybeRetrieve(task);
+    const memory = new MemoryManager({ maxItems: this.maxMemoryItems() });
+    await memory.add({ role: "system", content: systemPrompt });
+    await memory.add({ role: "system", content: developerPrompt });
+    if (retrieved) {
+      await memory.add({ role: "system", content: `Retrieved memory:\n${retrieved}` });
+    }
+    await memory.add({ role: "user", content: task });
+
+    const maxTurns = 4;
+    for (let turn = 0; turn < maxTurns; turn += 1) {
+      let response;
+      try {
+        response = await this.engine.generate(this.providerName, memory.getSnapshot(), {
+          model,
+          tools: this.toolSystem.listDefinitions(),
+          tool_choice: "auto",
+        });
+      } catch (error) {
+        return this.formatError({
+          stage: "LLM_REQUEST",
+          message: this.errorMessage(error),
+        });
+      }
+
+      if (response.tool_calls && response.tool_calls.length > 0) {
+        await memory.add({
+          role: "assistant",
+          content: response.content ?? "",
+          tool_calls: response.tool_calls,
+        });
+
+        for (const call of response.tool_calls) {
+          try {
+            if (this.logToolCalls()) {
+              console.log(
+                `[tool_call] ${call.function.name} ${this.truncateJson(call.function.arguments ?? {})}`
+              );
+            }
+            const result = await this.toolSystem.execute(
+              call.function.name,
+              call.function.arguments
+            );
+            if (this.logToolCalls()) {
+              console.log(`[tool_result] ${call.function.name} -> ${this.truncateJson(result)}`);
+            }
+            await memory.add({
+              role: "tool",
+              tool_call_id: call.id,
+              content: JSON.stringify(result),
+            });
+          } catch (error) {
+            const stage = this.classifyToolErrorStage(error);
+            return this.formatError({
+              stage,
+              tool: call.function.name,
+              args: call.function.arguments ?? null,
+              message: this.errorMessage(error),
+            });
+          }
+        }
+
+        continue;
+      }
+
+      let finalText = "";
+      try {
+        for await (const chunk of this.engine.generateStream(
+          this.providerName,
+          memory.getSnapshot(),
+          { model, tool_choice: "none" }
+        )) {
+          onChunk(chunk);
+          finalText += chunk;
+        }
+        return finalText;
+      } catch (error) {
+        return this.formatError({
+          stage: "LLM_REQUEST",
+          message: this.errorMessage(error),
+        });
+      }
+    }
+
+    throw new Error("Max turns exceeded without final response.");
+  }
+
   private async runWithPlan(task: string, model: string): Promise<string> {
     const plan = await this.createPlan(task, model);
     const results: Array<{ stepId: string; tool: string; result: unknown }> = [];
@@ -137,6 +237,47 @@ export class AgentController {
     process.env.PLANNING_CONTEXT = "false";
     try {
       return await this.run(summaryTask, model);
+    } finally {
+      process.env.PLANNING_CONTEXT = planningContext;
+    }
+  }
+
+  private async runWithPlanStream(
+    task: string,
+    model: string,
+    onChunk: (chunk: string) => void
+  ): Promise<string> {
+    const plan = await this.createPlan(task, model);
+    const results: Array<{ stepId: string; tool: string; result: unknown }> = [];
+
+    for (const step of plan) {
+      if (this.logToolCalls()) {
+        console.log(`[tool_call] ${step.tool} ${this.truncateJson(step.args ?? {})}`);
+      }
+      const result = await this.toolSystem.execute(step.tool, step.args ?? {});
+      results.push({ stepId: step.id, tool: step.tool, result });
+      if (this.logToolCalls()) {
+        console.log(`[tool_result] ${step.tool} -> ${this.truncateJson(result)}`);
+      }
+    }
+
+    const summaryTask = [
+      "You are given a task, its plan, and tool results.",
+      "Provide a concise final response strictly based on the tool results.",
+      "If the tool results show a failure, explain the failure and suggest next steps.",
+      "Do not claim actions were executed unless shown in tool results.",
+      "Task:",
+      task,
+      "Plan:",
+      JSON.stringify(plan),
+      "Tool Results:",
+      JSON.stringify(results),
+    ].join("\n");
+
+    const planningContext = process.env.PLANNING_CONTEXT ?? "true";
+    process.env.PLANNING_CONTEXT = "false";
+    try {
+      return await this.runStream(summaryTask, model, onChunk);
     } finally {
       process.env.PLANNING_CONTEXT = planningContext;
     }
