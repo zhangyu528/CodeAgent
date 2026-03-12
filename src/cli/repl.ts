@@ -20,11 +20,45 @@ export async function startRepl(controller: AgentController, model: string): Pro
   const history: ChatTurn[] = [];
   const store = new VectorStore({ provider: resolveEmbeddingProvider() });
   await store.load();
+  let exitReason: "user" | "eof" | null = null;
 
   console.log("CodeAgent REPL started. Type /help for commands.");
 
+  input.on("SIGINT", () => {
+    exitReason = "user";
+    console.log("\nREPL interrupted by Ctrl+C.");
+    rl.close();
+  });
+
+  input.on("end", () => {
+    exitReason = "eof";
+    rl.close();
+  });
+
+  rl.on("close", () => {
+    if (exitReason === "user") {
+      console.log("REPL exiting by user command.");
+      return;
+    }
+    if (exitReason === "eof") {
+      console.log("REPL input closed (EOF). Exiting.");
+      return;
+    }
+  });
+
   while (true) {
-    const line = (await rl.question("> ")).trim();
+    let raw: string;
+    try {
+      raw = await rl.question("> ");
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        exitReason = "eof";
+        rl.close();
+        break;
+      }
+      throw error;
+    }
+    const line = raw.trim();
     if (!line) {
       continue;
     }
@@ -34,6 +68,8 @@ export async function startRepl(controller: AgentController, model: string): Pro
       continue;
     }
     if (line === "/exit") {
+      exitReason = "user";
+      rl.close();
       break;
     }
     if (line === "/reset") {

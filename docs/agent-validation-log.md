@@ -135,6 +135,18 @@ Result:
   - `run` printed colored status line and returned a valid summary.
   - `chat` showed spinner ("Thinking...") and streamed output.
 
+### Test 11 — CLI REPL exit reasons (Ctrl+C / EOF)
+
+Commands:
+```
+codeagent chat
+```
+
+Result:
+- **PENDING / NOT RUN** (to be verified locally).
+  - Ctrl+C should print a friendly exit message before exiting.
+  - EOF (Ctrl+D) should print a friendly exit message before exiting.
+
 ## Notes
 
 - Planning-mode verification needs retry once provider rate limits clear.
