@@ -29,6 +29,18 @@ struct ContentView: View {
             List(vm.notifications, id: \.self) { item in
                 Text(item).font(.caption)
             }
+
+            Text("JSONL Logs:")
+            List(vm.logs) { entry in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(entry.direction) \(entry.timestamp.formatted(date: .abbreviated, time: .standard))")
+                        .font(.caption2)
+                        .foregroundColor(entry.direction == "TX" ? .blue : .green)
+                    Text(entry.rawLine)
+                        .font(.caption)
+                        .textSelection(.enabled)
+                }
+            }
         }
         .padding()
     }

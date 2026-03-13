@@ -17,6 +17,7 @@ final class AgentClient {
     private var pending: [String: (Result<[String: Any], Error>) -> Void] = [:]
 
     var onNotification: ((String, [String: Any]?) -> Void)?
+    var onLogLine: ((String, String, Date) -> Void)?
     var onExit: ((Int32) -> Void)?
 
     func start(nodePath: String) throws {
@@ -74,6 +75,9 @@ final class AgentClient {
                 let data = try JSONSerialization.data(withJSONObject: msg, options: [])
                 var line = data
                 line.append(0x0A) // \n
+                if let raw = String(data: data, encoding: .utf8) {
+                    self.onLogLine?("TX", raw, Date())
+                }
                 inPipe.fileHandleForWriting.write(line)
             } catch {
                 // Ignore local serialization errors for now
@@ -106,6 +110,9 @@ final class AgentClient {
 
     private func parseLine(_ data: Data) {
         do {
+            if let raw = String(data: data, encoding: .utf8) {
+                onLogLine?("RX", raw, Date())
+            }
             let obj = try JSONSerialization.jsonObject(with: data, options: [])
             guard let dict = obj as? [String: Any] else {
                 return
