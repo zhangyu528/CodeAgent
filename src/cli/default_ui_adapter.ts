@@ -114,5 +114,12 @@ export class DefaultUIAdapter implements UIAdapter {
       });
     });
   }
+
+  /**
+   * Expose the suspension mechanism for external use (e.g. slash command menu)
+   */
+  async suspendInput<T>(fn: () => Promise<T>): Promise<T> {
+    return this.withSuspendedInput(fn);
+  }
 }
 

@@ -13,19 +13,34 @@ export function attachKeybindings(opts: {
   onClearScreen: () => void;
   onExit: () => void;
   onHint: (text: string) => void;
+  onSlash?: () => void;
+  stdin?: NodeJS.ReadableStream;
 }) {
+  const input = opts.stdin || process.stdin;
   if (!opts.isTTY) return { detach() {} };
 
-  readline.emitKeypressEvents(process.stdin);
-  try {
-    process.stdin.setRawMode(true);
-  } catch {
-    // ignore
+  readline.emitKeypressEvents(input as any);
+  if (input === process.stdin) {
+    try {
+      (process.stdin as any).setRawMode?.(true);
+    } catch {
+      // ignore
+    }
   }
 
-  const onKeypress = (_str: string, key: any) => {
+  const onKeypress = (str: string, key: any) => {
     if (opts.isInputSuspended()) return;
     if (!key) return;
+
+    // Detect '/' at the beginning of an empty line
+    if (str === '/' && opts.getMode() === 'IDLE' && opts.onSlash) {
+      const line = (opts.rl as any).line || '';
+      // If line is empty or already contains just '/', trigger menu
+      if (!line || line === '/') {
+        opts.onSlash();
+        return;
+      }
+    }
 
     // Ctrl+L: clear screen but keep session
     if (key.ctrl && key.name === 'l') {
@@ -61,15 +76,17 @@ export function attachKeybindings(opts: {
     }
   };
 
-  process.stdin.on('keypress', onKeypress);
+  (input as any).on('keypress', onKeypress);
 
   return {
     detach() {
-      process.stdin.off('keypress', onKeypress);
-      try {
-        process.stdin.setRawMode(false);
-      } catch {
-        // ignore
+      (input as any).off('keypress', onKeypress);
+      if (input === process.stdin) {
+        try {
+          (process.stdin as any).setRawMode?.(false);
+        } catch {
+          // ignore
+        }
       }
     },
   };

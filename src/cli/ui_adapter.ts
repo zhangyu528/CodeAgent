@@ -18,9 +18,9 @@ export interface UIAdapter {
 
   selectOne(message: string, choices: string[], opts?: { default?: string; enableSearch?: boolean }): Promise<string>;
   selectMany(message: string, choices: string[], opts?: { defaults?: string[]; enableSearch?: boolean }): Promise<string[]>;
-
   openEditor(message: string, initial?: string): Promise<string>;
-}
+  suspendInput<T>(fn: () => Promise<T>): Promise<T>;
+  }
 
 export function parseRiskPrompt(input: string | RiskPrompt): RiskPrompt {
   if (typeof input !== 'string') return input;

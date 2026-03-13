@@ -334,6 +334,34 @@ async function startREPL() {
     onHint: (text) => {
       logger.info(text);
     },
+    onSlash: () => {
+      ui.suspendInput(async () => {
+        const { select } = require('@inquirer/prompts');
+        const choices = commands.map(c => ({
+          name: `${chalk.yellow(c.name.padEnd(10))} ${chalk.dim(c.description)}`,
+          value: c.name,
+        }));
+
+        try {
+          const selected = await select({
+            message: '选择命令:',
+            choices,
+          });
+          if (selected) {
+            // Clear current line if it contains '/'
+            if ((rl as any).line === '/') {
+              readline.moveCursor(process.stdout, -1, 0);
+              readline.clearLine(process.stdout, 1);
+              (rl as any).line = '';
+              (rl as any).cursor = 0;
+            }
+            rl?.write(selected);
+          }
+        } catch {
+          // User cancelled
+        }
+      });
+    },
   });
 
   refreshPrompt();

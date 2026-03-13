@@ -11,6 +11,7 @@ class MockUI implements UIAdapter {
   async selectOne(_m: string, _c: string[]): Promise<string> { return 'B'; }
   async selectMany(_m: string, _c: string[]): Promise<string[]> { return ['A', 'C']; }
   async openEditor(): Promise<string> { return 'edited'; }
+  async suspendInput<T>(fn: () => Promise<T>): Promise<T> { return fn(); }
 }
 
 export async function test() {
