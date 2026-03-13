@@ -1,6 +1,6 @@
 import { ToolBubbles } from '../../cli/tool_bubbles';
 
-async function testToolBubbles() {
+export async function test() {
   console.log('=== Running Unit Test: Tool Bubbles ===');
 
   const tb = new ToolBubbles({ maxItems: 2, enabled: false });
@@ -23,7 +23,9 @@ async function testToolBubbles() {
   console.log('✅ Tool bubbles works.');
 }
 
-testToolBubbles().catch(e => {
-  console.error('❌ Tool bubbles test failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ Tool bubbles test failed:', e.message);
+    process.exit(1);
+  });
+}

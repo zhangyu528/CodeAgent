@@ -1,7 +1,7 @@
 import { MemoryManager } from '../../controller/memory_manager';
 import { Message } from '../../llm/provider';
 
-async function testMemoryManager() {
+export async function test() {
   console.log('=== Running Unit Test: MemoryManager ===');
 
   /**
@@ -65,7 +65,9 @@ async function testMemoryManager() {
   console.log('\n=== MemoryManager Unit Test Pass ===');
 }
 
-testMemoryManager().catch(e => {
-  console.error('❌ MemoryManager Test Failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ MemoryManager Test Failed:', e.message);
+    process.exit(1);
+  });
+}

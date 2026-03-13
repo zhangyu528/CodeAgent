@@ -1,6 +1,6 @@
 import { SecurityLayer } from '../../controller/security_layer';
 
-async function testSecurityLayerWeb() {
+export async function test() {
   console.log('=== Running Unit Test: SecurityLayer (Web) ===');
 
   const sl = new SecurityLayer(process.cwd());
@@ -36,7 +36,9 @@ async function testSecurityLayerWeb() {
   console.log('\n=== SecurityLayer (Web) Unit Test Pass ===');
 }
 
-testSecurityLayerWeb().catch(e => {
-  console.error('❌ SecurityLayer (Web) Test Failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ SecurityLayer (Web) Test Failed:', e.message);
+    process.exit(1);
+  });
+}

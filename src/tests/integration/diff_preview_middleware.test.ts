@@ -29,7 +29,7 @@ async function exists(p: string): Promise<boolean> {
   try { await fs.stat(p); return true; } catch { return false; }
 }
 
-async function testDiffPreviewMiddleware() {
+export async function test() {
   console.log('=== Running Integration Test: Diff Preview Middleware ===');
 
   const engine = new LLMEngine();
@@ -103,7 +103,9 @@ async function testDiffPreviewMiddleware() {
   console.log('✅ Diff preview middleware works.');
 }
 
-testDiffPreviewMiddleware().catch(e => {
-  console.error('❌ Diff preview middleware test failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ Diff preview middleware test failed:', e.message);
+    process.exit(1);
+  });
+}

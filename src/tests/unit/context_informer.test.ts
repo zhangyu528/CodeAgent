@@ -6,7 +6,7 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-async function testContextInformer() {
+export async function test() {
   console.log('=== Running Unit Test: ContextInformer ===');
   const baseTemp = path.join(process.cwd(), 'temp');
   await fs.mkdir(baseTemp, { recursive: true });
@@ -70,7 +70,9 @@ async function testContextInformer() {
   }
 }
 
-testContextInformer().catch(e => {
-  console.error('❌ ContextInformer Test Failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ ContextInformer Test Failed:', e.message);
+    process.exit(1);
+  });
+}

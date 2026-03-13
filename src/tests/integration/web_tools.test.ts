@@ -6,7 +6,7 @@ function assert(cond: any, msg: string) {
   if (!cond) throw new Error(msg);
 }
 
-async function testWebTools() {
+export async function test() {
   console.log('=== Running Integration Test: Web Tools (Mocked Fetch) ===');
 
   const originalFetch: any = (globalThis as any).fetch;
@@ -75,7 +75,9 @@ async function testWebTools() {
   }
 }
 
-testWebTools().catch(e => {
-  console.error('❌ Web Tools Integration Test Failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ Web Tools Integration Test Failed:', e.message);
+    process.exit(1);
+  });
+}

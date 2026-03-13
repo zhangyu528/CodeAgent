@@ -1,6 +1,6 @@
 import { buildHelpLines, getDefaultSlashCommands } from '../../cli/slash_commands';
 
-async function testSlashHelp() {
+export async function test() {
   console.log('=== Running Unit Test: Slash Commands Help ===');
 
   const commands = getDefaultSlashCommands();
@@ -16,7 +16,9 @@ async function testSlashHelp() {
   console.log('✅ Slash commands help works.');
 }
 
-testSlashHelp().catch(e => {
-  console.error('❌ Slash commands help test failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ Slash commands help test failed:', e.message);
+    process.exit(1);
+  });
+}

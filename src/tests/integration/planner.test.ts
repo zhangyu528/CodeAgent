@@ -8,7 +8,7 @@ import { SecurityLayer } from '../../controller/security_layer';
 import { MemoryManager } from '../../controller/memory_manager';
 import { MockProvider } from '../../llm/mock_provider';
 
-async function testPlanner() {
+export async function test() {
   console.log('=== Running CodeAgent P1 Planner Test (MockProvider) ===\n');
 
   const engine = new LLMEngine();
@@ -36,7 +36,9 @@ async function testPlanner() {
   console.log('\n=== Planner Test Finished Successfully ===');
 }
 
-testPlanner().catch(err => {
-  console.error('\n[Fatal Error]', err.message || err);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(err => {
+    console.error('\n[Fatal Error]', err.message || err);
+    process.exit(1);
+  });
+}

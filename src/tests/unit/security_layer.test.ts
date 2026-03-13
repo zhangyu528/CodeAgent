@@ -2,7 +2,7 @@ import { SecurityLayer } from '../../controller/security_layer';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
-async function testSecurityLayer() {
+export async function test() {
   console.log('=== Running Unit Test: SecurityLayer ===');
 
   // Redirect global config into workspace to avoid permissions / global state
@@ -62,7 +62,9 @@ async function testSecurityLayer() {
   console.log('\n=== SecurityLayer Unit Test Pass ===');
 }
 
-testSecurityLayer().catch(e => {
-  console.error('❌ SecurityLayer Test Failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ SecurityLayer Test Failed:', e.message);
+    process.exit(1);
+  });
+}

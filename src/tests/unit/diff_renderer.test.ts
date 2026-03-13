@@ -4,7 +4,7 @@ function stripAnsi(s: string) {
   return s.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
-async function testDiffRenderer() {
+export async function test() {
   console.log('=== Running Unit Test: Diff Renderer ===');
 
   const oldText = 'line1\nold\nline3\n';
@@ -23,7 +23,9 @@ async function testDiffRenderer() {
   console.log('✅ Diff renderer works.');
 }
 
-testDiffRenderer().catch(e => {
-  console.error('❌ Diff renderer test failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ Diff renderer test failed:', e.message);
+    process.exit(1);
+  });
+}

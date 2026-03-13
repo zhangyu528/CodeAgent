@@ -8,7 +8,7 @@ import { WriteFileTool } from '../../tools/write_file_tool';
 import { RunCommandTool } from '../../tools/run_command_tool';
 import { MockProvider } from '../../llm/mock_provider';
 
-async function runTests() {
+export async function test() {
   console.log('=== Running CodeAgent P0 MVP Tests (MockProvider) ===\n');
 
   try {
@@ -40,4 +40,6 @@ async function runTests() {
   }
 }
 
-runTests();
+if (require.main === module) {
+  test();
+}

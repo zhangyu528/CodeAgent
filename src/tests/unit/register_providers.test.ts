@@ -15,7 +15,7 @@ function restoreEnv(snapshot: NodeJS.ProcessEnv) {
   }
 }
 
-async function testRegisterProvidersFromEnv() {
+export async function test() {
   console.log('=== Running Unit Test: registerProvidersFromEnv ===');
 
   const snapshot = { ...process.env };
@@ -52,7 +52,9 @@ async function testRegisterProvidersFromEnv() {
   }
 }
 
-testRegisterProvidersFromEnv().catch(e => {
-  console.error('❌ registerProvidersFromEnv Test Failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ registerProvidersFromEnv Test Failed:', e.message);
+    process.exit(1);
+  });
+}

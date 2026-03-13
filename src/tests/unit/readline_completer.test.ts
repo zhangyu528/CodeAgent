@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { buildCompleter } from '../../cli/readline_completer';
 
-async function testCompleter() {
+export async function test() {
   console.log('=== Running Unit Test: Readline Completer ===');
 
   const base = path.resolve(process.cwd(), 'temp/f8_completer');
@@ -39,7 +39,9 @@ async function testCompleter() {
   console.log('✅ Readline completer works.');
 }
 
-testCompleter().catch(e => {
-  console.error('❌ Readline completer test failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ Readline completer test failed:', e.message);
+    process.exit(1);
+  });
+}

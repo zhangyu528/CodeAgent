@@ -16,6 +16,7 @@ import { buildCompleter } from './cli/readline_completer';
 import { HUD } from './cli/hud';
 import { attachKeybindings } from './cli/keybindings';
 import { dispatchSlash, getDefaultSlashCommands } from './cli/slash_commands';
+import { runInitWizard } from './cli/setup_wizard';
 
 // Tools
 import { ReadFileTool } from './tools/read_file_tool';
@@ -87,13 +88,22 @@ function renderWelcomeCard(opts: { version: string; provider: string; providers:
 async function createAgent(ui: DefaultUIAdapter) {
   const engine = new LLMEngine();
 
-  const reg = registerProvidersFromEnv(engine);
+  let reg = registerProvidersFromEnv(engine);
   if (reg.registered.length === 0) {
-    logger.error('No LLM providers configured. Please set provider env vars in .env.');
-    if (reg.skipped.length > 0) {
-      logger.info(`Skipped: ${reg.skipped.map(s => `${s.name}(${s.reason})`).join(' | ')}`);
+    const success = await runInitWizard();
+    if (success) {
+      // Reload env again
+      dotenv.config({ quiet: true });
+      reg = registerProvidersFromEnv(engine);
     }
-    process.exit(1);
+
+    if (reg.registered.length === 0) {
+      logger.error('No LLM providers configured. Please set provider env vars in .env.');
+      if (reg.skipped.length > 0) {
+        logger.info(`Skipped: ${reg.skipped.map(s => `${s.name}(${s.reason})`).join(' | ')}`);
+      }
+      process.exit(1);
+    }
   }
 
   const providers = engine.listProviders();

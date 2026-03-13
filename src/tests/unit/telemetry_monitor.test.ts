@@ -4,7 +4,7 @@ function assert(cond: any, msg: string) {
   if (!cond) throw new Error(msg);
 }
 
-async function testTelemetryMonitor() {
+export async function test() {
   console.log('=== Running Unit Test: TelemetryMonitor (Per Provider) ===');
 
   const tm = new TelemetryMonitor();
@@ -28,7 +28,9 @@ async function testTelemetryMonitor() {
   console.log('✅ TelemetryMonitor aggregates token usage by provider.');
 }
 
-testTelemetryMonitor().catch(e => {
-  console.error('❌ TelemetryMonitor Test Failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ TelemetryMonitor Test Failed:', e.message);
+    process.exit(1);
+  });
+}

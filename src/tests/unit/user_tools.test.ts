@@ -13,7 +13,7 @@ class MockUI implements UIAdapter {
   async openEditor(): Promise<string> { return 'edited'; }
 }
 
-async function testUserTools() {
+export async function test() {
   console.log('=== Running Unit Test: User Tools ===');
 
   const ui = new MockUI();
@@ -33,7 +33,9 @@ async function testUserTools() {
   console.log('✅ User tools works.');
 }
 
-testUserTools().catch(e => {
-  console.error('❌ User tools test failed:', e.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  test().catch(e => {
+    console.error('❌ User tools test failed:', e.message);
+    process.exit(1);
+  });
+}
