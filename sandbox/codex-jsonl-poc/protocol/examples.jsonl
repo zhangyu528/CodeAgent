@@ -1,0 +1,8 @@
+{"id":"1","method":"initialize","params":{"client":"SwiftUI","version":"0.1.0"}}
+{"id":"1","result":{"agent":"node","capabilities":["ping","echo","notify"]}}
+{"id":"2","method":"agent/ping"}
+{"id":"2","result":{"ok":true}}
+{"id":"3","method":"agent/echo","params":{"msg":"hello"}}
+{"id":"3","result":{"echo":{"msg":"hello"}}}
+{"method":"agent/notify","params":{"event":"ready"}}
+{"id":"4","error":{"code":-32601,"message":"Method not found"}}

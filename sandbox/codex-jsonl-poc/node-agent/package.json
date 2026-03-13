@@ -1,0 +1,10 @@
+{
+  "name": "codex-jsonl-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}
