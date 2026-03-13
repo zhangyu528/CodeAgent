@@ -1,0 +1,169 @@
+import * as readline from 'readline';
+import { AgentController } from '../controller/agent_controller';
+import { TerminalManager } from './terminal_manager';
+import { SlashCommandDef, dispatchSlash } from './slash_commands';
+import { logger, TelemetryMonitor } from '../utils/logger';
+import { LLMEngine } from '../llm/engine';
+
+export class REPL {
+  private capturing = false;
+  private captureLines: string[] = [];
+  private processing = false;
+  private currentAbort: AbortController | null = null;
+
+  constructor(
+    private controller: AgentController,
+    private engine: LLMEngine,
+    private terminal: TerminalManager,
+    private commands: SlashCommandDef[],
+    private telemetry: TelemetryMonitor,
+    private opts?: {
+      completer?: (line: string, callback: (err: any, result: [string[], string]) => void) => void;
+    }
+  ) {}
+
+  async start() {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: true,
+      completer: this.opts?.completer,
+    });
+
+    this.terminal.setReadline(rl);
+
+    const refreshPrompt = () => {
+      const mode = this.terminal.getHUD().getMode();
+      const prefix = mode === 'CAPTURE' ? '... ' : 'CodeAgent > ';
+      rl.setPrompt(prefix);
+    };
+
+    const handleSlash = async (line: string) => {
+      return await dispatchSlash(
+        {
+          controller: this.controller,
+          engine: this.engine,
+          ui: this.terminal.getUIAdapter(),
+          bubbles: this.terminal.getBubbles(),
+          hud: this.terminal.getHUD(),
+          commands: this.commands,
+          print: (m: string) => console.log(m),
+          info: (m: string) => logger.info(m),
+          error: (m: string) => logger.error(m),
+          handleUserPrompt: (p: string) => this.handleUserPrompt(p, rl, refreshPrompt),
+        },
+        line,
+        this.commands,
+      );
+    };
+
+    rl.on('line', async (line) => {
+      if (this.processing || this.terminal.isInputSuspended()) return;
+
+      const trimmed = line.trim();
+
+      // 1. Capture Logic
+      if (trimmed === '<<EOF') {
+        this.capturing = true;
+        this.terminal.getHUD().setMode('CAPTURE');
+        this.terminal.render();
+        refreshPrompt();
+        rl.prompt();
+        return;
+      }
+
+      if (this.capturing) {
+        if (trimmed === 'EOF') {
+          this.capturing = false;
+          const fullPrompt = this.captureLines.join('\n');
+          this.captureLines.length = 0;
+          this.terminal.getHUD().setMode('IDLE');
+          this.terminal.render();
+          if (fullPrompt.trim()) {
+            await this.handleUserPrompt(fullPrompt, rl, refreshPrompt);
+          } else {
+            refreshPrompt();
+            rl.prompt();
+          }
+        } else {
+          this.captureLines.push(line);
+          refreshPrompt();
+          rl.prompt();
+        }
+        return;
+      }
+
+      // 2. Slash Commands
+      if (trimmed.startsWith('/')) {
+        const handled = await handleSlash(line);
+        if (handled) {
+          refreshPrompt();
+          rl.prompt();
+          return;
+        }
+      }
+
+      // 3. Normal Prompt
+      if (trimmed) {
+        await this.handleUserPrompt(line, rl, refreshPrompt);
+      } else {
+        refreshPrompt();
+        rl.prompt();
+      }
+    });
+
+    return { rl, refreshPrompt, handleSlash };
+  }
+
+  private async handleUserPrompt(prompt: string, rl: readline.Interface, refreshPrompt: () => void) {
+    this.processing = true;
+    this.currentAbort = new AbortController();
+    this.terminal.getHUD().setMode('THINKING');
+    this.terminal.render();
+
+    try {
+      let fullResponse = '';
+      await this.controller.askStream(
+        prompt,
+        (chunk) => {
+          if (this.terminal.getHUD().getMode() !== 'STREAMING') {
+            this.terminal.getHUD().setMode('STREAMING');
+            this.terminal.render();
+          }
+          fullResponse += chunk;
+          process.stdout.write(chunk);
+        },
+        { signal: this.currentAbort.signal },
+      );
+
+      this.terminal.renderFormattedOutput(fullResponse);
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('\n[Interrupted]');
+      } else {
+        logger.error('Error: ' + err.message);
+      }
+    } finally {
+      this.processing = false;
+      this.currentAbort = null;
+      this.terminal.updateStatus(this.controller, this.telemetry);
+      this.terminal.getHUD().setMode('IDLE');
+      this.terminal.render();
+      refreshPrompt();
+      rl.prompt();
+    }
+  }
+
+  isCapturing() { return this.capturing; }
+  cancelCapture() {
+    this.capturing = false;
+    this.captureLines.length = 0;
+  }
+  abortCurrent() {
+    if (this.currentAbort) {
+      this.currentAbort.abort();
+      return true;
+    }
+    return false;
+  }
+}
