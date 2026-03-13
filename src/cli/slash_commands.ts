@@ -20,27 +20,57 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
     },
     {
       name: '/model',
-      usage: '/model [provider]',
-      description: 'Show current/available providers or switch provider.',
-      handler: async (ctx, args) => {
-        const providers: string[] = ctx.engine.listProviders();
-        if (args.length === 0) {
-          ctx.info(`Current Provider: ${ctx.controller.getProviderName()} | Available: ${providers.join(', ')}`);
+      usage: '/model',
+      description: '交互式切换当前 Provider 的模型',
+      handler: async (ctx) => {
+        const chalk = require('chalk');
+        const models = await ctx.controller.listModels();
+        if (models.length === 0) {
+          ctx.info(chalk.yellow('当前 Provider 不支持在线列出模型，或获取失败。'));
+          const { input } = require('@inquirer/prompts');
+          const manual = await input({ message: '请输入模型名称:' });
+          if (manual) {
+            ctx.controller.setModel(manual);
+            ctx.info(chalk.green(`已切换模型为: ${manual}`));
+            ctx.hud?.render();
+          }
           return;
         }
-        const name = String(args[0] || '').trim().toLowerCase();
-        if (!name) {
-          ctx.error(`Usage: /model <provider>. Available: ${providers.join(', ')}`);
-          return;
-        }
-        if (!ctx.engine.hasProvider(name)) {
-          ctx.error(`Provider "${name}" is not registered. Available: ${providers.join(', ')}`);
-          return;
-        }
-        ctx.controller.setProviderName(name);
-        ctx.hud?.setProvider(name);
+
+        const current = ctx.controller.getModelName();
+        const { select } = require('@inquirer/prompts');
+        const selected = await select({
+          message: `请选择模型 (当前: ${current}):`,
+          choices: models.map((m: string) => ({ name: m, value: m })),
+        });
+
+        ctx.controller.setModel(selected);
+        ctx.info(chalk.green(`已切换模型为: ${selected}`));
         ctx.hud?.render();
-        ctx.info(`Switched provider to: ${name}`);
+      },
+    },
+    {
+      name: '/provider',
+      usage: '/provider',
+      description: '交互式切换 AI 服务商',
+      handler: async (ctx) => {
+        const chalk = require('chalk');
+        const providers = ctx.engine.listProviders();
+        const current = ctx.controller.getProviderName();
+        
+        const { select } = require('@inquirer/prompts');
+        const selected = await select({
+          message: `请选择 Provider (当前: ${current}):`,
+          choices: providers.map((p: string) => ({ name: p, value: p })),
+        });
+
+        if (selected !== current) {
+          ctx.controller.switchProvider(selected);
+          ctx.info(chalk.green(`已切换 Provider 为: ${selected}`));
+          ctx.info(chalk.dim(`当前模型: ${ctx.controller.getModelName()}`));
+          ctx.hud?.setProvider(selected);
+          ctx.hud?.render();
+        }
       },
     },
     {

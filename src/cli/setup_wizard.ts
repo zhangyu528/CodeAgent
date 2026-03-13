@@ -175,6 +175,27 @@ export async function runInitWizard(): Promise<boolean> {
         default: false,
       });
       if (!proceed) return false;
+    } else {
+      // Logic to list models and let user select
+      try {
+        let provider: any;
+        if (providerKey === 'glm') provider = new GLMProvider(config['GLM_API_KEY']!);
+        else if (providerKey === 'openai') provider = new OpenAIProvider({ apiKey: config['OPENAI_API_KEY']!, baseUrl: config['OPENAI_BASE_URL'], model: config['OPENAI_MODEL']! } as any);
+        else if (providerKey === 'anthropic') provider = new AnthropicProvider({ apiKey: config['ANTHROPIC_API_KEY']!, baseUrl: config['ANTHROPIC_BASE_URL'], model: config['ANTHROPIC_MODEL']! } as any);
+        else if (providerKey === 'deepseek') provider = new DeepSeekProvider({ apiKey: config['DEEPSEEK_API_KEY']!, baseUrl: config['DEEPSEEK_BASE_URL'], model: config['DEEPSEEK_MODEL']! } as any);
+
+        const models = await provider.listModels();
+        if (models && models.length > 0) {
+          const selectedModel = await select({
+            message: '连接成功！请选择您要使用的默认模型:',
+            choices: models.map((m: string) => ({ name: m, value: m })),
+          });
+          const prefix = providerKey.toUpperCase();
+          config[`${prefix}_MODEL`] = selectedModel as string;
+        }
+      } catch {
+        // Ignore listing errors, keep existing default
+      }
     }
   }
 

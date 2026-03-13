@@ -32,6 +32,7 @@ export class HUD {
 
   private mode: HUDMode = 'IDLE';
   private provider: string = 'unknown';
+  private model: string = 'unknown';
   private contextTokens: number = 0;
   private telemetry: TelemetrySummary | null = null;
   private lastTool: string = '';
@@ -96,6 +97,10 @@ export class HUD {
     this.provider = (provider || 'unknown').toLowerCase();
   }
 
+  setModel(model: string) {
+    this.model = (model || 'unknown').toLowerCase();
+  }
+
   setContextTokens(tokens: number) {
     this.contextTokens = Number.isFinite(tokens) ? tokens : 0;
   }
@@ -138,7 +143,8 @@ export class HUD {
 
   private formatStatusLine(): string {
     const mode = chalk.cyan(this.mode);
-    const provider = chalk.yellow(this.provider);
+    const providerStr = this.model !== 'unknown' ? `${this.provider}(${this.model})` : this.provider;
+    const provider = chalk.yellow(providerStr);
 
     const ctx = chalk.white(String(this.contextTokens));
     const sessionTokens = this.telemetry ? chalk.white(String(this.telemetry.totalTokens)) : chalk.dim('-');

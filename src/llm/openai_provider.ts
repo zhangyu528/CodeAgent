@@ -32,6 +32,31 @@ export class OpenAIProvider implements LLMProvider {
     if (!this.defaultModel) throw new Error('OPENAI_MODEL is missing. Please set it in .env file.');
   }
 
+  async listModels(): Promise<string[]> {
+    try {
+      const response = await fetch(this.baseUrl.replace('/chat/completions', '/models'), {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+      });
+      if (!response.ok) return [];
+      const data = await response.json();
+      return (data.data || [])
+        .map((m: any) => m.id)
+        .filter((id: string) => id.includes('gpt') || id.includes('o1') || id.includes('o3'));
+    } catch {
+      return [];
+    }
+  }
+
+  setModel(model: string): void {
+    this.defaultModel = model;
+  }
+
+  getModel(): string {
+    return this.defaultModel;
+  }
+
   async generate(messages: Message[], tools?: any[], options?: GenerateOptions): Promise<LLMResponse> {
     const payload: any = {
       model: options?.model || this.defaultModel,

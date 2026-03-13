@@ -24,6 +24,20 @@ export class GLMProvider implements LLMProvider {
     }
   }
 
+  async listModels(): Promise<string[]> {
+    // GLM typically uses glm-4, glm-4-flash, etc.
+    // For now, return a static list or try to fetch if they have an endpoint.
+    return ['glm-4', 'glm-4-flash', 'glm-4-air', 'glm-4-0520', 'glm-4-9b'];
+  }
+
+  setModel(model: string): void {
+    this.defaultModel = model;
+  }
+
+  getModel(): string {
+    return this.defaultModel;
+  }
+
   async generate(messages: Message[], tools?: any[], options?: GenerateOptions): Promise<LLMResponse> {
     const payload: any = {
       model: options?.model || this.defaultModel,

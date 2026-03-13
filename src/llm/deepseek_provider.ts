@@ -32,6 +32,29 @@ export class DeepSeekProvider implements LLMProvider {
     if (!this.defaultModel) throw new Error('DEEPSEEK_MODEL is missing. Please set it in .env file.');
   }
 
+  async listModels(): Promise<string[]> {
+    try {
+      const response = await fetch(this.baseUrl.replace('/chat/completions', '/models'), {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+      });
+      if (!response.ok) return ['deepseek-chat', 'deepseek-reasoner'];
+      const data = await response.json();
+      return (data.data || []).map((m: any) => m.id);
+    } catch {
+      return ['deepseek-chat', 'deepseek-reasoner'];
+    }
+  }
+
+  setModel(model: string): void {
+    this.defaultModel = model;
+  }
+
+  getModel(): string {
+    return this.defaultModel;
+  }
+
   async generate(messages: Message[], tools?: any[], options?: GenerateOptions): Promise<LLMResponse> {
     const payload: any = {
       model: options?.model || this.defaultModel,

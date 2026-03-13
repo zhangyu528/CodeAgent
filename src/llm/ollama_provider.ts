@@ -27,6 +27,25 @@ export class OllamaProvider implements LLMProvider {
     if (!this.defaultModel) throw new Error('OLLAMA_MODEL is missing. Please set it in .env file.');
   }
 
+  async listModels(): Promise<string[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return (data.models || []).map((m: any) => m.name);
+    } catch {
+      return [];
+    }
+  }
+
+  setModel(model: string): void {
+    this.defaultModel = model;
+  }
+
+  getModel(): string {
+    return this.defaultModel;
+  }
+
   async generate(messages: Message[], tools?: any[], options?: GenerateOptions): Promise<LLMResponse> {
     const payload: any = {
       model: options?.model || this.defaultModel,

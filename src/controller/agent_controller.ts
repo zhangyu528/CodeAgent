@@ -102,6 +102,28 @@ export class AgentController extends EventEmitter {
     this.defaultProviderName = name;
   }
 
+  getModelName(): string {
+    const provider = this.engine.getProvider(this.defaultProviderName);
+    return provider?.getModel?.() || 'unknown';
+  }
+
+  async listModels(): Promise<string[]> {
+    const provider = this.engine.getProvider(this.defaultProviderName);
+    return provider?.listModels?.() || [];
+  }
+
+  setModel(model: string) {
+    const provider = this.engine.getProvider(this.defaultProviderName);
+    provider?.setModel?.(model);
+  }
+
+  switchProvider(name: string) {
+    if (!this.engine.hasProvider(name)) {
+      throw new Error(`Provider ${name} is not registered.`);
+    }
+    this.defaultProviderName = name;
+  }
+
   private async previewDiffIfNeeded(toolName: string, args: any): Promise<{ allowed: boolean; error?: string }> {
     if (!this.ui) return { allowed: true };
 

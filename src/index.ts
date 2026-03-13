@@ -271,6 +271,7 @@ async function startREPL() {
   );
 
   hud.setProvider(controller.getProviderName());
+  hud.setModel(controller.getModelName());
   hud.setMode('IDLE');
   hud.setContextTokens(controller.getMemoryUsage());
   hud.setTelemetry(telemetry.getSummary() as any);

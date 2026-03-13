@@ -25,6 +25,13 @@ export interface LLMProvider {
   name: string;
   generate(messages: Message[], tools?: any[], options?: GenerateOptions): Promise<LLMResponse>;
   generateStream?(messages: Message[], tools?: any[], options?: GenerateOptions): AsyncIterable<string>;
+
+  /** List available models */
+  listModels?(): Promise<string[]>;
+  /** Set the active model */
+  setModel?(model: string): void;
+  /** Get current active model */
+  getModel?(): string;
 }
 
 

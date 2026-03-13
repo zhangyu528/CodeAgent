@@ -115,6 +115,26 @@ export class AnthropicProvider implements LLMProvider {
     if (!this.defaultModel) throw new Error('ANTHROPIC_MODEL is missing. Please set it in .env file.');
   }
 
+  async listModels(): Promise<string[]> {
+    return [
+      'claude-3-5-sonnet-latest',
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-sonnet-20240620',
+      'claude-3-opus-latest',
+      'claude-3-opus-20240229',
+      'claude-3-sonnet-20240229',
+      'claude-3-haiku-20240307',
+    ];
+  }
+
+  setModel(model: string): void {
+    this.defaultModel = model;
+  }
+
+  getModel(): string {
+    return this.defaultModel;
+  }
+
   async generate(messages: Message[], tools?: any[], options?: GenerateOptions): Promise<LLMResponse> {
     const { system, rest } = splitSystem(messages);
     const anthropicTools = toAnthropicTools(tools);
