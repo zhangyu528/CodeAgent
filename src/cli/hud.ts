@@ -76,6 +76,10 @@ export class HUD {
     return this.enabled;
   }
 
+  setEnabled(on: boolean) {
+    this.enabled = on;
+  }
+
   isReady(): boolean {
     return Boolean(this.update);
   }

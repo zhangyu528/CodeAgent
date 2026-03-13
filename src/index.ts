@@ -58,6 +58,7 @@ async function bootstrap() {
       process.exit(0);
     },
     onHint: (text) => logger.info(text),
+    onToggleHUD: () => terminal.toggleHUD(),
     onSlash: () => {
       repl.showSlashMenu(rl).catch(err => {
         logger.error('Slash menu error: ' + err.message);

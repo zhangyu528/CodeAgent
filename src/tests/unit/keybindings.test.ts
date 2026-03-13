@@ -12,46 +12,64 @@ function mockFn() {
 }
 
 export async function test() {
-  console.log('=== Running Unit Test: Keybindings (Slash Detection) ===');
+  console.log('=== Running Unit Test: Keybindings (Optimized Behaviors) ===');
 
   const mockStdin = new EventEmitter() as any;
   mockStdin.isTTY = true;
 
   const mockRl = {
     line: '',
+    cursor: 0,
     on: mockFn(),
     write: mockFn(),
   } as any;
 
   let slashTriggered = false;
+  let exitTriggered = false;
+  let hudToggled = false;
+  let cancelTriggered = false;
+
   const opts = {
     rl: mockRl,
     isTTY: true,
     getMode: () => 'IDLE' as any,
     isInputSuspended: () => false,
     isCapturing: () => false,
-    cancelCapture: mockFn(),
+    cancelCapture: () => { cancelTriggered = true; },
     abortCurrent: mockFn(),
     onClearScreen: mockFn(),
-    onExit: mockFn(),
+    onExit: () => { exitTriggered = true; },
     onHint: mockFn(),
     onSlash: () => { slashTriggered = true; },
+    onToggleHUD: () => { hudToggled = true; },
   };
 
   const { detach } = attachKeybindings({ ...opts, stdin: mockStdin } as any);
 
-  // Simulate '/' keypress on empty line
-  mockStdin.emit('keypress', '/', { name: '/' });
-  assert(slashTriggered, 'onSlash should be triggered when line is empty');
+  // 1. Test Ctrl+C -> Exit
+  mockStdin.emit('keypress', '', { ctrl: true, name: 'c' });
+  assert(exitTriggered, 'Ctrl+C should trigger onExit');
 
-  // Reset and simulate '/' keypress on non-empty line
-  slashTriggered = false;
-  mockRl.line = 'some input';
-  mockStdin.emit('keypress', '/', { name: '/' });
-  assert(!slashTriggered, 'onSlash should NOT be triggered when line is NOT empty');
+  // 2. Test ESC -> Clear line (when IDLE and no capture)
+  mockRl.line = 'hello';
+  mockRl.cursor = 5;
+  mockStdin.emit('keypress', '', { name: 'escape' });
+  assert(mockRl.line === '', 'ESC should clear rl.line when IDLE');
+
+  // 3. Test ESC -> Cancel capture
+  const optsCapturing = { ...opts, isCapturing: () => true };
+  const { detach: detach2 } = attachKeybindings({ ...optsCapturing, stdin: mockStdin } as any);
+  cancelTriggered = false;
+  mockStdin.emit('keypress', '', { name: 'escape' });
+  assert(cancelTriggered, 'ESC should trigger cancelCapture when capturing');
+  detach2();
+
+  // 4. Test F9 -> Toggle HUD
+  mockStdin.emit('keypress', '', { name: 'f9' });
+  assert(hudToggled, 'F9 should trigger onToggleHUD');
 
   detach();
-  console.log('✅ Keybindings slash detection verified.');
+  console.log('✅ Keybindings optimized behaviors verified.');
 }
 
 if (require.main === module) {

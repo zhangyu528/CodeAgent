@@ -35,10 +35,27 @@ export class TerminalManager {
 
   async init(): Promise<void> {
     await this.hud.init();
+    
+    // Auto-adjust on resize
+    process.stdout.on('resize', () => {
+      if (this.hud.isEnabled()) {
+        this.render();
+      }
+    });
   }
 
   setReadline(rl: readline.Interface) {
     this.rl = rl;
+  }
+
+  toggleHUD() {
+    const next = !this.hud.isEnabled();
+    this.hud.setEnabled(next);
+    if (!next) {
+      this.hud.clear();
+    } else {
+      this.render();
+    }
   }
 
   getUIAdapter(): DefaultUIAdapter {

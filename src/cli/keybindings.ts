@@ -14,6 +14,7 @@ export function attachKeybindings(opts: {
   onExit: () => void;
   onHint: (text: string) => void;
   onSlash?: () => void;
+  onToggleHUD?: () => void;
   stdin?: NodeJS.ReadableStream;
 }) {
   const input = opts.stdin || process.stdin;
@@ -32,6 +33,34 @@ export function attachKeybindings(opts: {
     if (opts.isInputSuspended()) return;
     if (!key) return;
 
+    // F9: Toggle HUD
+    if (key.name === 'f9') {
+      opts.onToggleHUD?.();
+      return;
+    }
+
+    // ESC: Cancel capture, abort process, or clear current line
+    if (key.name === 'escape') {
+      if (opts.isCapturing()) {
+        opts.cancelCapture();
+        opts.onHint('Capture canceled.');
+        return;
+      }
+
+      const aborted = opts.abortCurrent();
+      if (aborted) return;
+
+      // Clear current line
+      const rl = opts.rl as any;
+      if (rl.line) {
+        readline.moveCursor(process.stdout, -rl.cursor, 0);
+        readline.clearLine(process.stdout, 1);
+        rl.line = '';
+        rl.cursor = 0;
+      }
+      return;
+    }
+
     // Detect '/' at the beginning of an empty line
     if (str === '/' && opts.getMode() === 'IDLE' && opts.onSlash) {
       const line = (opts.rl as any).line || '';
@@ -48,31 +77,10 @@ export function attachKeybindings(opts: {
       return;
     }
 
-    // Ctrl+D: exit
-    if (key.ctrl && key.name === 'd') {
+    // Ctrl+C or Ctrl+D: exit
+    if ((key.ctrl && key.name === 'c') || (key.ctrl && key.name === 'd')) {
       opts.onExit();
       return;
-    }
-
-    // Ctrl+C: interrupt or cancel capture
-    if (key.ctrl && key.name === 'c') {
-      if (opts.isCapturing()) {
-        opts.cancelCapture();
-        opts.onHint('Capture canceled. Tip: use <<EOF ... EOF to submit multiline prompts.');
-        return;
-      }
-
-      const mode = opts.getMode();
-      const aborted = opts.abortCurrent();
-      if (aborted) return;
-
-      // If idle and no pending input, show a hint instead of exiting.
-      if (mode === 'IDLE') {
-        const line = (opts.rl as any).line || '';
-        if (!String(line).trim()) {
-          opts.onHint('Press Ctrl+D to exit.');
-        }
-      }
     }
   };
 
