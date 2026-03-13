@@ -33,10 +33,16 @@ export class REPL {
 
     this.terminal.setReadline(rl);
 
-    const refreshPrompt = () => {
+    const refreshInputArea = () => {
       const mode = this.terminal.getHUD().getMode();
-      const prefix = mode === 'CAPTURE' ? '... ' : 'CodeAgent > ';
-      rl.setPrompt(prefix);
+      this.terminal.printSeparator();
+      this.terminal.renderInputHeader(this.controller.getModelName());
+      
+      if (mode === 'CAPTURE') {
+        rl.setPrompt(require('chalk').dim(' │  '));
+      } else {
+        rl.setPrompt(require('chalk').dim(' ╰─> '));
+      }
     };
 
     const handleSlash = async (line: string) => {
@@ -51,7 +57,7 @@ export class REPL {
           print: (m: string) => console.log(m),
           info: (m: string) => logger.info(m),
           error: (m: string) => logger.error(m),
-          handleUserPrompt: (p: string) => this.handleUserPrompt(p, rl, refreshPrompt),
+          handleUserPrompt: (p: string) => this.handleUserPrompt(p, rl, refreshInputArea),
         },
         line,
         this.commands,
@@ -68,7 +74,7 @@ export class REPL {
         this.capturing = true;
         this.terminal.getHUD().setMode('CAPTURE');
         this.terminal.render();
-        refreshPrompt();
+        refreshInputArea();
         rl.prompt();
         return;
       }
@@ -81,14 +87,14 @@ export class REPL {
           this.terminal.getHUD().setMode('IDLE');
           this.terminal.render();
           if (fullPrompt.trim()) {
-            await this.handleUserPrompt(fullPrompt, rl, refreshPrompt);
+            await this.handleUserPrompt(fullPrompt, rl, refreshInputArea);
           } else {
-            refreshPrompt();
+            refreshInputArea();
             rl.prompt();
           }
         } else {
           this.captureLines.push(line);
-          refreshPrompt();
+          refreshInputArea();
           rl.prompt();
         }
         return;
@@ -98,7 +104,7 @@ export class REPL {
       if (trimmed.startsWith('/')) {
         const handled = await handleSlash(line);
         if (handled) {
-          refreshPrompt();
+          refreshInputArea();
           rl.prompt();
           return;
         }
@@ -106,14 +112,14 @@ export class REPL {
 
       // 3. Normal Prompt
       if (trimmed) {
-        await this.handleUserPrompt(line, rl, refreshPrompt);
+        await this.handleUserPrompt(line, rl, refreshInputArea);
       } else {
-        refreshPrompt();
+        refreshInputArea();
         rl.prompt();
       }
     });
 
-    return { rl, refreshPrompt, handleSlash };
+    return { rl, refreshPrompt: refreshInputArea, handleSlash };
   }
 
   private async handleUserPrompt(prompt: string, rl: readline.Interface, refreshPrompt: () => void) {

@@ -1,4 +1,5 @@
 import * as readline from 'readline';
+import * as path from 'path';
 import chalk = require('chalk');
 import { HUD } from './hud';
 import { ToolBubbles } from './tool_bubbles';
@@ -119,5 +120,34 @@ export class TerminalManager {
     } catch {
       console.log();
     }
+  }
+
+  printSeparator() {
+    const width = process.stdout.columns || 80;
+    console.log('\n' + chalk.dim('─'.repeat(width)));
+  }
+
+  renderInputHeader(modelName: string) {
+    const cwd = path.basename(process.cwd());
+    const mode = this.hud.getMode();
+    
+    const modelIcon = '🤖';
+    const folderIcon = '📁';
+    const helpIcon = '💡';
+    const recIcon = '⏺️';
+
+    let line = '';
+    if (mode === 'CAPTURE') {
+      line = chalk.dim(' ╭─ ') + 
+             chalk.yellow(`${recIcon} 多行录制中`) + chalk.dim(' | ') +
+             chalk.dim(`输入 ${chalk.bold('EOF')} 提交，${chalk.bold('Ctrl+C')} 取消`);
+    } else {
+      line = chalk.dim(' ╭─ ') + 
+             chalk.cyan(`${modelIcon} ${modelName}`) + chalk.dim(' | ') +
+             chalk.blue(`${folderIcon} ${cwd}`) + chalk.dim(' | ') +
+             chalk.yellow(`${helpIcon} 输入 / 获取帮助`);
+    }
+    
+    console.log(line);
   }
 }

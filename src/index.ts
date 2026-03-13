@@ -68,6 +68,7 @@ async function bootstrap() {
   // 5. Final UI Touch
   terminal.showWelcome(engine.listProviders(), controller.getProviderName());
   terminal.updateStatus(controller, telemetry);
+  refreshPrompt();
   rl.prompt();
 }
 
