@@ -110,6 +110,9 @@ export class AgentController {
     model: string,
     onChunk: (chunk: string) => void
   ): Promise<string> {
+    if (process.env.DEBUG) {
+      console.log(`[debug] Controller.runStream starting for task: ${task.slice(0, 50)}...`);
+    }
     const planningMode = this.planningMode();
     const planningContext = (process.env.PLANNING_CONTEXT ?? "true").toLowerCase() === "true";
     if (planningMode !== "off" && this.shouldPlan(task, planningMode) && planningContext) {
@@ -181,6 +184,13 @@ export class AgentController {
         }
 
         continue;
+      }
+
+      // If we already have content from the first generate call, use it.
+      // This avoids a redundant second LLM call and potential hanging.
+      if (response.content) {
+        onChunk(response.content);
+        return response.content;
       }
 
       let finalText = "";

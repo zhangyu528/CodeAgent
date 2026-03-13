@@ -131,4 +131,9 @@ program
     await startRepl(controller, model);
   });
 
-program.parseAsync(process.argv);
+// Initial global handler can be a no-op or lazy
+setApprovalHandler(async (message) => {
+  return confirm({ message, default: false });
+});
+
+program.parse(process.argv);
