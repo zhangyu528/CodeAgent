@@ -1,4 +1,5 @@
 import * as dotenv from 'dotenv';
+import * as readline from 'readline';
 import { logger, TelemetryMonitor } from './utils/logger';
 import { TerminalManager } from './cli/terminal_manager';
 import { createAgent } from './cli/factory';
@@ -29,7 +30,7 @@ async function bootstrap() {
   const repl = new REPL(controller, engine, terminal, commands, telemetry, {
     completer,
   });
-  const { rl, refreshPrompt, handleSlash } = await repl.start();
+  const { rl, refreshPrompt } = await repl.start();
 
   // 4. Wire Keybindings
   const keybindings = attachKeybindings({
@@ -58,33 +59,8 @@ async function bootstrap() {
     },
     onHint: (text) => logger.info(text),
     onSlash: () => {
-      terminal.suspendInput(async () => {
-        const { select } = require('@inquirer/prompts');
-        const choices = commands.map(c => ({
-          name: `${require('chalk').yellow(c.name.padEnd(10))} ${require('chalk').dim(c.description)}`,
-          value: c.name,
-        }));
-
-        try {
-          const selected = await select({
-            message: '选择命令:',
-            choices,
-          });
-          if (selected) {
-            // Clear current line if it contains '/'
-            if ((rl as any).line === '/') {
-              readline.moveCursor(process.stdout, -1, 0);
-              readline.clearLine(process.stdout, 1);
-              (rl as any).line = '';
-              (rl as any).cursor = 0;
-            }
-            // If it's just a command with no params needed, we might want to execute it.
-            // But for now, just write it to rl as requested.
-            rl?.write(selected);
-          }
-        } catch {
-          // User cancelled
-        }
+      repl.showSlashMenu(rl).catch(err => {
+        logger.error('Slash menu error: ' + err.message);
       });
     }
   });

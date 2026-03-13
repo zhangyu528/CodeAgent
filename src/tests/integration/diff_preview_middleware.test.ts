@@ -23,6 +23,7 @@ class TestUI implements UIAdapter {
   async selectOne(): Promise<string> { return ''; }
   async selectMany(): Promise<string[]> { return []; }
   async openEditor(): Promise<string> { return ''; }
+  async suspendInput<T>(fn: () => Promise<T>): Promise<T> { return fn(); }
 }
 
 async function exists(p: string): Promise<boolean> {
