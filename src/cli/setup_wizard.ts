@@ -61,25 +61,25 @@ async function verifyConnection(providerKey: string, config: Record<string, stri
     const testMsg = [{ role: 'user', content: 'Hi' }];
 
     if (providerKey === 'glm') {
-      provider = new GLMProvider(config['GLM_API_KEY']);
+      provider = new GLMProvider(config['GLM_API_KEY']!);
     } else if (providerKey === 'openai') {
       provider = new OpenAIProvider({
-        apiKey: config['OPENAI_API_KEY'],
+        apiKey: config['OPENAI_API_KEY']!,
         baseUrl: config['OPENAI_BASE_URL'],
-        model: config['OPENAI_MODEL'],
-      });
+        model: config['OPENAI_MODEL']!,
+      } as any);
     } else if (providerKey === 'anthropic') {
       provider = new AnthropicProvider({
-        apiKey: config['ANTHROPIC_API_KEY'],
+        apiKey: config['ANTHROPIC_API_KEY']!,
         baseUrl: config['ANTHROPIC_BASE_URL'],
-        model: config['ANTHROPIC_MODEL'],
-      });
+        model: config['ANTHROPIC_MODEL']!,
+      } as any);
     } else if (providerKey === 'deepseek') {
       provider = new DeepSeekProvider({
-        apiKey: config['DEEPSEEK_API_KEY'],
+        apiKey: config['DEEPSEEK_API_KEY']!,
         baseUrl: config['DEEPSEEK_BASE_URL'],
-        model: config['DEEPSEEK_MODEL'],
-      });
+        model: config['DEEPSEEK_MODEL']!,
+      } as any);
     } else {
       // For Ollama or others, we just assume success or do a simple fetch check if needed
       console.log(chalk.yellow('跳过验证'));
