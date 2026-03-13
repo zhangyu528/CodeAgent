@@ -23,8 +23,8 @@ final class AgentClient {
         if process != nil { return }
 
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        proc.arguments = ["node", nodePath]
+        proc.executableURL = URL(fileURLWithPath: nodePath)
+        proc.arguments = []
 
         let inPipe = Pipe()
         let outPipe = Pipe()

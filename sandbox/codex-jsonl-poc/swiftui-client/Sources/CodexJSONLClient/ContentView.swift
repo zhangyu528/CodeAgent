@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var vm = AgentViewModel()
-    @State private var nodePath: String = "/Users/eric/Documents/CodeAgent/sandbox/codex-jsonl-poc/node-agent/index.js"
+    @State private var nodePath: String = "/Users/eric/Documents/CodeAgent/sandbox/codex-jsonl-poc/node-agent/dist/agent-macos-arm64"
     @State private var echoText: String = "hello"
 
     var body: some View {
