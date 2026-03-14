@@ -3,6 +3,8 @@ import * as path from 'path';
 import chalk = require('chalk');
 import { HUD } from './hud';
 import { ToolBubbles } from './tool_bubbles';
+import { StableFooterRenderer } from './stable_footer_renderer';
+import { SlashHintManager } from './slash_hint_manager';
 import { TelemetryMonitor } from '../utils/logger';
 import { AgentController } from '../controller/agent_controller';
 import { getCliVersion, renderWelcomeCard } from './welcome_card';
@@ -19,6 +21,8 @@ function envEnabled(name: string, defaultOn: boolean) {
 export class TerminalManager {
   private hud: HUD;
   private bubbles: ToolBubbles;
+  private footer: StableFooterRenderer;
+  private hints: SlashHintManager;
   private uiAdapter: DefaultUIAdapter;
   private rl: readline.Interface | null = null;
   private inputSuspended = false;
@@ -27,6 +31,8 @@ export class TerminalManager {
     this.hud = new HUD();
     const bubblesEnabled = Boolean(process.stdout.isTTY) && envEnabled('TOOL_BUBBLES', true);
     this.bubbles = new ToolBubbles({ maxItems: 8, enabled: bubblesEnabled });
+    this.footer = new StableFooterRenderer();
+    this.hints = new SlashHintManager();
     
     this.uiAdapter = new DefaultUIAdapter({
       suspendInput: async (fn) => this.suspendInput(fn),
@@ -103,10 +109,24 @@ export class TerminalManager {
     }
   }
 
+  setCommandHints(hints: { name: string; description: string }[]) {
+    this.hints.setHints(hints);
+    this.render();
+  }
+
   render() {
+    if (!this.rl) return;
+
+    // Collect all footer lines
+    const hintLines = this.hints.getLines();
+    
+    // Sync bubbles and tool labels to HUD
     this.hud.setBubbleLines(this.bubbles.getLines());
     this.hud.setLastTool(this.bubbles.getLastLabel());
-    this.hud.render({ includeBubbles: true });
+    const hudLines = this.hud.getLines({ includeBubbles: true });
+
+    // Render EVERYTHING below the prompt in one stable surgical move
+    this.footer.render(this.rl, hintLines, hudLines);
   }
 
   showWelcome(providers: string[], currentProvider: string) {
@@ -120,6 +140,7 @@ export class TerminalManager {
   }
 
   updateStatus(controller: AgentController, telemetry: TelemetryMonitor) {
+    this.hints.clear();
     this.hud.setProvider(controller.getProviderName());
     this.hud.setModel(controller.getModelName());
     this.hud.setContextTokens(controller.getMemoryUsage());

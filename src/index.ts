@@ -59,6 +59,8 @@ async function bootstrap() {
     },
     onHint: (text) => logger.info(text),
     onToggleHUD: () => terminal.toggleHUD(),
+    onCommandHints: (hints) => terminal.setCommandHints(hints),
+    slashCommands: commands.map(c => ({ name: c.name, description: c.description })),
     onSlash: () => {
       repl.showSlashMenu(rl).catch(err => {
         logger.error('Slash menu error: ' + err.message);

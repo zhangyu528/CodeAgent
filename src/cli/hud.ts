@@ -27,7 +27,7 @@ type LogUpdateModule = {
 };
 
 export class HUD {
-  private enabled: boolean;
+  private statusBarEnabled: boolean;
   private suspended: boolean = false;
 
   private mode: HUDMode = 'IDLE';
@@ -44,12 +44,13 @@ export class HUD {
   constructor(opts?: { enabled?: boolean; stream?: NodeJS.WritableStream }) {
     const tty = Boolean(process.stdout.isTTY);
     const onByDefault = tty && envEnabled('STATUS_BAR', true);
-    this.enabled = opts?.enabled ?? onByDefault;
+    this.statusBarEnabled = opts?.enabled ?? onByDefault;
     this.stream = opts?.stream || process.stderr;
   }
 
   async init(): Promise<void> {
-    if (!this.enabled) return;
+    // Always try to init log-update for hints if TTY, even if status bar is off
+    if (!process.stdout.isTTY && !this.statusBarEnabled) return;
 
     try {
       const mod = (await import('log-update')) as unknown as LogUpdateModule;
@@ -67,17 +68,17 @@ export class HUD {
       // ignore
     }
 
-    // If log-update isn't available/compatible, disable persistent HUD.
-    this.enabled = false;
+    // If log-update isn't available/compatible, disable.
+    this.statusBarEnabled = false;
     this.update = null;
   }
 
   isEnabled(): boolean {
-    return this.enabled;
+    return this.statusBarEnabled;
   }
 
   setEnabled(on: boolean) {
-    this.enabled = on;
+    this.statusBarEnabled = on;
   }
 
   isReady(): boolean {
@@ -122,26 +123,38 @@ export class HUD {
   }
 
   clear() {
-    if (!this.enabled || !this.update) return;
+    if (!this.statusBarEnabled || !this.update) return;
     this.update.clear();
   }
 
-  render(opts?: { includeBubbles?: boolean }) {
-    if (!this.enabled || !this.update) return;
-    if (this.suspended) return;
+  getLines(opts?: { includeBubbles?: boolean }): string[] {
+    const includeBubbles = opts?.includeBubbles ?? true;
+    const lines: string[] = [];
 
-    const includeBubbles = opts?.includeBubbles ?? false;
-
-    const lines = [this.formatStatusLine()];
+    if (this.statusBarEnabled) {
+      lines.push(this.formatStatusLine());
+    }
 
     const showBubbles = includeBubbles && envEnabled('TOOL_BUBBLES', Boolean(process.stdout.isTTY));
     if (showBubbles) lines.push(...this.bubbleLines);
 
-    this.update(lines.join('\n'));
+    return lines;
+  }
+
+  render(opts?: { includeBubbles?: boolean }) {
+    if (!this.update) return;
+    if (this.suspended) return;
+
+    this.update(this.getLines(opts).join('\n'));
+  }
+
+  updateRaw(text: string) {
+    if (!this.update || this.suspended) return;
+    this.update(text);
   }
 
   done() {
-    if (!this.enabled || !this.update) return;
+    if (!this.statusBarEnabled || !this.update) return;
     this.update.done();
   }
 

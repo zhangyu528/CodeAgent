@@ -4,6 +4,7 @@ export type SlashCommandDef = {
   name: string; // e.g. /help
   usage: string;
   description: string;
+  category: 'Session' | 'Model' | 'Tools' | 'General';
   handler: (ctx: any, args: string[]) => Promise<void>;
 };
 
@@ -13,6 +14,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       name: '/help',
       usage: '/help',
       description: 'Show command help and configuration hints.',
+      category: 'General',
       handler: async (ctx) => {
         const lines = buildHelpLines(ctx);
         ctx.print(lines.join('\n'));
@@ -22,6 +24,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       name: '/model',
       usage: '/model',
       description: '交互式切换当前 Provider 的模型',
+      category: 'Model',
       handler: async (ctx) => {
         const chalk = require('chalk');
         const models = await ctx.controller.listModels();
@@ -53,6 +56,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       name: '/provider',
       usage: '/provider',
       description: '交互式切换 AI 服务商',
+      category: 'Model',
       handler: async (ctx) => {
         const chalk = require('chalk');
         const providers = ctx.engine.listProviders();
@@ -77,6 +81,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       name: '/clear',
       usage: '/clear',
       description: 'Clear conversation memory (and tool bubbles).',
+      category: 'Session',
       handler: async (ctx) => {
         ctx.controller.getMemory().clearHistory();
         ctx.bubbles.reset();
@@ -90,6 +95,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       name: '/history',
       usage: '/history',
       description: 'Show message count and approximate context tokens.',
+      category: 'Session',
       handler: async (ctx) => {
         const msgs = ctx.controller.getMemory().getMessages();
         ctx.info(`History: ${msgs.length} messages (approx ${ctx.controller.getMemoryUsage()} tokens).`);
@@ -99,6 +105,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       name: '/tools',
       usage: '/tools',
       description: 'List recent tools (id/name/status).',
+      category: 'Tools',
       handler: async (ctx) => {
         const items = ctx.bubbles.list();
         if (items.length === 0) {
@@ -112,6 +119,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       name: '/tool',
       usage: '/tool <id>',
       description: 'Inspect a tool call by id (args + result).',
+      category: 'Tools',
       handler: async (ctx, args) => {
         const id = Number(args[0]);
         if (!Number.isFinite(id)) {
@@ -136,6 +144,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       name: '/edit',
       usage: '/edit',
       description: 'Open editor to compose a prompt (TTY only).',
+      category: 'General',
       handler: async (ctx) => {
         const text = await ctx.ui.openEditor('Edit your prompt, then save and close:', '');
         if (String(text || '').trim()) {

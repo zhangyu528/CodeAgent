@@ -15,10 +15,15 @@ export function attachKeybindings(opts: {
   onHint: (text: string) => void;
   onSlash?: () => void;
   onToggleHUD?: () => void;
+  onLineChange?: (line: string) => void;
+  onCommandHints?: (hints: { name: string; description: string }[]) => void;
+  slashCommands?: { name: string; description: string }[];
   stdin?: NodeJS.ReadableStream;
 }) {
   const input = opts.stdin || process.stdin;
   if (!opts.isTTY) return { detach() {} };
+
+  let lastCtrlC = 0;
 
   readline.emitKeypressEvents(input as any);
   if (input === process.stdin) {
@@ -61,15 +66,33 @@ export function attachKeybindings(opts: {
       return;
     }
 
-    // Detect '/' at the beginning of an empty line
+    // Detect '/' at the beginning of an empty line - disabled automatic popup as per Requirement 3 revision
+    /*
     if (str === '/' && opts.getMode() === 'IDLE' && opts.onSlash) {
       const line = (opts.rl as any).line || '';
-      // If line is empty or already contains just '/', trigger menu
       if (!line || line === '/') {
         opts.onSlash();
         return;
       }
     }
+    */
+
+    // After any keypress, check for hints
+    setImmediate(() => {
+      if (opts.isInputSuspended()) return;
+      const rl = opts.rl as any;
+      const line = rl.line || '';
+      
+      opts.onLineChange?.(line);
+
+      if (line.startsWith('/') && opts.onCommandHints && opts.slashCommands) {
+        const cmdPart = line.split(/\s+/)[0] || '/';
+        const matches = opts.slashCommands.filter(c => c.name.startsWith(cmdPart));
+        opts.onCommandHints(matches);
+      } else {
+        opts.onCommandHints?.([]);
+      }
+    });
 
     // Ctrl+L: clear screen but keep session
     if (key.ctrl && key.name === 'l') {
@@ -77,9 +100,35 @@ export function attachKeybindings(opts: {
       return;
     }
 
-    // Ctrl+C or Ctrl+D: exit
-    if ((key.ctrl && key.name === 'c') || (key.ctrl && key.name === 'd')) {
-      opts.onExit();
+    // Ctrl+C: Smart Interruption / Exit
+    if (key.ctrl && key.name === 'c') {
+      if (opts.isCapturing()) {
+        opts.cancelCapture();
+        opts.onHint('Capture canceled.');
+        return;
+      }
+
+      // Try aborting a running task first
+      const aborted = opts.abortCurrent();
+      if (aborted) return;
+
+      // If IDLE, require double Ctrl+C within 2 seconds
+      const now = Date.now();
+      if (now - lastCtrlC < 2000) {
+        opts.onExit();
+      } else {
+        lastCtrlC = now;
+        opts.onHint('(To exit, press Ctrl+C again or Ctrl+D or type /exit)');
+      }
+      return;
+    }
+
+    // Ctrl+D: Exit only if line is empty (EOF standard)
+    if (key.ctrl && key.name === 'd') {
+      const line = (opts.rl as any).line || '';
+      if (!line) {
+        opts.onExit();
+      }
       return;
     }
   };

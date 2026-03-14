@@ -163,18 +163,39 @@ export class REPL {
 
   async showSlashMenu(rl: readline.Interface) {
     await this.terminal.suspendInput(async () => {
-      const { select } = require('@inquirer/prompts');
+      const { select, Separator } = require('@inquirer/prompts');
       const chalk = require('chalk');
-      const choices = this.commands.map(c => ({
-        name: `${chalk.yellow(c.name.padEnd(10))} ${chalk.dim(c.description)}`,
-        value: c.name,
-      }));
+
+      // Group commands by category
+      const categories: Record<string, SlashCommandDef[]> = {};
+      for (const cmd of this.commands) {
+        if (!categories[cmd.category]) categories[cmd.category] = [];
+        categories[cmd.category]!.push(cmd);
+      }
+
+      const choices: any[] = [];
+      const order: Array<SlashCommandDef['category']> = ['Session', 'Model', 'Tools', 'General'];
+
+      for (const cat of order) {
+        if (categories[cat] && categories[cat]!.length > 0) {
+          choices.push(new Separator(chalk.dim(`--- ${cat} ---`)));
+          for (const cmd of categories[cat]!) {
+            choices.push({
+              name: chalk.yellow(cmd.name.padEnd(12)) + chalk.dim(cmd.description),
+              value: cmd.name,
+              description: chalk.cyan(`Usage: `) + chalk.white(cmd.usage) + `\n` + chalk.dim(cmd.description),
+            });
+          }
+        }
+      }
 
       try {
         const selected = await select({
           message: '选择命令:',
           choices,
+          pageSize: 12,
         });
+
         if (selected) {
           // Clear current line if it contains '/'
           if ((rl as any).line === '/') {
