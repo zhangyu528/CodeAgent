@@ -48,7 +48,8 @@ async function bootstrap() {
     },
     abortCurrent: () => repl.abortCurrent(),
     onClearScreen: () => {
-      console.clear();
+      process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
+      terminal.showWelcome(engine.listProviders(), controller.getProviderName());
       terminal.render();
       rl.prompt(true);
     },
@@ -72,9 +73,12 @@ async function bootstrap() {
 
   // 5. Final UI Touch
   terminal.showWelcome(engine.listProviders(), controller.getProviderName());
-  terminal.updateStatus(controller, telemetry);
+  // Prepare HUD data without rendering yet
+  terminal.updateStatus(controller, { render: false });
   refreshPrompt();
   rl.prompt();
+  // Ensure footer is visible immediately AFTER the prompt
+  terminal.render();
 }
 
 bootstrap().catch(err => {

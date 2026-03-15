@@ -46,9 +46,11 @@ export async function test() {
 
   const { detach } = attachKeybindings({ ...opts, stdin: mockStdin } as any);
 
-  // 1. Test Ctrl+C -> Exit
+  // 1. Test Ctrl+C -> Exit (Double Ctrl+C within 2s)
   mockStdin.emit('keypress', '', { ctrl: true, name: 'c' });
-  assert(exitTriggered, 'Ctrl+C should trigger onExit');
+  assert(!exitTriggered, 'Single Ctrl+C should not exit immediately');
+  mockStdin.emit('keypress', '', { ctrl: true, name: 'c' });
+  assert(exitTriggered, 'Double Ctrl+C should trigger onExit');
 
   // 2. Test ESC -> Clear line (when IDLE and no capture)
   mockRl.line = 'hello';

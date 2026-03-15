@@ -30,8 +30,11 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
         const models = await ctx.controller.listModels();
         if (models.length === 0) {
           ctx.info(chalk.yellow('当前 Provider 不支持在线列出模型，或获取失败。'));
-          const { input } = require('@inquirer/prompts');
-          const manual = await input({ message: '请输入模型名称:' });
+          // Use UIAdapter.suspendInput for manual input too
+          const manual = await ctx.ui.suspendInput(async () => {
+             const { input } = require('@inquirer/prompts');
+             return await input({ message: '请输入模型名称:' });
+          });
           if (manual) {
             ctx.controller.setModel(manual);
             ctx.info(chalk.green(`已切换模型为: ${manual}`));
@@ -41,10 +44,8 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
         }
 
         const current = ctx.controller.getModelName();
-        const { select } = require('@inquirer/prompts');
-        const selected = await select({
-          message: `请选择模型 (当前: ${current}):`,
-          choices: models.map((m: string) => ({ name: m, value: m })),
+        const selected = await ctx.ui.selectOne(`请选择模型 (当前: ${current}):`, models, {
+          default: current,
         });
 
         ctx.controller.setModel(selected);
@@ -62,10 +63,8 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
         const providers = ctx.engine.listProviders();
         const current = ctx.controller.getProviderName();
         
-        const { select } = require('@inquirer/prompts');
-        const selected = await select({
-          message: `请选择 Provider (当前: ${current}):`,
-          choices: providers.map((p: string) => ({ name: p, value: p })),
+        const selected = await ctx.ui.selectOne(`请选择 Provider (当前: ${current}):`, providers, {
+          default: current,
         });
 
         if (selected !== current) {
@@ -80,15 +79,12 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
     {
       name: '/clear',
       usage: '/clear',
-      description: 'Clear conversation memory (and tool bubbles).',
+      description: 'Reset session memory and clear terminal screen.',
       category: 'Session',
       handler: async (ctx) => {
         ctx.controller.getMemory().clearHistory();
         ctx.bubbles.reset();
-        ctx.hud?.setContextTokens(ctx.controller.getMemoryUsage());
-        ctx.hud?.setBubbleLines(ctx.bubbles.getLines());
-        ctx.hud?.render();
-        ctx.info('Conversation history cleared.');
+        ctx.clearScreen(true);
       },
     },
   ];
@@ -124,12 +120,32 @@ export function getBestMatch(line: string, commands: SlashCommandDef[], selected
   return cmd ? cmd.name : cmdName;
 }
 
-export async function dispatchSlash(ctx: any, line: string, commands: SlashCommandDef[], selectedHint?: string | null): Promise<boolean> {
+/**
+ * Renders command output with a minimalist sidebar accent.
+ */
+function renderOutputSidebar(ctx: any, _title: string, lines: string[]): void {
+  const chalk = require('chalk');
+  console.log(); // Leading space
+  for (const line of lines) {
+    ctx.print(`  ${chalk.cyan('┃')} ${line}`);
+  }
+  console.log(); // Trailing space
+}
+
+/**
+ * Dispatches a slash command based on prefix matching and interactive hints.
+ */
+export async function dispatchSlash(
+  ctx: any,
+  line: string,
+  commands: SlashCommandDef[],
+  selectedItem: string | null = null
+): Promise<boolean> {
   const parsed = parseSlash(line);
   if (!parsed) return false;
 
-  const cmdName = getBestMatch(line, commands, selectedHint);
-  const cmd = commands.find(c => c.name === cmdName);
+  const cmdName = getBestMatch(line, commands, selectedItem);
+  const cmd = commands.find((c) => c.name === cmdName);
 
   if (!cmd) {
     ctx.error(`未知命令: ${parsed.name}。输入 /help 查看帮助。`);
@@ -139,33 +155,22 @@ export async function dispatchSlash(ctx: any, line: string, commands: SlashComma
   try {
     if (cmd.name === '/help') {
       const helpLines = buildHelpLines(ctx);
-      renderOutputBox(ctx, '/help (Result)', helpLines);
+      renderOutputSidebar(ctx, '/help', helpLines);
     } else {
       await cmd.handler(ctx, parsed.args);
+      // Ensure HUD and Header are refreshed after commands like /clear or /model
+      if (ctx.terminal) {
+        ctx.terminal.updateStatus(ctx.controller);
+      }
     }
   } catch (e: any) {
     ctx.error(e?.message || String(e));
   }
+
   return true;
 }
 
-export function renderOutputBox(ctx: any, title: string, content: string[]) {
-  const chalk = require('chalk');
-  const termWidth = process.stdout.columns || 80;
-  const boxWidth = Math.min(termWidth - 4, 80);
-  
-  const topBar = chalk.cyan('┌── ') + chalk.bold.cyan(title) + ' ' + chalk.cyan('─'.repeat(Math.max(0, boxWidth - title.length - 6)) + '┐');
-  const bottomBar = chalk.cyan('└' + '─'.repeat(boxWidth - 2) + '┘');
 
-  ctx.print(topBar);
-  for (const line of content) {
-    // Strip ANSI for alignment calculation
-    const cleanLine = line.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
-    const padding = Math.max(0, boxWidth - 4 - cleanLine.length);
-    ctx.print(chalk.cyan('│ ') + line + ' '.repeat(padding) + chalk.cyan(' │'));
-  }
-  ctx.print(bottomBar);
-}
 
 export function buildHelpLines(ctx: any): string[] {
   const chalk = require('chalk');
@@ -191,9 +196,13 @@ export function buildHelpLines(ctx: any): string[] {
     `  ${chalk.cyan('Esc'.padEnd(10))} ${chalk.dim('取消当前操作 / 清空输入')}`,
     `  ${chalk.cyan('Ctrl+C'.padEnd(10))} ${chalk.dim('中断任务 / 取消录制')}`,
     `  ${chalk.cyan('Ctrl+D'.padEnd(10))} ${chalk.dim('退出程序')}`,
+    `  ${chalk.cyan('Ctrl+L'.padEnd(10))} ${chalk.dim('清空屏幕 (保持会话)')}`,
     `  ${chalk.cyan('↑/↓'.padEnd(10))} ${chalk.dim('选择建议 / 历史记录')}`,
   ];
   
-  results.push(...keys);
+  results.push(...keys, '');
+  results.push(chalk.bold.cyan('配置提示'));
+  results.push(`  ${chalk.cyan('STATUS_BAR'.padEnd(12))} ${chalk.dim('环境变量: 0=禁用, 1=启用 (默认启用)')}`);
+  
   return results;
 }

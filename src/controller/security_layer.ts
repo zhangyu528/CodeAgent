@@ -156,6 +156,10 @@ export class SecurityLayer {
     return resolvedPath.startsWith(this.workspaceRoot);
   }
 
+  getWorkspaceRoot(): string {
+    return this.workspaceRoot;
+  }
+
   /**
    * Checks a shell command for dangerous or sensitive patterns.
    */

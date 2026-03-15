@@ -42,7 +42,6 @@ export class TerminalManager {
 
   async init(): Promise<void> {
     await this.hud.init();
-    this.hud.setHelpHint('输入 / 获取帮助');
     
     // Auto-adjust on resize
     process.stdout.on('resize', () => {
@@ -149,7 +148,6 @@ export class TerminalManager {
     const bubbleLines = this.bubbles.getLines();
     
     // 3. Status Bar (Global state, always at bottom)
-    this.hud.setLastTool(this.bubbles.getLastLabel());
     const hudLines = this.hud.getLines();
 
     // Render EVERYTHING below the prompt in one stable surgical move
@@ -167,14 +165,16 @@ export class TerminalManager {
     );
   }
 
-  updateStatus(controller: AgentController, telemetry: TelemetryMonitor) {
+  updateStatus(controller: AgentController, opts?: { render?: boolean }) {
     this.hints.clear();
     this.hud.setProvider(controller.getProviderName());
     this.hud.setModel(controller.getModelName());
     this.hud.setFolder(path.basename(process.cwd()));
-    this.hud.setContextTokens(controller.getMemoryUsage());
-    this.hud.setTelemetry(telemetry.getSummary() as any);
-    this.render();
+    this.hud.setAuthPath(controller.getAuthorizedPath());
+    
+    if (opts?.render !== false) {
+      this.render();
+    }
   }
 
   renderFormattedOutput(fullResponse: string) {
@@ -194,26 +194,15 @@ export class TerminalManager {
     console.log('\n' + chalk.dim('─'.repeat(width)));
   }
 
-  renderInputHeader(modelName: string) {
-    const cwd = path.basename(process.cwd());
+  renderInputHeader(_modelName: string) {
     const mode = this.hud.getMode();
+    if (mode !== 'CAPTURE') return;
     
-    const modelIcon = '🤖';
-    const folderIcon = '📁';
-    const helpIcon = '💡';
     const recIcon = '⏺️';
 
-    let line = '';
-    if (mode === 'CAPTURE') {
-      line = chalk.dim(' ╭─ ') + 
-             chalk.yellow(`${recIcon} 多行录制中`) + chalk.dim(' | ') +
-             chalk.dim(`输入 ${chalk.bold('EOF')} 提交，${chalk.bold('Ctrl+C')} 取消`);
-    } else {
-      line = chalk.dim(' ╭─ ') + 
-             chalk.cyan(`${modelIcon} ${modelName}`) + chalk.dim(' | ') +
-             chalk.blue(`${folderIcon} ${cwd}`) + chalk.dim(' | ') +
-             chalk.yellow(`${helpIcon} 输入 / 获取帮助`);
-    }
+    let line = chalk.dim(' ╭─ ') + 
+               chalk.yellow(`${recIcon} 多行录制中`) + chalk.dim(' | ') +
+               chalk.dim(`输入 ${chalk.bold('EOF')} 提交，${chalk.bold('Ctrl+C')} 取消`);
     
     console.log(line);
   }

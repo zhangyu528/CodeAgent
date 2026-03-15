@@ -124,6 +124,10 @@ export class AgentController extends EventEmitter {
     this.defaultProviderName = name;
   }
 
+  getAuthorizedPath(): string {
+    return this.security.getWorkspaceRoot();
+  }
+
   private async previewDiffIfNeeded(toolName: string, args: any): Promise<{ allowed: boolean; error?: string }> {
     if (!this.ui) return { allowed: true };
 

@@ -23,6 +23,12 @@ export class REPL {
     }
   ) {}
 
+  private getPromptString(): string {
+    const rlAny = (this as any).rl || (this.terminal as any).rl;
+    if (rlAny?._prompt) return rlAny._prompt;
+    return require('chalk').cyan.bold('❯ ');
+  }
+
   async start() {
     const rl = readline.createInterface({
       input: process.stdin,
@@ -55,7 +61,16 @@ export class REPL {
           onMoveSelection: (delta: number) => this.terminal.moveHintSelection(delta),
           hasHints: () => this.terminal.hasHints(),
           commands: this.commands,
+          terminal: this.terminal,
+          telemetry: this.telemetry,
           print: (m: string) => console.log(m),
+          clearScreen: (showWelcome?: boolean) => {
+             process.stdout.write('\x1b[2J\x1b[3J\x1b[H'); // Deep clear + scrollback + cursor to top
+             if (showWelcome) {
+               this.terminal.showWelcome(this.engine.listProviders(), this.controller.getProviderName());
+             }
+             this.terminal.render();
+          },
           info: (m: string) => logger.info(m),
           error: (m: string) => logger.error(m),
           handleUserPrompt: (p: string) => this.handleUserPrompt(p, rl, refreshInputArea),
@@ -98,6 +113,7 @@ export class REPL {
           this.captureLines.push(line);
           refreshInputArea();
           rl.prompt();
+          this.terminal.render();
         }
         return;
       }
@@ -111,7 +127,9 @@ export class REPL {
         } finally {
           this.terminal.setExclusiveMode(false);
           this.processing = false;
-          this.terminal.render(); // Restore visibility after command
+          refreshInputArea();
+          rl.prompt();
+          this.terminal.render(); // Restore visibility after prompt is stable
         }
       };
 
@@ -125,7 +143,7 @@ export class REPL {
         const expandedLine = bestName + argsStr;
 
         const rlAny = rl as any;
-        const prompt = rlAny._prompt || '';
+        const prompt = rlAny._prompt || this.getPromptString();
         
         // CRITICAL: After Enter, cursor is on the line BELOW the prompt.
         // Move back to prompt line to stabilize state for renderer.
@@ -133,7 +151,7 @@ export class REPL {
 
         if (expandedLine !== line) {
           process.stdout.write('\x1b[2K'); // Clear prompt line
-          process.stdout.write(prompt + expandedLine); // Rewrite
+          process.stdout.write(prompt + expandedLine); // Rewrite it with prompt included
           rlAny.line = expandedLine;
           rlAny.cursor = expandedLine.length;
           
@@ -155,8 +173,7 @@ export class REPL {
             // Clear the line buffer so it doesn't leak into the next prompt
             rlAny.line = '';
             rlAny.cursor = 0;
-            refreshInputArea();
-            rl.prompt();
+            // Note: executeCommand's finally will handle prompt and render
           }
         });
         return;
@@ -168,8 +185,11 @@ export class REPL {
           await this.handleUserPrompt(line, rl, refreshInputArea);
         });
       } else {
+        // Surgical Overwrite for empty Enter: Move up 1 line and clear it
+        process.stdout.write('\x1b[1F\x1b[2K');
         refreshInputArea();
         rl.prompt();
+        this.terminal.render();
       }
     });
 
@@ -206,11 +226,11 @@ export class REPL {
       }
     } finally {
       this.currentAbort = null;
-      this.terminal.updateStatus(this.controller, this.telemetry);
       this.terminal.getHUD().setMode('IDLE');
-      this.terminal.render();
+      this.terminal.updateStatus(this.controller);
       refreshPrompt();
       rl.prompt();
+      this.terminal.render();
     }
   }
 
