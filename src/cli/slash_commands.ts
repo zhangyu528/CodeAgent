@@ -91,67 +91,6 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
         ctx.info('Conversation history cleared.');
       },
     },
-    {
-      name: '/history',
-      usage: '/history',
-      description: 'Show message count and approximate context tokens.',
-      category: 'Session',
-      handler: async (ctx) => {
-        const msgs = ctx.controller.getMemory().getMessages();
-        ctx.info(`History: ${msgs.length} messages (approx ${ctx.controller.getMemoryUsage()} tokens).`);
-      },
-    },
-    {
-      name: '/tools',
-      usage: '/tools',
-      description: 'List recent tools (id/name/status).',
-      category: 'Tools',
-      handler: async (ctx) => {
-        const items = ctx.bubbles.list();
-        if (items.length === 0) {
-          ctx.info('No recent tools.');
-          return;
-        }
-        ctx.print(items.map((i: any) => `${i.id}: ${i.toolName} (${i.status})`).join('\n'));
-      },
-    },
-    {
-      name: '/tool',
-      usage: '/tool <id>',
-      description: 'Inspect a tool call by id (args + result).',
-      category: 'Tools',
-      handler: async (ctx, args) => {
-        const id = Number(args[0]);
-        if (!Number.isFinite(id)) {
-          ctx.error('Usage: /tool <id>');
-          return;
-        }
-        const item = ctx.bubbles.getById(id);
-        if (!item) {
-          ctx.error(`Tool id not found: ${id}`);
-          return;
-        }
-        const chalk = require('chalk');
-        ctx.print(chalk.dim(`\n--- Tool ${id}: ${item.toolName} ---`));
-        ctx.print(chalk.dim('Args:'));
-        ctx.print(JSON.stringify(item.args, null, 2));
-        ctx.print(chalk.dim('\nResult:'));
-        ctx.print(typeof item.result === 'string' ? item.result : JSON.stringify(item.result, null, 2));
-        ctx.print(chalk.dim('--- End ---\n'));
-      },
-    },
-    {
-      name: '/edit',
-      usage: '/edit',
-      description: 'Open editor to compose a prompt (TTY only).',
-      category: 'General',
-      handler: async (ctx) => {
-        const text = await ctx.ui.openEditor('Edit your prompt, then save and close:', '');
-        if (String(text || '').trim()) {
-          await ctx.handleUserPrompt(text);
-        }
-      },
-    },
   ];
 }
 
@@ -159,58 +98,102 @@ export function parseSlash(line: string): { name: string; args: string[] } | nul
   const trimmed = String(line || '').trim();
   if (!trimmed.startsWith('/')) return null;
   const parts = trimmed.split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return null;
+  if (parts.length === 0) return { name: '/', args: [] };
   return { name: parts[0]!, args: parts.slice(1) };
 }
 
-export async function dispatchSlash(ctx: any, line: string, commands: SlashCommandDef[]): Promise<boolean> {
+export function getBestMatch(line: string, commands: SlashCommandDef[], selectedHint?: string | null): string {
+  const parsed = parseSlash(line);
+  if (!parsed) return line;
+
+  let cmdName = parsed.name;
+  // Priority 1: Use selected hint if it matches the prefix
+  if (selectedHint && selectedHint.startsWith(parsed.name)) {
+    return selectedHint;
+  }
+
+  // Priority 2: Use exact match or best fuzzy match
+  let cmd = commands.find(c => c.name === cmdName);
+  if (!cmd) {
+    const matches = commands.filter(c => c.name.startsWith(cmdName));
+    if (matches.length > 0) {
+      cmd = matches[0];
+    }
+  }
+
+  return cmd ? cmd.name : cmdName;
+}
+
+export async function dispatchSlash(ctx: any, line: string, commands: SlashCommandDef[], selectedHint?: string | null): Promise<boolean> {
   const parsed = parseSlash(line);
   if (!parsed) return false;
 
-  const cmd = commands.find(c => c.name === parsed.name);
+  const cmdName = getBestMatch(line, commands, selectedHint);
+  const cmd = commands.find(c => c.name === cmdName);
+
   if (!cmd) {
-    ctx.error(`Unknown command: ${parsed.name}. Try /help`);
+    ctx.error(`未知命令: ${parsed.name}。输入 /help 查看帮助。`);
     return true;
   }
 
   try {
-    await cmd.handler(ctx, parsed.args);
+    if (cmd.name === '/help') {
+      const helpLines = buildHelpLines(ctx);
+      renderOutputBox(ctx, '/help (Result)', helpLines);
+    } else {
+      await cmd.handler(ctx, parsed.args);
+    }
   } catch (e: any) {
     ctx.error(e?.message || String(e));
   }
   return true;
 }
 
+export function renderOutputBox(ctx: any, title: string, content: string[]) {
+  const chalk = require('chalk');
+  const termWidth = process.stdout.columns || 80;
+  const boxWidth = Math.min(termWidth - 4, 80);
+  
+  const topBar = chalk.cyan('┌── ') + chalk.bold.cyan(title) + ' ' + chalk.cyan('─'.repeat(Math.max(0, boxWidth - title.length - 6)) + '┐');
+  const bottomBar = chalk.cyan('└' + '─'.repeat(boxWidth - 2) + '┘');
+
+  ctx.print(topBar);
+  for (const line of content) {
+    // Strip ANSI for alignment calculation
+    const cleanLine = line.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+    const padding = Math.max(0, boxWidth - 4 - cleanLine.length);
+    ctx.print(chalk.cyan('│ ') + line + ' '.repeat(padding) + chalk.cyan(' │'));
+  }
+  ctx.print(bottomBar);
+}
+
 export function buildHelpLines(ctx: any): string[] {
   const chalk = require('chalk');
   const cmds: SlashCommandDef[] = ctx.commands;
 
-  const header = chalk.bold.cyan('Commands');
+  const results: string[] = [];
+  results.push(chalk.bold.cyan('可用命令'));
+  
   const rows = cmds
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((c: SlashCommandDef) => {
-      const left = chalk.yellow(c.usage.padEnd(18));
+      const cmdPart = chalk.cyan(c.name.padEnd(10));
+      const usagePart = chalk.dim(c.usage.replace(c.name, '').trim());
+      const left = usagePart ? `${cmdPart} ${usagePart}`.padEnd(20) : cmdPart.padEnd(20);
       return `  ${left} ${chalk.dim(c.description)}`;
     });
-
-  const config = [
-    chalk.bold.cyan('Config'),
-    `  ${chalk.yellow('STATUS_BAR=0|1'.padEnd(18))} ${chalk.dim('Toggle status bar (TTY default on).')}`,
-    `  ${chalk.yellow('TOOL_BUBBLES=0|1'.padEnd(18))} ${chalk.dim('Toggle tool bubbles (TTY default on).')}`,
-    `  ${chalk.yellow('NO_COLOR=1'.padEnd(18))} ${chalk.dim('Disable colored output.')}`,
-    `  ${chalk.yellow('DEFAULT_PROVIDER'.padEnd(18))} ${chalk.dim('Startup provider selection.')}`,
-    `  ${chalk.yellow('DIFF_CONFIRM'.padEnd(18))} ${chalk.dim('Diff confirmation mode: smart/always/off.')}`,
-  ];
-
+  
+  results.push(...rows, '');
+  results.push(chalk.bold.cyan('常用快捷键'));
+  
   const keys = [
-    chalk.bold.cyan('Keys (TTY)'),
-    `  ${chalk.yellow('Ctrl+C'.padEnd(18))} ${chalk.dim('Interrupt streaming/thinking; cancel capture.')}`,
-    `  ${chalk.yellow('Ctrl+D'.padEnd(18))} ${chalk.dim('Exit.')}`,
-    `  ${chalk.yellow('Ctrl+L'.padEnd(18))} ${chalk.dim('Clear screen (keep session).')}`,
-    `  ${chalk.yellow('Tab'.padEnd(18))} ${chalk.dim('Autocomplete commands/paths (/model providers).')}`,
-    `  ${chalk.yellow('Up/Down'.padEnd(18))} ${chalk.dim('Navigate input history.')}`,
+    `  ${chalk.cyan('Esc'.padEnd(10))} ${chalk.dim('取消当前操作 / 清空输入')}`,
+    `  ${chalk.cyan('Ctrl+C'.padEnd(10))} ${chalk.dim('中断任务 / 取消录制')}`,
+    `  ${chalk.cyan('Ctrl+D'.padEnd(10))} ${chalk.dim('退出程序')}`,
+    `  ${chalk.cyan('↑/↓'.padEnd(10))} ${chalk.dim('选择建议 / 历史记录')}`,
   ];
-
-  return [header, ...rows, '', ...config, '', ...keys];
+  
+  results.push(...keys);
+  return results;
 }

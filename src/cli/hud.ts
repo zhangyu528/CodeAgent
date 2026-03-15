@@ -36,7 +36,8 @@ export class HUD {
   private contextTokens: number = 0;
   private telemetry: TelemetrySummary | null = null;
   private lastTool: string = '';
-  private bubbleLines: string[] = [];
+  private folder: string = '';
+  private helpHint: string = '';
 
   private update: LogUpdateInstance | null = null;
   private stream: NodeJS.WritableStream;
@@ -118,8 +119,12 @@ export class HUD {
     this.lastTool = String(label || '');
   }
 
-  setBubbleLines(lines: string[]) {
-    this.bubbleLines = Array.isArray(lines) ? lines : [];
+  setFolder(folder: string) {
+    this.folder = folder;
+  }
+
+  setHelpHint(hint: string) {
+    this.helpHint = hint;
   }
 
   clear() {
@@ -127,25 +132,19 @@ export class HUD {
     this.update.clear();
   }
 
-  getLines(opts?: { includeBubbles?: boolean }): string[] {
-    const includeBubbles = opts?.includeBubbles ?? true;
+  getLines(): string[] {
     const lines: string[] = [];
 
     if (this.statusBarEnabled) {
       lines.push(this.formatStatusLine());
     }
 
-    const showBubbles = includeBubbles && envEnabled('TOOL_BUBBLES', Boolean(process.stdout.isTTY));
-    if (showBubbles) lines.push(...this.bubbleLines);
-
     return lines;
   }
 
-  render(opts?: { includeBubbles?: boolean }) {
-    if (!this.update) return;
-    if (this.suspended) return;
-
-    this.update(this.getLines(opts).join('\n'));
+  render() {
+    if (!this.update || this.suspended) return;
+    this.update(this.getLines().join('\n'));
   }
 
   updateRaw(text: string) {
@@ -159,19 +158,26 @@ export class HUD {
   }
 
   private formatStatusLine(): string {
-    const mode = chalk.cyan(this.mode);
-    const providerStr = this.model !== 'unknown' ? `${this.provider}(${this.model})` : this.provider;
-    const provider = chalk.yellow(providerStr);
-
+    const mode = chalk.cyan.bold(this.mode);
+    const modelStr = this.model !== 'unknown' ? ` ${chalk.blue(this.model)}` : '';
+    const providerStr = chalk.yellow(this.provider);
+    
+    // Core Identity
+    const identity = `🤖 ${providerStr}${modelStr}`;
+    
+    // Context Info
+    const folderStr = this.folder ? ` | 📁 ${chalk.blue(this.folder)}` : '';
+    const helpStr = this.helpHint ? ` | 💡 ${chalk.dim(this.helpHint)}` : '';
+    
+    // Stats
     const ctx = chalk.white(String(this.contextTokens));
     const sessionTokens = this.telemetry ? chalk.white(String(this.telemetry.totalTokens)) : chalk.dim('-');
     const cost = this.telemetry ? chalk.white(`$${this.telemetry.estimatedCost}`) : chalk.dim('-');
-    const lastTool = this.lastTool ? chalk.white(this.lastTool) : chalk.dim('-');
+    const lastToolStr = this.lastTool ? ` | ⚒️  ${chalk.white(this.lastTool)}` : '';
 
-    const left = `Provider:${provider}  Mode:${mode}`;
-    const mid = `Ctx:${ctx}  Session:${sessionTokens}  Cost:${cost}`;
-    const right = `LastTool:${lastTool}`;
+    const left = `${identity}${folderStr}${helpStr}`;
+    const right = `Mode:${mode} | Ctx:${ctx} | Ses:${sessionTokens} | Cost:${cost}${lastToolStr}`;
 
-    return chalk.dim('[Status] ') + `${left}  |  ${mid}  |  ${right}`;
+    return chalk.dim('── ') + left + chalk.dim(' ── ') + right;
   }
 }

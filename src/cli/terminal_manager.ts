@@ -26,6 +26,7 @@ export class TerminalManager {
   private uiAdapter: DefaultUIAdapter;
   private rl: readline.Interface | null = null;
   private inputSuspended = false;
+  private exclusiveMode: boolean = false;
 
   constructor() {
     this.hud = new HUD();
@@ -41,6 +42,7 @@ export class TerminalManager {
 
   async init(): Promise<void> {
     await this.hud.init();
+    this.hud.setHelpHint('输入 / 获取帮助');
     
     // Auto-adjust on resize
     process.stdout.on('resize', () => {
@@ -52,6 +54,15 @@ export class TerminalManager {
 
   setReadline(rl: readline.Interface) {
     this.rl = rl;
+  }
+
+  setExclusiveMode(on: boolean) {
+    this.exclusiveMode = on;
+  }
+
+  clearAllFooters(opts?: { stayDown?: boolean }) {
+    this.hints.clear();
+    this.footer.clear(this.rl!, opts);
   }
 
   toggleHUD() {
@@ -77,7 +88,7 @@ export class TerminalManager {
   }
 
   isInputSuspended(): boolean {
-    return this.inputSuspended;
+    return this.inputSuspended || this.exclusiveMode;
   }
 
   async suspendInput<T>(fn: () => Promise<T>): Promise<T> {
@@ -114,19 +125,36 @@ export class TerminalManager {
     this.render();
   }
 
-  render() {
-    if (!this.rl) return;
+  moveHintSelection(delta: number) {
+    this.hints.moveSelection(delta);
+    this.render();
+  }
 
-    // Collect all footer lines
+  getSelectedHint(): string | null {
+    return this.hints.getSelectedCommand()?.name || null;
+  }
+
+  hasHints(): boolean {
+    return this.hints.getLines().length > 0;
+  }
+
+  render() {
+    if (!this.rl || this.exclusiveMode) return;
+
+    // Collect all footer lines in specific order:
+    // 1. Hints (Closest to input)
     const hintLines = this.hints.getLines();
     
-    // Sync bubbles and tool labels to HUD
-    this.hud.setBubbleLines(this.bubbles.getLines());
+    // 2. Tool Bubbles (Process feedback)
+    const bubbleLines = this.bubbles.getLines();
+    
+    // 3. Status Bar (Global state, always at bottom)
     this.hud.setLastTool(this.bubbles.getLastLabel());
-    const hudLines = this.hud.getLines({ includeBubbles: true });
+    const hudLines = this.hud.getLines();
 
     // Render EVERYTHING below the prompt in one stable surgical move
-    this.footer.render(this.rl, hintLines, hudLines);
+    const allLines = [...hintLines, ...bubbleLines, ...hudLines];
+    this.footer.render(this.rl, [], allLines); // Pass all combined lines to footer renderer
   }
 
   showWelcome(providers: string[], currentProvider: string) {
@@ -143,6 +171,7 @@ export class TerminalManager {
     this.hints.clear();
     this.hud.setProvider(controller.getProviderName());
     this.hud.setModel(controller.getModelName());
+    this.hud.setFolder(path.basename(process.cwd()));
     this.hud.setContextTokens(controller.getMemoryUsage());
     this.hud.setTelemetry(telemetry.getSummary() as any);
     this.render();

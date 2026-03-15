@@ -1,7 +1,7 @@
 import * as readline from 'readline';
 import { AgentController } from '../controller/agent_controller';
 import { TerminalManager } from './terminal_manager';
-import { SlashCommandDef, dispatchSlash } from './slash_commands';
+import { SlashCommandDef, dispatchSlash, parseSlash, getBestMatch } from './slash_commands';
 import { logger, TelemetryMonitor } from '../utils/logger';
 import { LLMEngine } from '../llm/engine';
 
@@ -35,13 +35,11 @@ export class REPL {
 
     const refreshInputArea = () => {
       const mode = this.terminal.getHUD().getMode();
-      this.terminal.printSeparator();
-      this.terminal.renderInputHeader(this.controller.getModelName());
       
       if (mode === 'CAPTURE') {
-        rl.setPrompt(require('chalk').dim(' │  '));
+        rl.setPrompt(require('chalk').dim('  │ '));
       } else {
-        rl.setPrompt(require('chalk').dim(' ╰─> '));
+        rl.setPrompt(require('chalk').cyan.bold('❯ '));
       }
     };
 
@@ -53,6 +51,9 @@ export class REPL {
           ui: this.terminal.getUIAdapter(),
           bubbles: this.terminal.getBubbles(),
           hud: this.terminal.getHUD(),
+          onCommandHints: (hints: { name: string; description: string }[]) => this.terminal.setCommandHints(hints),
+          onMoveSelection: (delta: number) => this.terminal.moveHintSelection(delta),
+          hasHints: () => this.terminal.hasHints(),
           commands: this.commands,
           print: (m: string) => console.log(m),
           info: (m: string) => logger.info(m),
@@ -61,6 +62,7 @@ export class REPL {
         },
         line,
         this.commands,
+        this.terminal.getSelectedHint()
       );
     };
 
@@ -100,19 +102,71 @@ export class REPL {
         return;
       }
 
+      const executeCommand = async (action: () => Promise<void>) => {
+        this.processing = true;
+        this.terminal.setExclusiveMode(true);
+        this.terminal.clearAllFooters({ stayDown: true });
+        try {
+          await action();
+        } finally {
+          this.terminal.setExclusiveMode(false);
+          this.processing = false;
+          this.terminal.render(); // Restore visibility after command
+        }
+      };
+
       // 2. Slash Commands
       if (trimmed.startsWith('/')) {
-        const handled = await handleSlash(line);
-        if (handled) {
-          refreshInputArea();
-          rl.prompt();
-          return;
+        // Resolve expansion
+        const selectedHint = this.terminal.getSelectedHint();
+        const bestName = getBestMatch(line, this.commands, selectedHint);
+        const parsed = parseSlash(line);
+        const argsStr = parsed?.args.length ? ' ' + parsed.args.join(' ') : '';
+        const expandedLine = bestName + argsStr;
+
+        const rlAny = rl as any;
+        const prompt = rlAny._prompt || '';
+        
+        // CRITICAL: After Enter, cursor is on the line BELOW the prompt.
+        // Move back to prompt line to stabilize state for renderer.
+        process.stdout.write('\x1b[1F'); 
+
+        if (expandedLine !== line) {
+          process.stdout.write('\x1b[2K'); // Clear prompt line
+          process.stdout.write(prompt + expandedLine); // Rewrite
+          rlAny.line = expandedLine;
+          rlAny.cursor = expandedLine.length;
+          
+          const history = rlAny.history || [];
+          if (history.length > 0 && history[0] === line) {
+            history[0] = expandedLine;
+          }
+        } else {
+          // Just move cursor to the end of the line to match internal state
+          const visualFullLine = prompt + line;
+          const termWidth = process.stdout.columns || 80;
+          readline.cursorTo(process.stdout, visualFullLine.length % termWidth);
+          rlAny.cursor = line.length;
         }
+
+        await executeCommand(async () => {
+          const handled = await handleSlash(expandedLine);
+          if (handled) {
+            // Clear the line buffer so it doesn't leak into the next prompt
+            rlAny.line = '';
+            rlAny.cursor = 0;
+            refreshInputArea();
+            rl.prompt();
+          }
+        });
+        return;
       }
 
       // 3. Normal Prompt
       if (trimmed) {
-        await this.handleUserPrompt(line, rl, refreshInputArea);
+        await executeCommand(async () => {
+          await this.handleUserPrompt(line, rl, refreshInputArea);
+        });
       } else {
         refreshInputArea();
         rl.prompt();
@@ -151,7 +205,6 @@ export class REPL {
         logger.error('Error: ' + err.message);
       }
     } finally {
-      this.processing = false;
       this.currentAbort = null;
       this.terminal.updateStatus(this.controller, this.telemetry);
       this.terminal.getHUD().setMode('IDLE');

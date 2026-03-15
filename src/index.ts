@@ -60,6 +60,8 @@ async function bootstrap() {
     onHint: (text) => logger.info(text),
     onToggleHUD: () => terminal.toggleHUD(),
     onCommandHints: (hints) => terminal.setCommandHints(hints),
+    onMoveSelection: (delta) => terminal.moveHintSelection(delta),
+    hasHints: () => terminal.hasHints(),
     slashCommands: commands.map(c => ({ name: c.name, description: c.description })),
     onSlash: () => {
       repl.showSlashMenu(rl).catch(err => {

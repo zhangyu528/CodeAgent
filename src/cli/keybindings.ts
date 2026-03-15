@@ -17,6 +17,8 @@ export function attachKeybindings(opts: {
   onToggleHUD?: () => void;
   onLineChange?: (line: string) => void;
   onCommandHints?: (hints: { name: string; description: string }[]) => void;
+  onMoveSelection?: (delta: number) => void;
+  hasHints?: () => boolean;
   slashCommands?: { name: string; description: string }[];
   stdin?: NodeJS.ReadableStream;
 }) {
@@ -64,6 +66,14 @@ export function attachKeybindings(opts: {
         rl.cursor = 0;
       }
       return;
+    }
+
+    // Up/Down selection navigation
+    if (key.name === 'up' || key.name === 'down') {
+      if (opts.hasHints?.()) {
+        opts.onMoveSelection?.(key.name === 'up' ? -1 : 1);
+        return; // Consume the keypress
+      }
     }
 
     // Detect '/' at the beginning of an empty line - disabled automatic popup as per Requirement 3 revision
