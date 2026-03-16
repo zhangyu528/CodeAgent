@@ -10,6 +10,9 @@ export type ProviderRegistrationResult = {
   skipped: { name: string; reason: string }[];
 };
 
+const BUILT_IN_GLM_API_KEY = process.env.BUILT_IN_GLM_API_KEY;
+const BUILT_IN_GLM_MODEL = process.env.BUILT_IN_GLM_MODEL || 'glm-4-flash';
+
 function hasAnyEnv(keys: string[]) {
   return keys.some(k => !!process.env[k]);
 }
@@ -62,6 +65,16 @@ export function registerProvidersFromEnv(engine: LLMEngine): ProviderRegistratio
     } else {
       skipped.push({ name: 'ollama', reason: 'Missing OLLAMA_BASE_URL or OLLAMA_MODEL.' });
     }
+  }
+
+  // 内置免费GLM：当没有用户配置的provider时，自动使用内置key
+  if (registered.length === 0 && BUILT_IN_GLM_API_KEY) {
+    const provider = new GLMProvider(BUILT_IN_GLM_API_KEY);
+    if (BUILT_IN_GLM_MODEL) {
+      provider.setModel(BUILT_IN_GLM_MODEL);
+    }
+    engine.registerProvider(provider);
+    registered.push('glm (内置免费)');
   }
 
   return { registered, skipped };

@@ -36,10 +36,11 @@ export async function createAgent(ui: IUIAdapter) {
   const engine = new LLMEngine();
 
   let reg = registerProvidersFromEnv(engine);
+  
+  // 只有当没有任何provider（包括内置免费GLM）时才运行初始化向导
   if (reg.registered.length === 0) {
     const success = await runInitWizard();
     if (success) {
-      // Reload env again
       dotenv.config({ quiet: true });
       reg = registerProvidersFromEnv(engine);
     }
