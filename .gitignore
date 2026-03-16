@@ -21,3 +21,8 @@ dist/
 *.swp
 
 /temp
+
+# Xcode
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
