@@ -72,13 +72,28 @@ Run the full test suite (may require real provider keys for integration/e2e):
 npm test
 ```
 
-## Project Structure
+## Project Structure (Hexagonal Architecture)
 
-- `src/index.ts`: CLI Entry point.
-- `src/tools/`: Core execution tools.
-- `src/controller/`: Agent and Planner logic.
-- `src/llm/`: LLM provider implementations.
-- `src/tests/`: Integration and unit tests.
+```
+src/
+├── core/                    # Core business logic (no UI dependencies)
+│   ├── controller/          # Agent and Planner logic
+│   ├── llm/                 # LLM provider implementations
+│   ├── tools/               # Core execution tools
+│   ├── interfaces/          # IUIAdapter definitions
+│   └── prompts/            # System prompts
+│
+├── apps/                    # Application entry points
+│   ├── cli/                 # TTY interactive interface
+│   └── kernel/              # JSON-RPC kernel (for macOS App integration)
+│
+├── tests/                   # Integration and unit tests
+└── web/                     # Web search and browsing tools
+```
+
+## CLI Mode (Default)
+
+- `src/apps/cli/index.ts`: CLI Entry point.
 
 ## Web Tools (F5)
 

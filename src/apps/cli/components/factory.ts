@@ -1,37 +1,38 @@
 import * as dotenv from 'dotenv';
-import { LLMEngine } from '../llm/engine';
-import { registerProvidersFromEnv } from '../llm/register_providers';
-import { AgentController } from '../controller/agent_controller';
-import { MemoryManager } from '../controller/memory_manager';
-import { SecurityLayer } from '../controller/security_layer';
-import { ContextInformer } from '../controller/context_informer';
-import { logger } from '../utils/logger';
-import { DefaultUIAdapter } from './default_ui_adapter';
+import { LLMEngine } from '../../../core/llm/engine';
+import { registerProvidersFromEnv } from '../../../core/llm/register_providers';
+import { AgentController } from '../../../core/controller/agent_controller';
+import { MemoryManager } from '../../../core/controller/memory_manager';
+import { SecurityLayer } from '../../../core/controller/security_layer';
+import { ContextInformer } from '../../../core/controller/context_informer';
+import { logger } from '../../../utils/logger';
+import { TTY_UIAdapter } from '../adapter';
 import { runInitWizard } from './setup_wizard';
+import { IUIAdapter } from '../../../core/interfaces/ui';
 
 // Tools
-import { ReadFileTool } from '../tools/read_file_tool';
-import { WriteFileTool } from '../tools/write_file_tool';
-import { RunCommandTool } from '../tools/run_command_tool';
-import { ListDirectoryTool } from '../tools/list_directory_tool';
-import { FileSearchTool } from '../tools/file_search_tool';
-import { ReplaceContentTool } from '../tools/replace_content_tool';
-import { SystemInfoTool } from '../tools/system_info_tool';
-import { EchoTool } from '../tools/echo_tool';
-import { WebSearchTool } from '../tools/web_search_tool';
-import { BrowsePageTool } from '../tools/browse_page_tool';
-import { SearchCodeTool } from '../tools/search_code_tool';
-import { FindDefinitionTool } from '../tools/find_definition_tool';
-import { ListTreeTool } from '../tools/list_tree_tool';
-import { UserSelectTool } from '../tools/user_select_tool';
-import { UserCheckboxTool } from '../tools/user_checkbox_tool';
-import { UserEditorTool } from '../tools/user_editor_tool';
+import { ReadFileTool } from '../../../core/tools/read_file_tool';
+import { WriteFileTool } from '../../../core/tools/write_file_tool';
+import { RunCommandTool } from '../../../core/tools/run_command_tool';
+import { ListDirectoryTool } from '../../../core/tools/list_directory_tool';
+import { FileSearchTool } from '../../../core/tools/file_search_tool';
+import { ReplaceContentTool } from '../../../core/tools/replace_content_tool';
+import { SystemInfoTool } from '../../../core/tools/system_info_tool';
+import { EchoTool } from '../../../core/tools/echo_tool';
+import { WebSearchTool } from '../../../core/tools/web_search_tool';
+import { BrowsePageTool } from '../../../core/tools/browse_page_tool';
+import { SearchCodeTool } from '../../../core/tools/search_code_tool';
+import { FindDefinitionTool } from '../../../core/tools/find_definition_tool';
+import { ListTreeTool } from '../../../core/tools/list_tree_tool';
+import { UserSelectTool } from '../../../core/tools/user_select_tool';
+import { UserCheckboxTool } from '../../../core/tools/user_checkbox_tool';
+import { UserEditorTool } from '../../../core/tools/user_editor_tool';
 
 function formatProviders(list: string[]) {
   return list.length > 0 ? list.join(', ') : '(none)';
 }
 
-export async function createAgent(ui: DefaultUIAdapter) {
+export async function createAgent(ui: IUIAdapter) {
   const engine = new LLMEngine();
 
   let reg = registerProvidersFromEnv(engine);
@@ -67,7 +68,7 @@ export async function createAgent(ui: DefaultUIAdapter) {
   // HITL Approval Handler through UIAdapter
   const approvalHandler = async (description: string) => {
     logger.stopSpinner();
-    return ui.confirmRisk(description);
+    return ui.confirm(description);
   };
 
   const security = new SecurityLayer(process.cwd(), approvalHandler);
@@ -86,9 +87,9 @@ export async function createAgent(ui: DefaultUIAdapter) {
     new SearchCodeTool(),
     new FindDefinitionTool(),
     new ListTreeTool(),
-    new UserSelectTool(ui),
-    new UserCheckboxTool(ui),
-    new UserEditorTool(ui),
+    new UserSelectTool(ui as any),
+    new UserCheckboxTool(ui as any),
+    new UserEditorTool(ui as any),
   ];
 
   // F6: Workspace Trust Check
@@ -96,13 +97,7 @@ export async function createAgent(ui: DefaultUIAdapter) {
   if (!isTrusted) {
     const root = process.cwd();
     console.log(`\n\x1b[33m[Security Warning]\x1b[0m Detect start in untrusted directory: \x1b[36m${root}\x1b[0m`);
-    const answer = await ui.confirmRisk({
-      type: 'security',
-      level: 'MEDIUM',
-      title: 'Trust workspace',
-      detail: root,
-      reason: 'Workspace not previously trusted',
-    });
+    const answer = await ui.confirm(`Trust workspace: ${root}?`);
 
     if (!answer) {
       console.log('\x1b[31m[Security] Access denied. Exiting.\x1b[0m');
@@ -116,9 +111,8 @@ export async function createAgent(ui: DefaultUIAdapter) {
   const contextInformer = new ContextInformer();
   const bootSnapshot = await contextInformer.buildBootSnapshot(process.cwd());
 
-  const controller = new AgentController(engine, tools, defaultProvider, security, memory, {
-    systemPromptContext: { bootSnapshot },
-    ui,
+  const controller = new AgentController(engine, tools, defaultProvider, security, ui, memory, {
+    systemPromptContext: { bootSnapshot }
   });
 
   return { controller, engine, ui };

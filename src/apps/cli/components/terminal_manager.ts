@@ -5,10 +5,9 @@ import { HUD } from './hud';
 import { ToolBubbles } from './tool_bubbles';
 import { StableFooterRenderer } from './stable_footer_renderer';
 import { SlashHintManager } from './slash_hint_manager';
-import { TelemetryMonitor } from '../utils/logger';
-import { AgentController } from '../controller/agent_controller';
+import { TelemetryMonitor } from '../../../utils/logger';
+import { AgentController } from '../../../core/controller/agent_controller';
 import { getCliVersion, renderWelcomeCard } from './welcome_card';
-import { DefaultUIAdapter } from './default_ui_adapter';
 
 function envEnabled(name: string, defaultOn: boolean) {
   const raw = String(process.env[name] || '').trim();
@@ -23,7 +22,6 @@ export class TerminalManager {
   private bubbles: ToolBubbles;
   private footer: StableFooterRenderer;
   private hints: SlashHintManager;
-  private uiAdapter: DefaultUIAdapter;
   private rl: readline.Interface | null = null;
   private inputSuspended = false;
   private exclusiveMode: boolean = false;
@@ -34,10 +32,6 @@ export class TerminalManager {
     this.bubbles = new ToolBubbles({ maxItems: 8, enabled: bubblesEnabled });
     this.footer = new StableFooterRenderer();
     this.hints = new SlashHintManager();
-    
-    this.uiAdapter = new DefaultUIAdapter({
-      suspendInput: async (fn) => this.suspendInput(fn),
-    });
   }
 
   async init(): Promise<void> {
@@ -72,10 +66,6 @@ export class TerminalManager {
     } else {
       this.render();
     }
-  }
-
-  getUIAdapter(): DefaultUIAdapter {
-    return this.uiAdapter;
   }
 
   getHUD(): HUD {

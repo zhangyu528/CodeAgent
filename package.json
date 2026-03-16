@@ -2,16 +2,21 @@
   "name": "codeagent",
   "version": "1.0.0",
   "description": "This is a new project initialized with Gemini CLI.",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
-  },
+  "main": "dist/index.js",
   "bin": {
-    "codeagent": "bin/codeagent.js"
+    "codeagent": "dist/apps/cli/index.js"
   },
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
   "scripts": {
-    "start": "ts-node src/index.ts",
-    "test:unit": "ts-node src/tests/unit/index.ts",
+    "build": "tsc",
+    "dev": "ts-node src/apps/cli/index.ts",
+    "start": "node dist/apps/cli/index.js",
+    "pkg:win": "bun build ./dist/apps/kernel/index.js --compile --target bun-windows-x64 --outfile binaries/codeagent-kernel-win.exe",
+    "pkg:mac": "bun build ./dist/apps/kernel/index.js --compile --target bun-darwin-arm64 --outfile binaries/codeagent-kernel-macos-arm64",
     "test:integration": "ts-node src/tests/integration/index.ts",
     "test:security": "ts-node src/tests/security/path_guard.test.ts",
     "test:e2e": "ts-node src/tests/e2e/comprehensive_workflow.test.ts",
@@ -31,7 +36,6 @@
   "homepage": "https://github.com/zhangyu528/CodeAgent#readme",
   "dependencies": {
     "@inquirer/prompts": "^7.10.1",
-    "@types/node": "^25.4.0",
     "chalk": "^4.1.2",
     "commander": "^14.0.3",
     "dotenv": "^17.3.1",
@@ -39,7 +43,6 @@
     "marked": "^15.0.12",
     "marked-terminal": "^7.3.0",
     "ora": "^5.4.1",
-    "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "zod": "^4.3.6"
   },
@@ -47,6 +50,8 @@
     "@types/chalk": "^0.4.31",
     "@types/commander": "^2.12.0",
     "@types/marked-terminal": "^6.1.1",
-    "@types/ora": "^3.1.0"
+    "@types/node": "^25.4.0",
+    "@types/ora": "^3.1.0",
+    "ts-node": "^10.9.2"
   }
 }

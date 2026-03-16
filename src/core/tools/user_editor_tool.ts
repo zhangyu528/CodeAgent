@@ -1,6 +1,6 @@
 import { Tool } from './tool';
 import { z } from 'zod';
-import { UIAdapter } from '../cli/ui_adapter';
+import { IUIAdapter } from '../interfaces/ui';
 
 export class UserEditorTool implements Tool {
   name = 'user_editor';
@@ -10,7 +10,7 @@ export class UserEditorTool implements Tool {
     initial: z.string().optional().describe('Initial text placed into the editor.'),
   });
 
-  constructor(private ui: UIAdapter) {}
+  constructor(private ui: IUIAdapter) {}
 
   async execute(args: { message: string; initial?: string }): Promise<string> {
     const text = await this.ui.openEditor(args.message, args.initial);

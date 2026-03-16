@@ -1,6 +1,6 @@
 import { Tool } from './tool';
 import { z } from 'zod';
-import { UIAdapter } from '../cli/ui_adapter';
+import { IUIAdapter } from '../interfaces/ui';
 
 export class UserSelectTool implements Tool {
   name = 'user_select';
@@ -12,14 +12,10 @@ export class UserSelectTool implements Tool {
     enableSearch: z.boolean().optional().default(false).describe('Enable search/filter UI.'),
   });
 
-  constructor(private ui: UIAdapter) {}
+  constructor(private ui: IUIAdapter) {}
 
   async execute(args: { message: string; choices: string[]; default?: string; enableSearch?: boolean }): Promise<string> {
-    const opts: any = {};
-    if (args.enableSearch !== undefined) opts.enableSearch = args.enableSearch;
-    if (args.default !== undefined) opts.default = args.default;
-
-    const selected = await this.ui.selectOne(args.message, args.choices, opts);
+    const selected = await this.ui.selectOne(args.message, args.choices, { default: args.default });
     return JSON.stringify({ selected });
   }
 }

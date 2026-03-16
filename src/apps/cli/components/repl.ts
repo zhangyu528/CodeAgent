@@ -1,9 +1,10 @@
 import * as readline from 'readline';
-import { AgentController } from '../controller/agent_controller';
+import { AgentController } from '../../../core/controller/agent_controller';
 import { TerminalManager } from './terminal_manager';
 import { SlashCommandDef, dispatchSlash, parseSlash, getBestMatch } from './slash_commands';
-import { logger, TelemetryMonitor } from '../utils/logger';
-import { LLMEngine } from '../llm/engine';
+import { logger, TelemetryMonitor } from '../../../utils/logger';
+import { LLMEngine } from '../../../core/llm/engine';
+import { IUIAdapter } from '../../../core/interfaces/ui';
 
 export class REPL {
   private capturing = false;
@@ -17,6 +18,7 @@ export class REPL {
     private terminal: TerminalManager,
     private commands: SlashCommandDef[],
     private telemetry: TelemetryMonitor,
+    private ui: IUIAdapter,
     private opts?: {
       completer?: (line: string, callback: (err: any, result: [string[], string]) => void) => void;
       onSlash?: (rl: readline.Interface) => void;
@@ -54,7 +56,7 @@ export class REPL {
         {
           controller: this.controller,
           engine: this.engine,
-          ui: this.terminal.getUIAdapter(),
+          ui: this.ui,
           bubbles: this.terminal.getBubbles(),
           hud: this.terminal.getHUD(),
           onCommandHints: (hints: { name: string; description: string }[]) => this.terminal.setCommandHints(hints),
@@ -206,18 +208,9 @@ export class REPL {
       let fullResponse = '';
       await this.controller.askStream(
         prompt,
-        (chunk) => {
-          if (this.terminal.getHUD().getMode() !== 'STREAMING') {
-            this.terminal.getHUD().setMode('STREAMING');
-            this.terminal.render();
-          }
-          fullResponse += chunk;
-          process.stdout.write(chunk);
-        },
         { signal: this.currentAbort.signal },
       );
-
-      this.terminal.renderFormattedOutput(fullResponse);
+      // Data is handled via IUIAdapter callbacks in index.ts
     } catch (err: any) {
       if (err.name === 'AbortError') {
         console.log('\n[Interrupted]');

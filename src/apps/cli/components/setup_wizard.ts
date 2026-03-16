@@ -2,10 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk = require('chalk');
 import { select, input, password, confirm } from '@inquirer/prompts';
-import { GLMProvider } from '../llm/glm_provider';
-import { OpenAIProvider } from '../llm/openai_provider';
-import { AnthropicProvider } from '../llm/anthropic_provider';
-import { DeepSeekProvider } from '../llm/deepseek_provider';
+import { GLMProvider } from '../../../core/llm/glm_provider';
+import { OpenAIProvider } from '../../../core/llm/openai_provider';
+import { AnthropicProvider } from '../../../core/llm/anthropic_provider';
+import { DeepSeekProvider } from '../../../core/llm/deepseek_provider';
 
 const PROVIDER_TEMPLATES: Record<string, { url: string; model: string; name: string }> = {
   deepseek: {

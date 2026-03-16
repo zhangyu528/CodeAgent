@@ -1,12 +1,12 @@
-import { LLMEngine } from '../../llm/engine';
-import { AgentController } from '../../controller/agent_controller';
-import { ReadFileTool } from '../../tools/read_file_tool';
-import { EchoTool } from '../../tools/echo_tool';
-import { SecurityLayer } from '../../controller/security_layer';
-import { MemoryManager } from '../../controller/memory_manager';
-import { WriteFileTool } from '../../tools/write_file_tool';
-import { RunCommandTool } from '../../tools/run_command_tool';
-import { MockProvider } from '../../llm/mock_provider';
+import { LLMEngine } from '../../core/llm/engine';
+import { AgentController } from '../../core/controller/agent_controller';
+import { ReadFileTool } from '../../core/tools/read_file_tool';
+import { EchoTool } from '../../core/tools/echo_tool';
+import { SecurityLayer } from '../../core/controller/security_layer';
+import { MemoryManager } from '../../core/controller/memory_manager';
+import { WriteFileTool } from '../../core/tools/write_file_tool';
+import { RunCommandTool } from '../../core/tools/run_command_tool';
+import { MockProvider } from '../../core/llm/mock_provider';
 
 export async function test() {
   console.log('=== Running CodeAgent P0 MVP Tests (MockProvider) ===\n');

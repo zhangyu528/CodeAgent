@@ -1,38 +1,64 @@
 import * as dotenv from 'dotenv';
 import * as readline from 'readline';
-import { logger, TelemetryMonitor } from './utils/logger';
-import { TerminalManager } from './cli/terminal_manager';
-import { createAgent } from './cli/factory';
-import { getDefaultSlashCommands } from './cli/slash_commands';
-import { REPL } from './cli/repl';
-import { attachKeybindings } from './cli/keybindings';
-import { buildCompleter } from './cli/readline_completer';
+import { logger, TelemetryMonitor } from '../../utils/logger';
+import { TerminalManager } from './components/terminal_manager';
+import { createAgent } from './components/factory';
+import { getDefaultSlashCommands } from './components/slash_commands';
+import { REPL } from './components/repl';
+import { attachKeybindings } from './components/keybindings';
+import { buildCompleter } from './components/readline_completer';
+import { TTY_UIAdapter } from './adapter';
 
 // 1. Initial Setup
 dotenv.config({ quiet: true });
 const telemetry = new TelemetryMonitor();
 
-async function bootstrap() {
-  // 2. Initialize UI & Factory
+export async function bootstrap() {
+  // 2. Initialize UI Components
   const terminal = new TerminalManager();
   await terminal.init();
 
-  const { controller, engine } = await createAgent(terminal.getUIAdapter());
+  // 3. Create IUIAdapter for Core
+  const uiAdapter = new TTY_UIAdapter({
+    suspendInput: async (fn) => terminal.suspendInput(fn),
+    onStatus: (status) => {
+        if (status.type === 'think') {
+            terminal.getHUD().setMode('THINKING');
+            terminal.render();
+        } else if (status.type === 'tool_start') {
+            terminal.getBubbles().onToolStarted(status.name, status.input);
+            terminal.render();
+        } else if (status.type === 'tool_end') {
+            terminal.getBubbles().onToolFinished(status.name, status.output);
+            terminal.render();
+        } else if (status.type === 'completion') {
+            terminal.getHUD().setMode('STREAMING');
+            terminal.render();
+        } else if (status.type === 'final_answer') {
+            terminal.getHUD().setMode('IDLE');
+            terminal.updateStatus(null as any); // Refresh data
+            terminal.render();
+        }
+    }
+  });
+
+  // 4. Initialize Core
+  const { controller, engine } = await createAgent(uiAdapter);
   const commands = getDefaultSlashCommands();
 
-  // 3. Initialize REPL
+  // 5. Initialize REPL
   const completer = buildCompleter({
     cwd: process.cwd(),
     slashCommands: commands.map(c => c.name),
     getModelProviders: () => engine.listProviders(),
   });
 
-  const repl = new REPL(controller, engine, terminal, commands, telemetry, {
+  const repl = new REPL(controller, engine, terminal, commands, telemetry, uiAdapter, {
     completer,
   });
   const { rl, refreshPrompt } = await repl.start();
 
-  // 4. Wire Keybindings
+  // 6. Wire Keybindings
   const keybindings = attachKeybindings({
     rl,
     isTTY: Boolean(process.stdin.isTTY),
@@ -71,17 +97,17 @@ async function bootstrap() {
     }
   });
 
-  // 5. Final UI Touch
+  // 7. Final UI Touch
   terminal.showWelcome(engine.listProviders(), controller.getProviderName());
-  // Prepare HUD data without rendering yet
   terminal.updateStatus(controller, { render: false });
   refreshPrompt();
   rl.prompt();
-  // Ensure footer is visible immediately AFTER the prompt
   terminal.render();
 }
 
-bootstrap().catch(err => {
-  logger.error('Fatal error during bootstrap: ' + (err?.message || String(err)));
-  process.exit(1);
-});
+if (require.main === module) {
+    bootstrap().catch(err => {
+        logger.error('Fatal error during bootstrap: ' + (err?.message || String(err)));
+        process.exit(1);
+    });
+}

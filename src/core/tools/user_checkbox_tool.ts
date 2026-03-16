@@ -1,6 +1,6 @@
 import { Tool } from './tool';
 import { z } from 'zod';
-import { UIAdapter } from '../cli/ui_adapter';
+import { IUIAdapter } from '../interfaces/ui';
 
 export class UserCheckboxTool implements Tool {
   name = 'user_checkbox';
@@ -12,14 +12,10 @@ export class UserCheckboxTool implements Tool {
     enableSearch: z.boolean().optional().default(false).describe('Enable search/filter UI.'),
   });
 
-  constructor(private ui: UIAdapter) {}
+  constructor(private ui: IUIAdapter) {}
 
   async execute(args: { message: string; choices: string[]; defaults?: string[]; enableSearch?: boolean }): Promise<string> {
-    const opts: any = {};
-    if (args.enableSearch !== undefined) opts.enableSearch = args.enableSearch;
-    if (args.defaults !== undefined) opts.defaults = args.defaults;
-
-    const selected = await this.ui.selectMany(args.message, args.choices, opts);
+    const selected = await this.ui.selectMany(args.message, args.choices, { defaults: args.defaults });
     return JSON.stringify({ selected });
   }
 }
