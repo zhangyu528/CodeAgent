@@ -10,6 +10,31 @@ class CodeAgentViewModel: ObservableObject {
     @Published var isShowingModelPicker: Bool = false
     @Published var isPlanning: Bool = false
     
+    // MARK: - Model Picker State
+    @Published var searchText: String = ""
+    @Published var providerConfigs: [String: ProviderConfig] = [
+        "OpenAI": ProviderConfig(baseUrl: "https://api.openai.com/v1"),
+        "Anthropic": ProviderConfig(baseUrl: "https://api.anthropic.com/v1"),
+        "DeepSeek": ProviderConfig(baseUrl: "https://api.deepseek.com/v1")
+    ]
+    
+    let modelLibrary: [String: [AIModel]] = [
+        "OpenAI": [
+            AIModel(name: "GPT-4o", description: "Omni model for flagship performance", context: "128k", cost: "$5.00", latency: "Low", isRecommended: true),
+            AIModel(name: "GPT-4 Turbo", description: "Previous flagship model", context: "128k", cost: "$10.00", latency: "Medium"),
+            AIModel(name: "GPT-3.5 Turbo", description: "Fast and cost-effective", context: "16k", cost: "$0.50", latency: "Instant")
+        ],
+        "Anthropic": [
+            AIModel(name: "Claude 3.5 Sonnet", description: "Most intelligent model", context: "200k", cost: "$3.00", latency: "Low", isRecommended: true),
+            AIModel(name: "Claude 3 Opus", description: "Powerful for complex tasks", context: "200k", cost: "$15.00", latency: "Medium"),
+            AIModel(name: "Claude 3 Haiku", description: "Fastest and most compact", context: "200k", cost: "$0.25", latency: "Instant")
+        ],
+        "DeepSeek": [
+            AIModel(name: "DeepSeek-V2.5", description: "Strong coding performance", context: "128k", cost: "$0.10", latency: "Low", isRecommended: true),
+            AIModel(name: "DeepSeek-Coder", description: "Specialized for programming", context: "32k", cost: "$0.10", latency: "Low")
+        ]
+    ]
+    
     // MARK: - Layout State
     @Published var isLeftSidebarVisible: Bool = true
     @Published var isRightSidebarVisible: Bool = true
@@ -89,6 +114,23 @@ struct ChatMessage: Identifiable {
     enum MessageRole {
         case user, assistant
     }
+}
+
+struct AIModel: Identifiable, Hashable {
+    let id = UUID()
+    let name: String
+    let description: String
+    let context: String
+    let cost: String
+    let latency: String
+    var isRecommended: Bool = false
+}
+
+struct ProviderConfig {
+    var apiKey: String = ""
+    var baseUrl: String = ""
+    var organizationId: String = ""
+    var isKeyVisible: Bool = false
 }
 
 struct DiffFile: Identifiable {
