@@ -6,6 +6,12 @@ class CodeAgentViewModel: ObservableObject {
     @Published var connectionStatus: String = "Connected"
     @Published var executionMode: ExecutionMode = .planFirst
     
+    // MARK: - Layout State
+    @Published var isLeftSidebarVisible: Bool = true
+    @Published var isRightSidebarVisible: Bool = true
+    @Published var isDiffVisible: Bool = true
+    @Published var isTerminalVisible: Bool = true
+    
     // MARK: - Sidebar / Explorer
     @Published var selectedFile: String? = "db.py"
     @Published var files: [FileItem] = [

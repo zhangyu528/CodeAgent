@@ -3,12 +3,14 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var vm = AgentViewModel()
     @State private var showingDebug = false
+    @State private var dragOffset = CGSize.zero
+    @State private var position = CGSize.zero
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
             CodeAgentMainView()
             
-            // Debug Toggle
+            // Debug Toggle (Draggable)
             Button(action: { showingDebug.toggle() }) {
                 Image(systemName: "ladybug.fill")
                     .foregroundColor(.orange)
@@ -17,6 +19,19 @@ struct ContentView: View {
                     .clipShape(Circle())
             }
             .padding(10)
+            .offset(x: dragOffset.width + position.width,
+                    y: dragOffset.height + position.height)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        dragOffset = value.translation
+                    }
+                    .onEnded { value in
+                        position.width += value.translation.width
+                        position.height += value.translation.height
+                        dragOffset = .zero
+                    }
+            )
             .help("Toggle Debug Overlay")
             
             if showingDebug {

@@ -40,14 +40,33 @@ struct CodeAgentMainView: View {
                     }
                     .buttonStyle(.plain)
                     
-                    Image(systemName: "sidebar.left")
-                    Image(systemName: "terminal")
-                        .foregroundColor(CodeAgentTheme.accent)
-                    Image(systemName: "sidebar.right")
+                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isLeftSidebarVisible.toggle() } }) {
+                        Image(systemName: "sidebar.left")
+                            .foregroundColor(vm.isLeftSidebarVisible ? CodeAgentTheme.accent : .gray)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isTerminalVisible.toggle() } }) {
+                        Image(systemName: "terminal")
+                            .foregroundColor(vm.isTerminalVisible ? CodeAgentTheme.accent : .gray)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isRightSidebarVisible.toggle() } }) {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .foregroundColor(vm.isRightSidebarVisible ? CodeAgentTheme.accent : .gray)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isDiffVisible.toggle() } }) {
+                        Image(systemName: "sidebar.right")
+                            .foregroundColor(vm.isDiffVisible ? CodeAgentTheme.accent : .gray)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .font(.system(size: 14))
                 .foregroundColor(.gray)
-                .frame(width: 260, alignment: .trailing)
+                .frame(width: 280, alignment: .trailing)
             }
             .padding(.horizontal, 12)
             .frame(height: 38)
@@ -61,20 +80,32 @@ struct CodeAgentMainView: View {
             
             // Middle Content
             HStack(spacing: 0) {
-                ProjectSidebarView(vm: vm)
-                    .grayscale(1.0)
-                    .opacity(0.5)
+                if vm.isLeftSidebarVisible {
+                    ProjectSidebarView(vm: vm)
+                        .grayscale(1.0)
+                        .opacity(0.5)
+                        .transition(.move(edge: .leading))
+                        .zIndex(1)
+                }
                 
-                ChatSidebarView(vm: vm)
-                    // .grayscale(1.0) // 移除置灰以支持交互
-                    // .opacity(0.5)
+                if vm.isRightSidebarVisible {
+                    ChatSidebarView(vm: vm)
+                        .transition(.asymmetric(insertion: .move(edge: .leading), removal: .move(edge: .leading)))
+                }
                 
-                DiffView(vm: vm)
+                if vm.isDiffVisible {
+                    DiffView(vm: vm)
+                        .transition(.move(edge: .trailing))
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
             // Bottom Terminal
-            TerminalView()
+            if vm.isTerminalVisible {
+                TerminalView()
+                    .transition(.move(edge: .bottom))
+                    .zIndex(2)
+            }
         }
         .frame(minWidth: 1000, minHeight: 700)
         .background(CodeAgentTheme.bg)
