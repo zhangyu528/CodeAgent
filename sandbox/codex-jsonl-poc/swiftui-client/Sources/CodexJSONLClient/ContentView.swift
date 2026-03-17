@@ -2,46 +2,57 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var vm = AgentViewModel()
-    @State private var nodePath: String = "/Users/eric/Documents/CodeAgent/sandbox/codex-jsonl-poc/node-agent/dist/agent-macos-arm64"
-    @State private var echoText: String = "hello"
-
+    @State private var showingDebug = false
+    
     var body: some View {
+        ZStack(alignment: .topTrailing) {
+            CodeAgentMainView()
+            
+            // Debug Toggle
+            Button(action: { showingDebug.toggle() }) {
+                Image(systemName: "ladybug.fill")
+                    .foregroundColor(.orange)
+                    .padding(8)
+                    .background(Color.black.opacity(0.5))
+                    .clipShape(Circle())
+            }
+            .padding(10)
+            .help("Toggle Debug Overlay")
+            
+            if showingDebug {
+                debugOverlay
+            }
+        }
+    }
+    
+    private var debugOverlay: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Status: \(vm.status)")
-
             HStack {
-                TextField("Node path", text: $nodePath)
-                Button("Start") { vm.start(nodePath: nodePath) }
+                Text("Debug Console").bold()
+                Spacer()
+                Button("Close") { showingDebug = false }
             }
-
-            HStack {
-                Button("Ping") { vm.ping() }
-                TextField("Echo", text: $echoText)
-                Button("Send") { vm.echo(echoText) }
-            }
-
-            Button("Shutdown") { vm.shutdown() }
-
-            Text("Last Response:")
-            Text(vm.lastResponse).font(.caption)
-
-            Text("Notifications:")
-            List(vm.notifications, id: \.self) { item in
-                Text(item).font(.caption)
-            }
-
-            Text("JSONL Logs:")
-            List(vm.logs) { entry in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(entry.direction) \(entry.timestamp.formatted(date: .abbreviated, time: .standard))")
-                        .font(.caption2)
-                        .foregroundColor(entry.direction == "TX" ? .blue : .green)
-                    Text(entry.rawLine)
-                        .font(.caption)
-                        .textSelection(.enabled)
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Status: \(vm.status)")
+                    Text("Last Response: \(vm.lastResponse)").font(.caption)
+                    
+                    Divider()
+                    
+                    Text("JSONL Logs:").bold()
+                    ForEach(vm.logs) { entry in
+                        Text("\(entry.direction): \(entry.rawLine)")
+                            .font(.system(size: 10, design: .monospaced))
+                    }
                 }
             }
         }
         .padding()
+        .frame(width: 400, height: 500)
+        .background(Color.black.opacity(0.85))
+        .cornerRadius(12)
+        .padding()
+        .transition(.move(edge: .trailing))
     }
 }

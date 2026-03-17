@@ -26,3 +26,11 @@ dist/
 xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
+DerivedData/
+*.moved-aside
+*.xcuserstate
+
+# Swift Package Manager
+.build/
+/sandbox/codex-jsonl-poc/swiftui-client/.build/
+/sandbox/codex-jsonl-poc/swiftui-client/.swiftpm/xcode/xcuserdata/
