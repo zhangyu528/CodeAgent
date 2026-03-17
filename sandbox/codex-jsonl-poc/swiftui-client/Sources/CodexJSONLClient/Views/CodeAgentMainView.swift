@@ -75,7 +75,8 @@ struct CodeAgentMainView: View {
                 
                 // Bottom Terminal
                 if vm.isTerminalVisible {
-                    TerminalView()
+                    NativeTerminalContainer()
+                        .frame(height: 220)
                         .transition(.move(edge: .bottom))
                         .zIndex(2)
                 }

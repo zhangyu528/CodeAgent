@@ -9,9 +9,11 @@ let package = Package(
     products: [
         .executable(name: "CodexJSONLClient", targets: ["CodexJSONLClient"])
     ],
+    dependencies: [],
     targets: [
         .executableTarget(
             name: "CodexJSONLClient",
+            dependencies: [],
             path: "Sources/CodexJSONLClient"
         )
     ]
