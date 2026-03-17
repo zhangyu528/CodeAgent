@@ -86,6 +86,8 @@ export class REPL {
     rl.on('line', async (line) => {
       if (this.processing || this.terminal.isInputSuspended()) return;
 
+      this.terminal.clearWelcomeOnResize();
+
       const trimmed = line.trim();
 
       // 1. Capture Logic

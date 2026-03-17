@@ -25,6 +25,9 @@ export class TerminalManager {
   private rl: readline.Interface | null = null;
   private inputSuspended = false;
   private exclusiveMode: boolean = false;
+  private showWelcomeOnResize: boolean = false;
+  private welcomeProviders: string[] = [];
+  private welcomeCurrentProvider: string = '';
 
   constructor() {
     this.hud = new HUD();
@@ -37,9 +40,11 @@ export class TerminalManager {
   async init(): Promise<void> {
     await this.hud.init();
     
-    // Auto-adjust on resize
     process.stdout.on('resize', () => {
-      if (this.hud.isEnabled()) {
+      if (this.showWelcomeOnResize) {
+        process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
+        this.showWelcome(this.welcomeProviders, this.welcomeCurrentProvider);
+      } else if (this.hud.isEnabled()) {
         this.render();
       }
     });
@@ -146,6 +151,11 @@ export class TerminalManager {
   }
 
   showWelcome(providers: string[], currentProvider: string) {
+    this.welcomeProviders = providers;
+    this.welcomeCurrentProvider = currentProvider;
+    this.showWelcomeOnResize = true;
+    
+    process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
     console.log(
       renderWelcomeCard({
         version: getCliVersion(),
@@ -153,6 +163,10 @@ export class TerminalManager {
         providers,
       }),
     );
+  }
+
+  clearWelcomeOnResize() {
+    this.showWelcomeOnResize = false;
   }
 
   updateStatus(controller: AgentController, opts?: { render?: boolean }) {

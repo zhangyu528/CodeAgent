@@ -8,17 +8,20 @@ import { REPL } from './components/repl';
 import { attachKeybindings } from './components/keybindings';
 import { buildCompleter } from './components/readline_completer';
 import { TTY_UIAdapter } from './adapter';
+import { BlessedWelcome, isBlessedSupported } from './components/blessed_welcome';
 
 // 1. Initial Setup
 dotenv.config({ quiet: true });
 const telemetry = new TelemetryMonitor();
 
 export async function bootstrap() {
-  // 2. Initialize UI Components
+  // 检查是否支持blessed
+  const useBlessed = isBlessedSupported();
+  
+  // 2. 初始化 Core
   const terminal = new TerminalManager();
   await terminal.init();
 
-  // 3. Create IUIAdapter for Core
   const uiAdapter = new TTY_UIAdapter({
     suspendInput: async (fn) => terminal.suspendInput(fn),
     onStatus: (status) => {
@@ -36,17 +39,41 @@ export async function bootstrap() {
             terminal.render();
         } else if (status.type === 'final_answer') {
             terminal.getHUD().setMode('IDLE');
-            terminal.updateStatus(null as any); // Refresh data
+            terminal.updateStatus(null as any);
             terminal.render();
         }
     }
   });
 
-  // 4. Initialize Core
   const { controller, engine } = await createAgent(uiAdapter);
   const commands = getDefaultSlashCommands();
 
-  // 5. Initialize REPL
+  // 如果使用blessed，显示欢迎界面并等待用户输入
+  let initialInput = '';
+  if (useBlessed) {
+    const blesseInstance = new BlessedWelcome();
+    blesseInstance.render(
+      {
+        provider: controller.getProviderName(),
+        providers: engine.listProviders(),
+      },
+      (input: string) => {
+        initialInput = input;
+      }
+    );
+    
+    // 等待用户按下回车后启动REPL
+    await new Promise<void>((resolve) => {
+      const handler = (buffer: Buffer) => {
+        blesseInstance.destroy();
+        process.stdin.removeListener('data', handler);
+        resolve();
+      };
+      process.stdin.on('data', handler);
+    });
+  }
+
+  // 继续正常的REPL启动流程
   const completer = buildCompleter({
     cwd: process.cwd(),
     slashCommands: commands.map(c => c.name),
@@ -58,7 +85,19 @@ export async function bootstrap() {
   });
   const { rl, refreshPrompt } = await repl.start();
 
-  // 6. Wire Keybindings
+  // 如果用户已经在欢迎界面输入了命令，直接执行
+  if (initialInput.trim()) {
+    rl.emit('line', initialInput);
+  }
+
+  // blessed模式下跳过HUD显示，直接进入REPL
+  if (useBlessed) {
+    // 直接设置prompt，不渲染HUD
+    refreshPrompt();
+    rl.prompt();
+    return;
+  }
+
   const keybindings = attachKeybindings({
     rl,
     isTTY: Boolean(process.stdin.isTTY),
@@ -97,8 +136,9 @@ export async function bootstrap() {
     }
   });
 
-  // 7. Final UI Touch
-  terminal.showWelcome(engine.listProviders(), controller.getProviderName());
+  if (!useBlessed) {
+    terminal.showWelcome(engine.listProviders(), controller.getProviderName());
+  }
   terminal.updateStatus(controller, { render: false });
   refreshPrompt();
   rl.prompt();
