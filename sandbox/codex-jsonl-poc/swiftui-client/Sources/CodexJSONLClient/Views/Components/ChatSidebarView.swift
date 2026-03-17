@@ -56,14 +56,7 @@ struct ChatSidebarView: View {
             }
             .padding(12)
         }
-        .frame(width: 320)
         .background(CodeAgentTheme.bg)
-        .overlay(
-            Rectangle()
-                .frame(width: 1)
-                .foregroundColor(CodeAgentTheme.border),
-            alignment: .trailing
-        )
     }
 }
 

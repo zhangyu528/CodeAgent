@@ -9,7 +9,7 @@ class CodeAgentViewModel: ObservableObject {
     // MARK: - Layout State
     @Published var isLeftSidebarVisible: Bool = true
     @Published var isRightSidebarVisible: Bool = true
-    @Published var isDiffVisible: Bool = true
+    @Published var isDiffVisible: Bool = false
     @Published var isTerminalVisible: Bool = true
     
     // MARK: - Sidebar / Explorer

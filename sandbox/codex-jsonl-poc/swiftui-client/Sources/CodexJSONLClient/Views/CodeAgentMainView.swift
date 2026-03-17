@@ -5,24 +5,20 @@ struct CodeAgentMainView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Window Controls & Title
-            HStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    Circle().fill(Color(hex: "#ff5f57")).frame(width: 12, height: 12)
-                    Circle().fill(Color(hex: "#febc2e")).frame(width: 12, height: 12)
-                    Circle().fill(Color(hex: "#28c840")).frame(width: 12, height: 12)
-                }
-                .frame(width: 60)
-                
+            // Window Controls & Title (Unified Toolbar)
+            HStack(spacing: 0) {
+                // 为系统原生红绿灯留出左侧空间
                 Spacer()
+                    .frame(width: 80)
                 
+                // 中央标题
                 Text("Coding Agent — \(vm.selectedFile ?? "Project")")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.gray)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white.opacity(0.6))
+                    .frame(maxWidth: .infinity)
                 
-                Spacer()
-                
-                HStack(spacing: 16) {
+                // 右侧快捷按钮
+                HStack(spacing: 14) {
                     // Execution Mode Picker
                     Menu {
                         Button("Plan-first") { vm.executionMode = .planFirst }
@@ -32,44 +28,38 @@ struct CodeAgentMainView: View {
                             Text(vm.executionMode.rawValue)
                             Image(systemName: "chevron.down").font(.system(size: 8))
                         }
-                        .font(.system(size: 11))
+                        .font(.system(size: 10))
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 3)
                         .background(Color.white.opacity(0.1))
                         .cornerRadius(4)
                     }
                     .buttonStyle(.plain)
                     
-                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isLeftSidebarVisible.toggle() } }) {
-                        Image(systemName: "sidebar.left")
-                            .foregroundColor(vm.isLeftSidebarVisible ? CodeAgentTheme.accent : .gray)
+                    Group {
+                        Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isLeftSidebarVisible.toggle() } }) {
+                            Image(systemName: "sidebar.left")
+                                .foregroundColor(vm.isLeftSidebarVisible ? CodeAgentTheme.accent : .gray)
+                        }
+                        
+                        Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isTerminalVisible.toggle() } }) {
+                            Image(systemName: "terminal")
+                                .foregroundColor(vm.isTerminalVisible ? CodeAgentTheme.accent : .gray)
+                        }
+                        
+                        Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isDiffVisible.toggle() } }) {
+                            Image(systemName: "sidebar.right")
+                                .foregroundColor(vm.isDiffVisible ? CodeAgentTheme.accent : .gray)
+                        }
                     }
-                    .buttonStyle(.plain)
-                    
-                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isTerminalVisible.toggle() } }) {
-                        Image(systemName: "terminal")
-                            .foregroundColor(vm.isTerminalVisible ? CodeAgentTheme.accent : .gray)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isRightSidebarVisible.toggle() } }) {
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            .foregroundColor(vm.isRightSidebarVisible ? CodeAgentTheme.accent : .gray)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { vm.isDiffVisible.toggle() } }) {
-                        Image(systemName: "sidebar.right")
-                            .foregroundColor(vm.isDiffVisible ? CodeAgentTheme.accent : .gray)
-                    }
+                    .font(.system(size: 13))
                     .buttonStyle(.plain)
                 }
-                .font(.system(size: 14))
-                .foregroundColor(.gray)
-                .frame(width: 280, alignment: .trailing)
+                .frame(width: 220, alignment: .trailing)
+                .padding(.trailing, 12)
             }
-            .padding(.horizontal, 12)
-            .frame(height: 38)
+            .frame(height: 32)
+            .padding(.top, 2) // 极致微调：精准匹配红绿灯视觉中心
             .background(CodeAgentTheme.sidebar)
             .overlay(
                 Rectangle()
@@ -88,10 +78,9 @@ struct CodeAgentMainView: View {
                         .zIndex(1)
                 }
                 
-                if vm.isRightSidebarVisible {
-                    ChatSidebarView(vm: vm)
-                        .transition(.asymmetric(insertion: .move(edge: .leading), removal: .move(edge: .leading)))
-                }
+                // Chat 栏常驻且具备弹性
+                ChatSidebarView(vm: vm)
+                    .frame(maxWidth: .infinity)
                 
                 if vm.isDiffVisible {
                     DiffView(vm: vm)
@@ -110,6 +99,7 @@ struct CodeAgentMainView: View {
         .frame(minWidth: 1000, minHeight: 700)
         .background(CodeAgentTheme.bg)
         .preferredColorScheme(.dark)
+        .ignoresSafeArea(.container, edges: .top)
     }
 }
 
