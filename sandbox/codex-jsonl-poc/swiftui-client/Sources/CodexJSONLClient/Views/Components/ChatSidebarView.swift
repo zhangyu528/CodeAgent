@@ -31,32 +31,111 @@ struct ChatSidebarView: View {
                 .padding(16)
             }
             
-            Divider().background(CodeAgentTheme.border)
-            
-            HStack {
-                TextField("Ask a follow-up...", text: $vm.chatInput)
-                    .font(.system(size: 13))
-                    .padding(8)
-                    .background(CodeAgentTheme.sidebar)
+            VStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    TextField("How can I help you today?", text: $vm.chatInput)
+                        .font(.system(size: 13))
+                        .textFieldStyle(.plain)
+                        .foregroundColor(.white)
+                    
+                    Button(action: { vm.sendMessage() }) {
+                        Image(systemName: "chevron.right.2")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(vm.chatInput.isEmpty ? .gray.opacity(0.3) : CodeAgentTheme.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(vm.chatInput.isEmpty)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(Color.white.opacity(0.04))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(CodeAgentTheme.border, lineWidth: 1)
+                )
+                
+                // Input Toolbar
+                HStack(spacing: 16) {
+                    // Provider & Model Picker Button
+                    Button(action: { vm.isShowingModelPicker = true }) {
+                        HStack(spacing: 4) {
+                            Text("Provider:")
+                                .foregroundColor(.gray.opacity(0.8))
+                            Text("\(vm.selectedProvider) \(vm.selectedModel)")
+                                .foregroundColor(.white.opacity(0.9))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8))
+                                .foregroundColor(.gray)
+                        }
+                        .font(.system(size: 11))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.clear)
+                        .cornerRadius(6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(CodeAgentTheme.border, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    
+                    // Execution Mode Selector
+                    HStack(spacing: 0) {
+                        ModeToggleButton(title: "Plan-first", isSelected: vm.executionMode == .planFirst) {
+                            withAnimation { vm.executionMode = .planFirst }
+                        }
+                        
+                        Divider().frame(height: 12).background(CodeAgentTheme.border)
+                        
+                        ModeToggleButton(title: "agent", isSelected: vm.executionMode == .agent) {
+                            withAnimation { vm.executionMode = .agent }
+                        }
+                    }
+                    .padding(2) // 内部间距
+                    .background(Color.white.opacity(0.02))
                     .cornerRadius(6)
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
                             .stroke(CodeAgentTheme.border, lineWidth: 1)
                     )
-                    .onSubmit {
-                        vm.sendMessage()
+                    
+                    Spacer()
+                    
+                    // Status Indicator
+                    HStack(spacing: 6) {
+                        Circle()
+                            .frame(width: 6, height: 6)
+                            .foregroundColor(.green.opacity(0.8))
+                        Text("MODEL READY")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.gray.opacity(0.6))
                     }
-                
-                Button(action: { vm.sendMessage() }) {
-                    Image(systemName: "paperplane.fill")
-                        .foregroundColor(vm.chatInput.isEmpty ? .gray : CodeAgentTheme.accent)
                 }
-                .buttonStyle(.plain)
-                .disabled(vm.chatInput.isEmpty)
             }
-            .padding(12)
+            .padding(16)
+            .background(CodeAgentTheme.bg)
         }
         .background(CodeAgentTheme.bg)
+    }
+}
+
+struct ModeToggleButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10, weight: isSelected ? .bold : .regular))
+                .foregroundColor(isSelected ? .white : .gray.opacity(0.6))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(isSelected ? Color.white.opacity(0.12) : Color.clear)
+                .cornerRadius(4)
+        }
+        .buttonStyle(.plain)
     }
 }
 

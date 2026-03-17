@@ -5,6 +5,10 @@ class CodeAgentViewModel: ObservableObject {
     // MARK: - App State
     @Published var connectionStatus: String = "Connected"
     @Published var executionMode: ExecutionMode = .planFirst
+    @Published var selectedProvider: String = "OpenAI"
+    @Published var selectedModel: String = "GPT-4o"
+    @Published var isShowingModelPicker: Bool = false
+    @Published var isPlanning: Bool = false
     
     // MARK: - Layout State
     @Published var isLeftSidebarVisible: Bool = true
@@ -56,7 +60,7 @@ class CodeAgentViewModel: ObservableObject {
 
 enum ExecutionMode: String {
     case planFirst = "Plan-first"
-    case autoRun = "Auto-run"
+    case agent = "agent"
 }
 
 enum InspectorTab: String {
