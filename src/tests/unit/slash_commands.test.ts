@@ -1,24 +1,42 @@
-import { buildHelpLines, getDefaultSlashCommands } from '../../cli/slash_commands';
+import { buildHelpLines, dispatchSlash, getDefaultSlashCommands } from '../../apps/cli/components/slash_commands';
 
 export async function test() {
-  console.log('=== Running Unit Test: Slash Commands Help ===');
+  console.log('=== Running Unit Test: Slash Commands ===');
 
   const commands = getDefaultSlashCommands();
-  const ctx: any = { commands };
+  const ctxForHelp: any = { commands };
 
-  const lines = buildHelpLines(ctx);
-  const text = lines.join('\n');
+  const helpText = buildHelpLines(ctxForHelp).join('\n');
+  if (!helpText.includes('/help')) throw new Error('help output missing /help');
+  if (!helpText.includes('/model')) throw new Error('help output missing /model');
+  if (helpText.includes('STATUS_BAR')) throw new Error('help output should not include deprecated STATUS_BAR');
+  if (!helpText.includes('确认候选/确认选择')) throw new Error('help output missing modal select keybinding hint');
 
-  if (!text.includes('/help')) throw new Error('help output missing /help');
-  if (!text.includes('/model')) throw new Error('help output missing /model');
-  if (!text.includes('STATUS_BAR')) throw new Error('help output missing STATUS_BAR config');
+  let gotError = '';
+  await dispatchSlash(
+    {
+      error: (m: string) => {
+        gotError = m;
+      },
+      print: () => {},
+      commands,
+    },
+    '/help',
+    null as any,
+    null
+  );
 
-  console.log('✅ Slash commands help works.');
+  if (!gotError.includes('参数异常')) {
+    throw new Error('dispatchSlash should guard non-array commands');
+  }
+
+  console.log('✅ Slash commands checks passed.');
 }
 
 if (require.main === module) {
   test().catch(e => {
-    console.error('❌ Slash commands help test failed:', e.message);
+    console.error('❌ Slash commands test failed:', e.message);
     process.exit(1);
   });
 }
+

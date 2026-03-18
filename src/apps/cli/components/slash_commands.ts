@@ -1,7 +1,7 @@
 export type SlashHandlerResult = { handled: boolean; error?: string };
 
 export type SlashCommandDef = {
-  name: string; // e.g. /help
+  name: string;
   usage: string;
   description: string;
   category: 'Session' | 'Model' | 'Tools' | 'General';
@@ -13,7 +13,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
     {
       name: '/help',
       usage: '/help',
-      description: 'Show command help and configuration hints.',
+      description: 'Show command help and keybindings.',
       category: 'General',
       handler: async (ctx) => {
         const lines = buildHelpLines(ctx);
@@ -30,15 +30,10 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
         const models = await ctx.controller.listModels();
         if (models.length === 0) {
           ctx.info(chalk.yellow('当前 Provider 不支持在线列出模型，或获取失败。'));
-          // Use UIAdapter.suspendInput for manual input too
-          const manual = await ctx.ui.suspendInput(async () => {
-             const { input } = require('@inquirer/prompts');
-             return await input({ message: '请输入模型名称:' });
-          });
+          const manual = await ctx.ui.ask('请输入模型名称:');
           if (manual) {
             ctx.controller.setModel(manual);
             ctx.info(chalk.green(`已切换模型为: ${manual}`));
-            ctx.hud?.render();
           }
           return;
         }
@@ -50,7 +45,6 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
 
         ctx.controller.setModel(selected);
         ctx.info(chalk.green(`已切换模型为: ${selected}`));
-        ctx.hud?.render();
       },
     },
     {
@@ -62,7 +56,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
         const chalk = require('chalk');
         const providers = ctx.engine.listProviders();
         const current = ctx.controller.getProviderName();
-        
+
         const selected = await ctx.ui.selectOne(`请选择 Provider (当前: ${current}):`, providers, {
           default: current,
         });
@@ -71,20 +65,7 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
           ctx.controller.switchProvider(selected);
           ctx.info(chalk.green(`已切换 Provider 为: ${selected}`));
           ctx.info(chalk.dim(`当前模型: ${ctx.controller.getModelName()}`));
-          ctx.hud?.setProvider(selected);
-          ctx.hud?.render();
         }
-      },
-    },
-    {
-      name: '/clear',
-      usage: '/clear',
-      description: 'Reset session memory and clear terminal screen.',
-      category: 'Session',
-      handler: async (ctx) => {
-        ctx.controller.getMemory().clearHistory();
-        ctx.bubbles.reset();
-        ctx.clearScreen(true);
       },
     },
   ];
@@ -102,39 +83,28 @@ export function getBestMatch(line: string, commands: SlashCommandDef[], selected
   const parsed = parseSlash(line);
   if (!parsed) return line;
 
-  let cmdName = parsed.name;
-  // Priority 1: Use selected hint if it matches the prefix
   if (selectedHint && selectedHint.startsWith(parsed.name)) {
     return selectedHint;
   }
 
-  // Priority 2: Use exact match or best fuzzy match
-  let cmd = commands.find(c => c.name === cmdName);
+  let cmd = commands.find(c => c.name === parsed.name);
   if (!cmd) {
-    const matches = commands.filter(c => c.name.startsWith(cmdName));
-    if (matches.length > 0) {
-      cmd = matches[0];
-    }
+    const matches = commands.filter(c => c.name.startsWith(parsed.name));
+    if (matches.length > 0) cmd = matches[0];
   }
 
-  return cmd ? cmd.name : cmdName;
+  return cmd ? cmd.name : parsed.name;
 }
 
-/**
- * Renders command output with a minimalist sidebar accent.
- */
 function renderOutputSidebar(ctx: any, _title: string, lines: string[]): void {
   const chalk = require('chalk');
-  console.log(); // Leading space
+  ctx.print('');
   for (const line of lines) {
     ctx.print(`  ${chalk.cyan('┃')} ${line}`);
   }
-  console.log(); // Trailing space
+  ctx.print('');
 }
 
-/**
- * Dispatches a slash command based on prefix matching and interactive hints.
- */
 export async function dispatchSlash(
   ctx: any,
   line: string,
@@ -143,6 +113,11 @@ export async function dispatchSlash(
 ): Promise<boolean> {
   const parsed = parseSlash(line);
   if (!parsed) return false;
+
+  if (!Array.isArray(commands)) {
+    ctx.error('命令系统参数异常，请重试。');
+    return true;
+  }
 
   const cmdName = getBestMatch(line, commands, selectedItem);
   const cmd = commands.find((c) => c.name === cmdName);
@@ -154,14 +129,9 @@ export async function dispatchSlash(
 
   try {
     if (cmd.name === '/help') {
-      const helpLines = buildHelpLines(ctx);
-      renderOutputSidebar(ctx, '/help', helpLines);
+      renderOutputSidebar(ctx, '/help', buildHelpLines(ctx));
     } else {
       await cmd.handler(ctx, parsed.args);
-      // Ensure HUD and Header are refreshed after commands like /clear or /model
-      if (ctx.terminal) {
-        ctx.terminal.updateStatus(ctx.controller);
-      }
     }
   } catch (e: any) {
     ctx.error(e?.message || String(e));
@@ -170,15 +140,13 @@ export async function dispatchSlash(
   return true;
 }
 
-
-
 export function buildHelpLines(ctx: any): string[] {
   const chalk = require('chalk');
-  const cmds: SlashCommandDef[] = ctx.commands;
+  const cmds: SlashCommandDef[] = Array.isArray(ctx.commands) ? ctx.commands : [];
 
   const results: string[] = [];
   results.push(chalk.bold.cyan('可用命令'));
-  
+
   const rows = cmds
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -188,21 +156,20 @@ export function buildHelpLines(ctx: any): string[] {
       const left = usagePart ? `${cmdPart} ${usagePart}`.padEnd(20) : cmdPart.padEnd(20);
       return `  ${left} ${chalk.dim(c.description)}`;
     });
-  
+
   results.push(...rows, '');
   results.push(chalk.bold.cyan('常用快捷键'));
-  
+
   const keys = [
-    `  ${chalk.cyan('Esc'.padEnd(10))} ${chalk.dim('取消当前操作 / 清空输入')}`,
-    `  ${chalk.cyan('Ctrl+C'.padEnd(10))} ${chalk.dim('中断任务 / 取消录制')}`,
+    `  ${chalk.cyan('Esc'.padEnd(10))} ${chalk.dim('取消当前操作 / 关闭命令面板或选择框')}`,
+    `  ${chalk.cyan('Ctrl+C'.padEnd(10))} ${chalk.dim('中断任务；空闲时退出')}`,
     `  ${chalk.cyan('Ctrl+D'.padEnd(10))} ${chalk.dim('退出程序')}`,
-    `  ${chalk.cyan('Ctrl+L'.padEnd(10))} ${chalk.dim('清空屏幕 (保持会话)')}`,
-    `  ${chalk.cyan('↑/↓'.padEnd(10))} ${chalk.dim('选择建议 / 历史记录')}`,
+    `  ${chalk.cyan('Ctrl+L'.padEnd(10))} ${chalk.dim('清空输出区域')}`,
+    `  ${chalk.cyan('↑/↓'.padEnd(10))} ${chalk.dim('在命令候选或选择框中移动')}`,
+    `  ${chalk.cyan('Enter'.padEnd(10))} ${chalk.dim('确认候选/确认选择')}`,
+    `  ${chalk.cyan('Tab'.padEnd(10))} ${chalk.dim('补全当前命令候选')}`,
   ];
-  
-  results.push(...keys, '');
-  results.push(chalk.bold.cyan('配置提示'));
-  results.push(`  ${chalk.cyan('STATUS_BAR'.padEnd(12))} ${chalk.dim('环境变量: 0=禁用, 1=启用 (默认启用)')}`);
-  
+
+  results.push(...keys);
   return results;
 }

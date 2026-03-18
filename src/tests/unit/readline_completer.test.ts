@@ -12,14 +12,14 @@ export async function test() {
 
   const completer = buildCompleter({
     cwd: base,
-    slashCommands: ['/clear', '/model', '/help'],
+    slashCommands: ['/provider', '/model', '/help'],
     getModelProviders: () => ['glm', 'openai', 'deepseek'],
   });
 
   const res1 = await new Promise<[string[], string]>(resolve => {
-    completer('/c', (_err, out) => resolve(out));
+    completer('/p', (_err, out) => resolve(out));
   });
-  if (!res1[0].includes('/clear')) throw new Error('slash completion missing /clear');
+  if (!res1[0].includes('/provider')) throw new Error('slash completion missing /provider');
 
   const resModel = await new Promise<[string[], string]>(resolve => {
     completer('/model g', (_err, out) => resolve(out));
@@ -45,3 +45,4 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+

@@ -6,7 +6,6 @@ import { MemoryManager } from '../../../core/controller/memory_manager';
 import { SecurityLayer } from '../../../core/controller/security_layer';
 import { ContextInformer } from '../../../core/controller/context_informer';
 import { logger } from '../../../utils/logger';
-import { TTY_UIAdapter } from '../adapter';
 import { runInitWizard } from './setup_wizard';
 import { IUIAdapter } from '../../../core/interfaces/ui';
 

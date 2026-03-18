@@ -10,13 +10,14 @@ CodeAgent is an AI-powered coding assistant that can plan and execute complex de
 - **Safety Guards**: Workspace path validation, command blocklist, and **Human-in-the-Loop (HITL)** for sensitive operations.
 - **Memory Management**: Token-aware sliding window memory (~4000 tokens) ensuring context stability.
 - **Observability**: Real-time token usage display and detailed turn-by-turn action logging.
-- **Multi-Provider LLM**: Register OpenAI/Anthropic/DeepSeek/Ollama (and legacy GLM) via `.env`, switch at runtime with `/model`.
-- **CLI UX (F9)**: `/help`, status line (optional), tool bubbles (optional), and keybindings for interrupt/clear/exit.
+- **Multi-Provider LLM**: Register OpenAI/Anthropic/DeepSeek/Ollama (and legacy GLM) via `.env`, switch at runtime with `/model` and `/provider`.
+- **Blessed CLI UX**: Full-screen Blessed TUI with welcome mode + chat mode, slash popup, and keyboard shortcuts.
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v16+)
 - [npm](https://www.npmjs.com/)
+- A terminal that supports Blessed (`TERM` must not be `dumb`, or set `FORCE_BLESSED=1`).
 - At least one configured LLM provider in `.env` (see `.env.example`).
 
 ## Setup
@@ -34,7 +35,7 @@ CodeAgent is an AI-powered coding assistant that can plan and execute complex de
 
 ## Usage
 
-### Interactive Mode (Chat)
+### Interactive Mode (Blessed CLI)
 Run the agent in a continuous interactive session:
 ```bash
 npm start
@@ -44,21 +45,18 @@ Or use the global command if installed:
 codeagent
 ```
 
-### Commands inside REPL
-- `/help`: Show commands, config toggles, and keybindings.
-- `/model [provider]`: Show current/available providers or switch provider.
-- `/clear`: Clear conversation memory (and tool bubbles).
-- `/history`: Show message count and approximate context tokens.
-- `/tools`: List recent tool calls.
-- `/tool <id>`: Inspect a tool call (args + result).
-- `/edit`: Open editor to compose a prompt (TTY only).
-- `<<EOF` ... `EOF`: Multiline input.
-- `exit` / `quit`: Exit.
+### Slash Commands
+- `/help`: Show commands, config hints, and keybindings.
+- `/model`: Interactively switch model under current provider.
+- `/provider`: Interactively switch provider.
+- `/clear`: Clear conversation memory and clear screen.
 
-### Keybindings (TTY)
-- `Ctrl+C`: Interrupt streaming/thinking; cancel multiline capture.
+### Keybindings
+- `Ctrl+C`: Interrupt current task; press again to exit when idle.
 - `Ctrl+D`: Exit.
-- `Ctrl+L`: Clear screen (keeps session).
+- `Ctrl+L`: Clear output area.
+- `q`: Exit.
+- `Tab` / `Up` / `Down` / `Esc` / `Enter`: Slash popup selection and completion.
 
 ## Testing
 
@@ -81,19 +79,22 @@ src/
 │   ├── llm/                 # LLM provider implementations
 │   ├── tools/               # Core execution tools
 │   ├── interfaces/          # IUIAdapter definitions
-│   └── prompts/            # System prompts
+│   └── prompts/             # System prompts
 │
 ├── apps/                    # Application entry points
-│   ├── cli/                 # TTY interactive interface
-│   └── kernel/              # JSON-RPC kernel (for macOS App integration)
+│   ├── cli/                 # Blessed interactive interface
+│   └── kernel/              # JSON-RPC kernel (for desktop app integration)
 │
 ├── tests/                   # Integration and unit tests
 └── web/                     # Web search and browsing tools
 ```
 
-## CLI Mode (Default)
+## CLI Runtime Notes
 
-- `src/apps/cli/index.ts`: CLI Entry point.
+- Entry: `src/apps/cli/index.ts`
+- UI single source of truth: `src/apps/cli/components/input_manager.ts`
+- UI adapter is fixed for session lifecycle (no runtime adapter swapping).
+- Legacy files `repl.ts` and `blessed_welcome.ts` have been removed from the CLI codebase.
 
 ## Web Tools (F5)
 
@@ -101,3 +102,6 @@ src/
 - `browse_page`: Fetch and extract main page content with summary.
 
 See `docs/功能需求/F5_浏览器增强.md` and related implementation plan for configuration and safety rules.
+
+
+
