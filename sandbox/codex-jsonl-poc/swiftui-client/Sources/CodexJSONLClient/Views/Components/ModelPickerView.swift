@@ -57,6 +57,9 @@ struct ModelPickerView: View {
                                 SidebarItem(name: "DeepSeek", icon: "bolt", isSelected: vm.selectedProvider == "DeepSeek") {
                                     vm.selectedProvider = "DeepSeek"
                                 }
+                                SidebarItem(name: "GLM", icon: "brain.head.profile", isSelected: vm.selectedProvider == "GLM") {
+                                    vm.selectedProvider = "GLM"
+                                }
                                 SidebarItem(name: "Ollama (Local)", icon: "laptopcomputer", isSelected: vm.selectedProvider == "Ollama") {
                                     vm.selectedProvider = "Ollama"
                                 }

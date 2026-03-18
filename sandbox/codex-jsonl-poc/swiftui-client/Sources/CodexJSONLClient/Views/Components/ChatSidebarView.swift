@@ -66,7 +66,7 @@ struct ChatSidebarView: View {
                             .foregroundColor(.gray.opacity(0.85))
 
                         HStack(spacing: 8) {
-                            SecureField("\(vm.selectedProvider) API Key", text: Binding(
+                            SecureField(vm.selectedProviderApiKeyLabel, text: Binding(
                                 get: { vm.providerConfigs[vm.selectedProvider]?.apiKey ?? "" },
                                 set: {
                                     if var cfg = vm.providerConfigs[vm.selectedProvider] {

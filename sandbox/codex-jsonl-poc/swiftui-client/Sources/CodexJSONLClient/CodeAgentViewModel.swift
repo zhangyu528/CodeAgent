@@ -27,10 +27,17 @@ class CodeAgentViewModel: ObservableObject {
     @Published var isAwaitingReply: Bool = false
     @Published var executionMode: ExecutionMode = .planFirst
     @Published var selectedProvider: String = "OpenAI" {
-        didSet { persistSelection() }
+        didSet {
+            normalizeSelectedModelForCurrentProvider()
+            persistSelection()
+            applySelectedModelIfNeeded()
+        }
     }
     @Published var selectedModel: String = "GPT-4o" {
-        didSet { persistSelection() }
+        didSet {
+            persistSelection()
+            applySelectedModelIfNeeded()
+        }
     }
     @Published var isShowingModelPicker: Bool = false
     @Published var isPlanning: Bool = false
@@ -40,7 +47,8 @@ class CodeAgentViewModel: ObservableObject {
     @Published var providerConfigs: [String: ProviderConfig] = [
         "OpenAI": ProviderConfig(baseUrl: "https://api.openai.com/v1"),
         "Anthropic": ProviderConfig(baseUrl: "https://api.anthropic.com/v1"),
-        "DeepSeek": ProviderConfig(baseUrl: "https://api.deepseek.com/v1")
+        "DeepSeek": ProviderConfig(baseUrl: "https://api.deepseek.com/v1"),
+        "GLM": ProviderConfig(baseUrl: "https://api.z.ai/api/coding/paas/v4")
     ]
 
     let modelLibrary: [String: [AIModel]] = [
@@ -57,6 +65,11 @@ class CodeAgentViewModel: ObservableObject {
         "DeepSeek": [
             AIModel(name: "DeepSeek-V2.5", description: "Strong coding performance", context: "128k", cost: "$0.10", latency: "Low", isRecommended: true),
             AIModel(name: "DeepSeek-Coder", description: "Specialized for programming", context: "32k", cost: "$0.10", latency: "Low")
+        ],
+        "GLM": [
+            AIModel(name: "GLM-5", description: "Latest GLM coding model", context: "200k", cost: "-", latency: "Low", isRecommended: true),
+            AIModel(name: "GLM-4.7", description: "Balanced coding and reasoning", context: "200k", cost: "-", latency: "Low"),
+            AIModel(name: "GLM-4.7-Flash", description: "Fast and lightweight GLM", context: "200k", cost: "-", latency: "Instant")
         ]
     ]
 
@@ -276,6 +289,59 @@ class CodeAgentViewModel: ObservableObject {
         return !cfg.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    var selectedProviderApiKeyLabel: String {
+        selectedProvider == "GLM" ? "GLM API Key" : "\(selectedProvider) API Key"
+    }
+
+    func rpcProvider(for uiProvider: String) -> String {
+        switch uiProvider {
+        case "GLM":
+            return "zai"
+        default:
+            return uiProvider.lowercased()
+        }
+    }
+
+    func rpcModelId(for uiProvider: String, uiModel: String) -> String {
+        if uiProvider == "GLM" {
+            switch uiModel {
+            case "GLM-5":
+                return "glm-5"
+            case "GLM-4.7":
+                return "glm-4.7"
+            case "GLM-4.7-Flash":
+                return "glm-4.7-flash"
+            default:
+                return "glm-5"
+            }
+        }
+
+        return uiModel
+    }
+
+    func applySelectedModelIfNeeded() {
+        guard isConnected, selectedProvider == "GLM" else { return }
+        let provider = rpcProvider(for: selectedProvider)
+        let modelId = rpcModelId(for: selectedProvider, uiModel: selectedModel)
+        client.sendRpcCommand(
+            type: "set_model",
+            payload: ["provider": provider, "modelId": modelId]
+        ) { [weak self] result in
+            Task { @MainActor in
+                switch result {
+                case .success:
+                    self?.lastResponse = "set_model: \(provider)/\(modelId)"
+                case .failure:
+                    let message = "Model unavailable. Please check provider credentials or model selection."
+                    self?.status = message
+                    self?.connectionStatus = "failed"
+                    self?.connectionPhase = .failed(message)
+                    self?.chatMessages.append(ChatMessage(role: .assistant, content: message))
+                }
+            }
+        }
+    }
+
     // MARK: - Private
 
     private enum FailureKind {
@@ -339,6 +405,11 @@ class CodeAgentViewModel: ObservableObject {
                 environment["DEEPSEEK_API_KEY"] = key
                 if !cfg.baseUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     environment["DEEPSEEK_BASE_URL"] = cfg.baseUrl
+                }
+            case "GLM":
+                environment["ZAI_API_KEY"] = key
+                if !cfg.baseUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    environment["ZAI_BASE_URL"] = cfg.baseUrl
                 }
             default:
                 break
@@ -406,6 +477,7 @@ class CodeAgentViewModel: ObservableObject {
         status = "connected"
         connectionStatus = "connected"
         replaceConnectionMessage(with: "Pi RPC connected.")
+        applySelectedModelIfNeeded()
     }
 
     private func handleAssistantMessageEnd(_ event: [String: Any]) {
@@ -604,6 +676,7 @@ class CodeAgentViewModel: ObservableObject {
         if let storedModel = defaults.string(forKey: "selectedModel"), !storedModel.isEmpty {
             selectedModel = storedModel
         }
+        normalizeSelectedModelForCurrentProvider()
 
         for provider in providerConfigs.keys {
             if var cfg = providerConfigs[provider] {
@@ -625,6 +698,18 @@ class CodeAgentViewModel: ObservableObject {
             }
         }
         return redacted
+    }
+
+    private func normalizeSelectedModelForCurrentProvider() {
+        guard let models = modelLibrary[selectedProvider], !models.isEmpty else { return }
+        let isExisting = models.contains { $0.name == selectedModel }
+        if !isExisting {
+            if let recommended = models.first(where: { $0.isRecommended }) {
+                selectedModel = recommended.name
+            } else if let first = models.first {
+                selectedModel = first.name
+            }
+        }
     }
 
     private func stringifyJSON(_ value: [String: Any]) -> String {
