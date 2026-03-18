@@ -11,9 +11,9 @@ function getCliVersion(): string {
   try {
     const pkg = require('../../../package.json') as { version?: string };
     const v = String(pkg?.version || '').trim();
-    return v || 'dev';
+    return v || 'unknown';
   } catch {
-    return 'dev';
+    return 'unknown';
   }
 }
 
@@ -99,6 +99,7 @@ export class InputManager {
   private inputLine: ReturnType<typeof blessed.box>;
   private inputContainer: ReturnType<typeof blessed.box>;
   private inputText: ReturnType<typeof blessed.textbox>;
+  private inputPlaceholder!: ReturnType<typeof blessed.box>;
   private metaLine: ReturnType<typeof blessed.box>;
   private divider: ReturnType<typeof blessed.line>;
   private popup: SlashCommandPopup;
@@ -135,7 +136,7 @@ export class InputManager {
 
     this.divider = blessed.line({
       orientation: 'horizontal',
-      style: { fg: 'gray', bg: 'black' },
+      style: { fg: 'white', bg: 'blue' },
     });
 
     this.outputBox = blessed.box({
@@ -149,38 +150,55 @@ export class InputManager {
     this.inputContainer = blessed.box({
       height: 5,
       style: {
-        fg: 'white',
-        bg: 'black',
-        border: { fg: 'gray' },
+        fg: '#d7e0e7',
+        bg: '#11161c',
+        border: { fg: '#3a5566' },
       },
     });
 
     const prompt = blessed.box({
-      top: 0,
+      top: 1,
       left: 0,
       width: 2,
       content: '{cyan-fg}❯{/}',
       tags: true,
-      style: { fg: 'white', bg: 'black' },
+      style: { fg: 'cyan', bg: '#11161c' },
     });
 
     this.inputText = blessed.textbox({
-      top: 0,
+      top: 1,
       left: 2,
       width: '100%-2',
       height: 1,
       tags: true,
       style: {
-        fg: 'white',
-        bg: 'black',
-        focus: { fg: 'cyan', bg: 'black' },
+        fg: '#d7e0e7',
+        focus: { fg: '#d7e0e7' },
       },
       inputOnFocus: true,
     });
 
-    this.inputLine = blessed.box({ top: 0, left: 0, width: '100%', height: 3 });
+    this.inputPlaceholder = blessed.box({
+      top: 1,
+      left: 2,
+      width: '100%-3',
+      height: 1,
+      content: '输入消息，或输入 / 查看命令',
+      style: { fg: '#a3afbc' },
+    });
+
+    this.inputLine = blessed.box({ top: 0, left: 0, width: '100%', height: 3, style: { bg: '#11161c' } });
     this.inputLine.append(prompt);
     this.inputLine.append(this.inputText);
+    this.inputLine.append(this.inputPlaceholder);
+
+    const inputDivider = blessed.line({
+      top: 2,
+      left: 1,
+      width: '100%-2',
+      orientation: 'horizontal',
+      style: { fg: '#2a3440', bg: '#11161c' },
+    });
 
     this.metaLine = blessed.box({
       top: 3,
@@ -189,10 +207,11 @@ export class InputManager {
       height: 1,
       tags: true,
       content: '',
-      style: { fg: 'gray', bg: 'black' },
+      style: { fg: '#8c9aa5', bg: '#11161c' },
     });
 
     this.inputContainer.append(this.inputLine);
+    this.inputContainer.append(inputDivider);
     this.inputContainer.append(this.metaLine);
 
     this.screen.append(this.logoBox);
@@ -204,6 +223,7 @@ export class InputManager {
 
     this.updateLayout();
     this.renderInputMeta();
+    this.refreshInputPlaceholder();
     this.setupKeyEvents();
   }
 
@@ -217,7 +237,7 @@ export class InputManager {
 
       this.inputContainer.top = '55%';
       this.inputContainer.left = 'center';
-      this.inputContainer.width = '80%';
+      this.inputContainer.width = '64%';
       this.inputContainer.height = 5;
 
       this.outputBox.hidden = true;
@@ -241,7 +261,7 @@ export class InputManager {
 
       this.inputContainer.top = '74%';
       this.inputContainer.left = 'center';
-      this.inputContainer.width = '90%';
+      this.inputContainer.width = '72%';
       this.inputContainer.height = 5;
     }
     this.screen.render();
@@ -291,34 +311,46 @@ export class InputManager {
     this.metaLine.setContent(`{gray-fg}${text}{/}`);
   }
 
+  private refreshInputPlaceholder(): void {
+    const hasValue = this.inputText.getValue().trim().length > 0;
+    const shouldHide = hasValue;
+    if (this.inputPlaceholder.hidden !== shouldHide) {
+      this.inputPlaceholder.hidden = shouldHide;
+      if (!shouldHide) {
+        this.inputPlaceholder.setFront();
+      }
+      this.screen.render();
+      return;
+    }
+    this.inputPlaceholder.hidden = shouldHide;
+  }
+
   private buildLogoContent(): string {
     const version = getCliVersion();
-    const provider = this.opts.provider || 'unknown';
-    const isBuiltIn = provider.includes('内置免费');
-    const providerColor = isBuiltIn ? 'green' : 'cyan';
-    const providersText = this.opts.providers && this.opts.providers.length > 0 ? this.opts.providers.join(', ') : 'N/A';
+    const execPath = process.cwd();
 
     return [
       '',
       ASCII_LOGO.join('\n'),
       '',
-      `{bold}v${version}{/bold}`,
+      `{bold}版本号: ${version}{/bold}`,
       '',
-      `{${providerColor}-fg}Provider:{/} ${provider} (可用: ${providersText})`,
-      '',
-      '{gray-fg}Shortcuts: Ctrl+C interrupt/exit, Ctrl+L clear, q exit{/}',
+      `{gray-fg}执行/授权路径: ${execPath}{/}`,
     ].join('\n');
   }
 
   private setupKeyEvents(): void {
     this.inputText.on('keypress', () => {
+      this.inputPlaceholder.hidden = true;
       setImmediate(() => {
+        this.refreshInputPlaceholder();
         if (this.interactivePromptActive || this.selectModalActive) return;
         this.popup.update(this.inputText.getValue());
       });
     });
 
     this.inputText.on('change', (value: string) => {
+      this.refreshInputPlaceholder();
       if (this.interactivePromptActive || this.selectModalActive) return;
       this.popup.update(value);
     });
@@ -331,6 +363,7 @@ export class InputManager {
         await this.handleCommand(cmd);
       }
       this.inputText.setValue('');
+      this.refreshInputPlaceholder();
       this.popup.hide();
     });
 
@@ -341,6 +374,7 @@ export class InputManager {
         const selection = this.popup.getCurrentSelection();
         if (selection) {
           this.inputText.setValue(selection + ' ');
+          this.refreshInputPlaceholder();
           this.popup.hide();
           this.screen.render();
         }
@@ -372,6 +406,7 @@ export class InputManager {
         const selection = this.popup.getCurrentSelection();
         if (selection) {
           this.inputText.setValue(selection + ' ');
+          this.refreshInputPlaceholder();
           this.popup.hide();
           this.screen.render();
           return false;
@@ -520,6 +555,7 @@ export class InputManager {
 
     this.syncIdentityFromController();
     this.inputText.setValue('');
+    this.refreshInputPlaceholder();
     this.screen.render();
   }
 
@@ -568,11 +604,13 @@ export class InputManager {
       this.popup.hide();
       this.appendOutput(chalk.cyan(question));
       this.inputText.setValue('');
+      this.refreshInputPlaceholder();
       this.inputText.focus();
 
       const cleanup = () => {
         this.inputText.off('submit', handler);
         this.inputText.setValue(originalPrompt);
+        this.refreshInputPlaceholder();
         this.interactivePromptActive = false;
         this.inputText.focus();
       };
@@ -620,7 +658,7 @@ export class InputManager {
         style: {
           fg: 'white',
           bg: 'black',
-          border: { fg: 'gray' },
+          border: { fg: 'cyan' },
         },
       });
 
@@ -730,6 +768,7 @@ export class InputManager {
       }
       lines.push(value);
       this.inputText.setValue('');
+      this.refreshInputPlaceholder();
       this.inputText.focus();
     });
   }
@@ -747,4 +786,23 @@ export class InputManager {
     this.screen.destroy();
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

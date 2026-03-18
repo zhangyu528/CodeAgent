@@ -1,30 +1,31 @@
-**Title**  
-调整 CLI 欢迎横幅：彩色图案、包含版本与 Provider，极简显示
+**Title**
+调整 CLI 欢迎横幅与输入区：极简暗色、版本号与执行路径
 
-**Summary**  
-- 将欢迎区改为居中显示的卡片布局（使用 `blessed` 库实现）。
-- 欢迎卡片在垂直和水平方向均居中显示，提供现代 TUI 体验。
-- 仅展示产品名+版本、当前 Provider 及可用 Provider 列表。
-- 移除状态栏显示说明和 /help 命令提示，保持界面清爽。
-- 布局逻辑：初始进入为居中“欢迎模式”，提交首个命令后自动切换为标准“工作模式”。
+**Summary**
+- 欢迎区保持居中布局（Blessed），但内容收敛为 Logo + 版本号 + 执行/授权路径。
+- 输入区采用 Slate 极简风：暗色背景、低饱和边框，视觉与主内容有明确区隔。
+- 输入区同一组件内包含两行：输入行 + 模型行（`Model: provider/model`）。
+- 新增输入 placeholder，空输入可见，输入后隐藏，清空后回显。
 
-**Implementation Changes**  
+**Implementation Changes**
 - `src/apps/cli/components/input_manager.ts`:
-  - `isWelcomeMode`: 维护初始欢迎状态。
-  - `updateLayout`: 动态调整组件位置。欢迎模式下隐藏输出框，将 Logo 和输入框居中；工作模式下恢复顶部 Logo、中间输出、底部输入。
-  - `logoBox`：使用 `align: 'center'` 确保 ASCII Logo 和文字水平居中。
-  - `buildLogoContent`：包含版本号、Provider 信息及快捷键提示。
-- `src/apps/cli/components/blessed_welcome.ts`:
-  - 同样支持居中布局和 `align: 'center'`，作为独立组件备用。
-- 版本号从 `package.json` 读取；若失败则显示 `dev`。
+  - `buildLogoContent`：欢迎页展示改为 `版本号` 与 `执行/授权路径`。
+  - 版本号回退值改为 `unknown`（不再显示 `dev`）。
+  - 输入区样式改为 Slate token：
+    - `bg: #11161c`
+    - `border: #3a5566`
+    - 输入主文字 `#d7e0e7`
+    - 模型行弱化为灰色
+  - 输入容器宽度收窄：welcome `64%`，chat `72%`。
+  - 输入行纵向位置下移（避免视觉贴顶）。
+  - 增加 `inputPlaceholder` 与 `refreshInputPlaceholder()`，统一处理显示/隐藏。
 
+**Test Plan**
+- 启动 CLI：欢迎页显示 `版本号` 与 `执行/授权路径`，不再显示 Provider/快捷键文案。
+- 输入框空态可见 placeholder；开始输入后消失；删除为空后再次出现。
+- 执行 `/model`、`/provider` 后，输入框下方模型行即时更新。
+- 运行 `npm run build` 通过。
 
-**Test Plan**  
-- 手动启动 `npm start`：首屏出现彩色图案 + 极简文本；版本与 Provider 之间有空行；无多余说明行。  
-- 非 TTY 启动：欢迎输出不因颜色报错（NO_COLOR=1 时正常降级）。  
-- 运行 `npm run test:unit` 确认未破坏现有单测。
-
-**Assumptions**  
-- 版本号从 `package.json` 读取；若失败则显示 `dev`。  
-- 终端支持基本 ANSI 颜色；在 NO_COLOR 或不支持的场景下回退为单色文本。  
-- 欢迎输出行数维持 4 行，不额外添加 workspace/快捷键信息。
+**Assumptions**
+- 默认授权路径即当前执行路径（`process.cwd()`），不提供单独授权路径配置入口。
+- 终端支持基本 ANSI 颜色；低能力终端按 Blessed 默认能力降级显示。
