@@ -38,14 +38,18 @@ final class AgentClient {
     private var process: Process?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
+    private var stderrPipe: Pipe?
     private var buffer = Data()
+    private var stderrBuffer = Data()
     private var isCleaningUp = false
 
     private let pendingStore = PendingStore()
 
     var onMessage: (([String: Any]) -> Void)?
     var onLogLine: ((String, String, Date) -> Void)?
+    var onStderrLine: ((String) -> Void)?
     var onExit: ((Int32) -> Void)?
+    var isRunning: Bool { process != nil }
 
     func start(config: AgentLaunchConfig) throws {
         if process != nil { return }
@@ -60,9 +64,10 @@ final class AgentClient {
 
         let inPipe = Pipe()
         let outPipe = Pipe()
+        let errPipe = Pipe()
         proc.standardInput = inPipe
         proc.standardOutput = outPipe
-        proc.standardError = FileHandle.standardError
+        proc.standardError = errPipe
 
         proc.terminationHandler = { [weak self] p in
             self?.onExit?(p.terminationStatus)
@@ -74,24 +79,33 @@ final class AgentClient {
         process = proc
         stdinPipe = inPipe
         stdoutPipe = outPipe
+        stderrPipe = errPipe
         isCleaningUp = false
 
-        startReading()
+        startReadingStdout()
+        startReadingStderr()
     }
 
     func stop() {
-        guard let proc = process else { return }
-        proc.terminate()
+        if let proc = process {
+            proc.terminate()
+        }
         cleanup(error: ClientError.processTerminated)
     }
 
     func sendRpcCommand(id: String = UUID().uuidString, type: String, payload: [String: Any] = [:], completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        guard process != nil, stdinPipe != nil else {
+            completion(.failure(ClientError.processNotRunning))
+            return
+        }
         var msg: [String: Any] = ["id": id, "type": type]
         for (k, v) in payload {
             msg[k] = v
         }
-        Task { await pendingStore.insert(id: id, callback: completion) }
-        sendMessage(msg)
+        Task {
+            await pendingStore.insert(id: id, callback: completion)
+            sendMessage(msg)
+        }
     }
 
     func sendRpcEvent(type: String, payload: [String: Any] = [:]) {
@@ -119,7 +133,7 @@ final class AgentClient {
         }
     }
 
-    private func startReading() {
+    private func startReadingStdout() {
         guard let outPipe = stdoutPipe else { return }
         let handle = outPipe.fileHandleForReading
 
@@ -129,6 +143,20 @@ final class AgentClient {
             self?.readQueue.async {
                 self?.buffer.append(data)
                 self?.drainBuffer()
+            }
+        }
+    }
+
+    private func startReadingStderr() {
+        guard let errPipe = stderrPipe else { return }
+        let handle = errPipe.fileHandleForReading
+
+        handle.readabilityHandler = { [weak self] h in
+            let data = h.availableData
+            if data.isEmpty { return }
+            self?.readQueue.async {
+                self?.stderrBuffer.append(data)
+                self?.drainStderrBuffer()
             }
         }
     }
@@ -188,6 +216,20 @@ final class AgentClient {
         onMessage?(msg)
     }
 
+    private func drainStderrBuffer() {
+        while let newlineRange = stderrBuffer.firstRange(of: Data([0x0A])) {
+            let lineData = stderrBuffer.subdata(in: stderrBuffer.startIndex..<newlineRange.lowerBound)
+            stderrBuffer.removeSubrange(stderrBuffer.startIndex...newlineRange.lowerBound)
+            if lineData.isEmpty { continue }
+            if let line = String(data: lineData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !line.isEmpty {
+                onLogLine?("ERR", line, Date())
+                onStderrLine?(line)
+            }
+        }
+    }
+
     private func cleanup(error: Error) {
         if isCleaningUp { return }
         isCleaningUp = true
@@ -199,10 +241,17 @@ final class AgentClient {
         if let inPipe = stdinPipe {
             inPipe.fileHandleForWriting.closeFile()
         }
+        if let errPipe = stderrPipe {
+            errPipe.fileHandleForReading.readabilityHandler = nil
+            errPipe.fileHandleForReading.closeFile()
+        }
 
         process = nil
         stdinPipe = nil
         stdoutPipe = nil
+        stderrPipe = nil
+        buffer.removeAll(keepingCapacity: false)
+        stderrBuffer.removeAll(keepingCapacity: false)
 
         Task {
             let callbacks = await pendingStore.drain(error: error)

@@ -1,7 +1,10 @@
 import SwiftUI
+import AppKit
 
 struct ChatSidebarView: View {
     @ObservedObject var vm: CodeAgentViewModel
+    @State private var showingClearKeyConfirmation = false
+    @State private var didClearKey = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -55,6 +58,55 @@ struct ChatSidebarView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(CodeAgentTheme.border, lineWidth: 1)
                 )
+
+                if vm.showInlineSetup {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(vm.setupHintText)
+                            .font(.system(size: 11))
+                            .foregroundColor(.gray.opacity(0.85))
+
+                        HStack(spacing: 8) {
+                            SecureField("\(vm.selectedProvider) API Key", text: Binding(
+                                get: { vm.providerConfigs[vm.selectedProvider]?.apiKey ?? "" },
+                                set: {
+                                    if var cfg = vm.providerConfigs[vm.selectedProvider] {
+                                        cfg.apiKey = $0
+                                        vm.providerConfigs[vm.selectedProvider] = cfg
+                                    }
+                                }
+                            ))
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(CodeAgentTheme.sidebar)
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(CodeAgentTheme.border, lineWidth: 1)
+                            )
+
+                            Button(vm.isConnecting ? "Connecting..." : "Connect") {
+                                vm.connectWithSettings()
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(vm.isConnecting ? Color.gray.opacity(0.5) : CodeAgentTheme.accent)
+                            .cornerRadius(8)
+                            .disabled(vm.isConnecting)
+                        }
+                    }
+                    .padding(10)
+                    .background(Color.white.opacity(0.02))
+                    .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(CodeAgentTheme.border, lineWidth: 1)
+                    )
+                }
                 
                 // Input Toolbar
                 HStack(spacing: 16) {
@@ -102,6 +154,14 @@ struct ChatSidebarView: View {
                     )
                     
                     Spacer()
+
+                    Button("Clear Key") {
+                        showingClearKeyConfirmation = true
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(vm.hasStoredApiKeyForSelectedProvider ? .red.opacity(0.85) : .gray.opacity(0.5))
+                    .disabled(!vm.hasStoredApiKeyForSelectedProvider)
                     
                     // Status Indicator
                     HStack(spacing: 6) {
@@ -116,6 +176,32 @@ struct ChatSidebarView: View {
             }
             .padding(16)
             .background(CodeAgentTheme.bg)
+            .confirmationDialog(
+                "Clear saved API key for \(vm.selectedProvider)?",
+                isPresented: $showingClearKeyConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Clear Key", role: .destructive) {
+                    vm.clearStoredCredentials()
+                    didClearKey = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        didClearKey = false
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if didClearKey {
+                    Text("Key cleared")
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.8))
+                        .cornerRadius(6)
+                        .padding(.trailing, 12)
+                        .padding(.bottom, 8)
+                }
+            }
         }
         .background(CodeAgentTheme.bg)
     }
@@ -144,14 +230,37 @@ struct ChatMessageView: View {
     let content: String
     let sender: String
     var isAssistant: Bool = true
+    @State private var didCopy = false
     
     var body: some View {
         VStack(alignment: (isAssistant ? .leading : .trailing), spacing: 4) {
-            Text(content)
-                .font(.system(size: 13))
-                .padding(12)
-                .background(isAssistant ? CodeAgentTheme.sidebar : CodeAgentTheme.accent.opacity(0.2))
-                .cornerRadius(8)
+            VStack(alignment: .leading, spacing: 8) {
+                if isAssistant {
+                    HStack {
+                        Spacer()
+                        Button(action: copyContent) {
+                            HStack(spacing: 4) {
+                                Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                                if didCopy {
+                                    Text("Copied")
+                                } else {
+                                    Text("Copy")
+                                }
+                            }
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.gray.opacity(0.9))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Text(content)
+                    .font(.system(size: 13))
+                    .textSelection(.enabled)
+            }
+            .padding(12)
+            .background(isAssistant ? CodeAgentTheme.sidebar : CodeAgentTheme.accent.opacity(0.2))
+            .cornerRadius(8)
             
             Text(sender)
                 .font(.system(size: 10))
@@ -159,6 +268,16 @@ struct ChatMessageView: View {
                 .padding(.horizontal, 4)
         }
         .frame(maxWidth: .infinity, alignment: (isAssistant ? .leading : .trailing))
+    }
+
+    private func copyContent() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(content, forType: .string)
+        didCopy = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            didCopy = false
+        }
     }
 }
 

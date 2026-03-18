@@ -4,9 +4,8 @@ import SwiftUI
 @MainActor
 class CodeAgentViewModel: ObservableObject {
     enum ConnectionPhase: Equatable {
-        case idle
-        case starting
-        case probing
+        case needsModelSetup
+        case connecting
         case connected
         case failed(String)
     }
@@ -19,19 +18,23 @@ class CodeAgentViewModel: ObservableObject {
     }
 
     // MARK: - App State
-    @Published var connectionStatus: String = "disconnected"
-    @Published var status: String = "disconnected"
+    @Published var connectionStatus: String = "setup required"
+    @Published var status: String = "setup required"
     @Published var lastResponse: String = ""
     @Published var logs: [LogEntry] = []
-    @Published var connectionPhase: ConnectionPhase = .idle
+    @Published var connectionPhase: ConnectionPhase = .needsModelSetup
     @Published var capabilities: [String] = []
     @Published var isAwaitingReply: Bool = false
     @Published var executionMode: ExecutionMode = .planFirst
-    @Published var selectedProvider: String = "OpenAI"
-    @Published var selectedModel: String = "GPT-4o"
+    @Published var selectedProvider: String = "OpenAI" {
+        didSet { persistSelection() }
+    }
+    @Published var selectedModel: String = "GPT-4o" {
+        didSet { persistSelection() }
+    }
     @Published var isShowingModelPicker: Bool = false
     @Published var isPlanning: Bool = false
-    
+
     // MARK: - Model Picker State
     @Published var searchText: String = ""
     @Published var providerConfigs: [String: ProviderConfig] = [
@@ -39,7 +42,7 @@ class CodeAgentViewModel: ObservableObject {
         "Anthropic": ProviderConfig(baseUrl: "https://api.anthropic.com/v1"),
         "DeepSeek": ProviderConfig(baseUrl: "https://api.deepseek.com/v1")
     ]
-    
+
     let modelLibrary: [String: [AIModel]] = [
         "OpenAI": [
             AIModel(name: "GPT-4o", description: "Omni model for flagship performance", context: "128k", cost: "$5.00", latency: "Low", isRecommended: true),
@@ -56,13 +59,13 @@ class CodeAgentViewModel: ObservableObject {
             AIModel(name: "DeepSeek-Coder", description: "Specialized for programming", context: "32k", cost: "$0.10", latency: "Low")
         ]
     ]
-    
+
     // MARK: - Layout State
     @Published var isLeftSidebarVisible: Bool = true
     @Published var isRightSidebarVisible: Bool = true
     @Published var isDiffVisible: Bool = false
     @Published var isTerminalVisible: Bool = true
-    
+
     // MARK: - Sidebar / Explorer
     @Published var selectedFile: String? = "db.py"
     @Published var files: [FileItem] = [
@@ -71,13 +74,13 @@ class CodeAgentViewModel: ObservableObject {
         FileItem(name: "config.json", type: .file, extension: "json", isModified: true),
         FileItem(name: "main.py", type: .file, extension: "py")
     ]
-    
+
     // MARK: - Chat
     @Published var chatMessages: [ChatMessage] = [
-        ChatMessage(role: .assistant, content: "Connecting to local agent...")
+        ChatMessage(role: .assistant, content: "Connect a model to start chatting.")
     ]
     @Published var chatInput: String = ""
-    
+
     // MARK: - Inspector / Diff
     @Published var selectedTab: InspectorTab = .diff
     @Published var diffFiles: [DiffFile] = [
@@ -87,6 +90,7 @@ class CodeAgentViewModel: ObservableObject {
 
     private let maxLogs = 200
     private let client = AgentClient()
+    private let defaults = UserDefaults.standard
     private var hasAttemptedConnection = false
     private var probeRequestId: String?
     private var pendingPromptId: String?
@@ -94,11 +98,20 @@ class CodeAgentViewModel: ObservableObject {
     private var pendingAssistantText: String = ""
     private var probeTimeoutTask: Task<Void, Never>?
     private var promptTimeoutTask: Task<Void, Never>?
+    private var suppressNextExit = false
+    private var latestStderrLine: String?
 
     init() {
+        loadPersistedSettings()
+
         client.onLogLine = { [weak self] direction, raw, ts in
             Task { @MainActor in
                 self?.appendLog(direction: direction, raw: raw, ts: ts)
+            }
+        }
+        client.onStderrLine = { [weak self] line in
+            Task { @MainActor in
+                self?.latestStderrLine = line
             }
         }
         client.onMessage = { [weak self] msg in
@@ -108,42 +121,63 @@ class CodeAgentViewModel: ObservableObject {
         }
         client.onExit = { [weak self] code in
             Task { @MainActor in
-                let message = "exited (\(code))"
-                self?.connectionPhase = .failed(message)
-                self?.status = message
-                self?.connectionStatus = message
-                self?.cleanupPendingTasks()
-                self?.isAwaitingReply = false
+                self?.handleClientExit(code: code)
             }
         }
     }
-    
+
     // MARK: - Actions
     func connectIfNeeded() {
         guard !hasAttemptedConnection else { return }
         hasAttemptedConnection = true
-        connectionPhase = .starting
-        status = "starting"
-        connectionStatus = "starting"
+        startConnection(restartProcess: false)
+    }
+
+    func connectWithSettings() {
+        guard let cfg = providerConfigs[selectedProvider] else { return }
+        let trimmedKey = cfg.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
+            setNeedsModelSetup(message: "Please provide an API key for \(selectedProvider).")
+            return
+        }
 
         do {
-            try client.start(config: buildLaunchConfig())
-            sendGetStateProbe()
+            try ProviderCredentialStore.saveAPIKey(trimmedKey, provider: selectedProvider)
+            persistNonSensitiveSettings()
+            startConnection(restartProcess: true)
         } catch {
-            let message = "failed to start"
-            connectionPhase = .failed(message)
-            status = message
-            connectionStatus = message
+            markFailed(message: "Unable to save key securely.")
             lastResponse = error.localizedDescription
-            replaceConnectionMessage(with: "Failed to start local pi RPC: \(error.localizedDescription)")
         }
     }
 
+    func clearStoredCredentials() {
+        do {
+            try ProviderCredentialStore.deleteAPIKey(provider: selectedProvider)
+        } catch {
+            lastResponse = error.localizedDescription
+        }
+
+        if var cfg = providerConfigs[selectedProvider] {
+            cfg.apiKey = ""
+            providerConfigs[selectedProvider] = cfg
+        }
+
+        persistNonSensitiveSettings()
+        cleanupPendingTasks()
+        isAwaitingReply = false
+        suppressNextExit = client.isRunning
+        client.stop()
+        capabilities = []
+        setNeedsModelSetup(message: "API key cleared for \(selectedProvider). Add a key to continue.")
+    }
+
     func sendMessage() {
-        guard !chatInput.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        let outgoing = chatInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !outgoing.isEmpty else { return }
+
         guard isConnected else {
-            lastResponse = "Agent is not ready"
-            chatMessages.append(ChatMessage(role: .assistant, content: "Agent is not ready yet. Please wait for the connection to complete."))
+            chatMessages.append(ChatMessage(role: .assistant, content: "Please set your model key below and tap Connect to enable chat."))
             return
         }
         guard pendingPromptId == nil else {
@@ -151,9 +185,7 @@ class CodeAgentViewModel: ObservableObject {
             return
         }
 
-        let userMsg = ChatMessage(role: .user, content: chatInput)
-        chatMessages.append(userMsg)
-        let outgoing = chatInput
+        chatMessages.append(ChatMessage(role: .user, content: outgoing))
         chatInput = ""
         isAwaitingReply = true
         pendingAssistantDraftIndex = nil
@@ -177,16 +209,16 @@ class CodeAgentViewModel: ObservableObject {
             }
         }
     }
-    
+
     func selectFile(_ name: String) {
         selectedFile = name
     }
 
     var connectionLabel: String {
         switch connectionPhase {
-        case .idle:
-            return "DISCONNECTED"
-        case .starting, .probing:
+        case .needsModelSetup:
+            return "SETUP REQUIRED"
+        case .connecting:
             return "CONNECTING"
         case .connected:
             return "AGENT READY"
@@ -197,9 +229,9 @@ class CodeAgentViewModel: ObservableObject {
 
     var connectionColor: Color {
         switch connectionPhase {
-        case .idle:
-            return .gray.opacity(0.8)
-        case .starting, .probing:
+        case .needsModelSetup:
+            return .yellow.opacity(0.9)
+        case .connecting:
             return .orange.opacity(0.9)
         case .connected:
             return .green.opacity(0.8)
@@ -215,8 +247,66 @@ class CodeAgentViewModel: ObservableObject {
         return false
     }
 
+    var isConnecting: Bool {
+        if case .connecting = connectionPhase {
+            return true
+        }
+        return false
+    }
+
+    var showInlineSetup: Bool {
+        !isConnected
+    }
+
+    var setupHintText: String {
+        switch connectionPhase {
+        case .needsModelSetup:
+            return "Model key required. Set key and connect to enable chat."
+        case .connecting:
+            return "Connecting to pi RPC..."
+        case .connected:
+            return ""
+        case .failed(let message):
+            return message
+        }
+    }
+
+    var hasStoredApiKeyForSelectedProvider: Bool {
+        guard let cfg = providerConfigs[selectedProvider] else { return false }
+        return !cfg.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    // MARK: - Private
+
+    private enum FailureKind {
+        case needsSetup
+        case auth
+        case timeout
+        case generic
+    }
+
+    private func startConnection(restartProcess: Bool) {
+        connectionPhase = .connecting
+        status = "connecting"
+        connectionStatus = "connecting"
+        latestStderrLine = nil
+
+        if restartProcess {
+            suppressNextExit = client.isRunning
+            client.stop()
+        }
+
+        do {
+            try client.start(config: buildLaunchConfig())
+            sendGetStateProbe()
+        } catch {
+            handleConnectionFailure(text: error.localizedDescription)
+        }
+    }
+
     private func appendLog(direction: String, raw: String, ts: Date) {
-        logs.append(LogEntry(timestamp: ts, direction: direction, rawLine: raw))
+        let redacted = redactSecrets(in: raw)
+        logs.append(LogEntry(timestamp: ts, direction: direction, rawLine: redacted))
         if logs.count > maxLogs {
             logs.removeFirst(logs.count - maxLogs)
         }
@@ -266,9 +356,6 @@ class CodeAgentViewModel: ObservableObject {
     private func sendGetStateProbe() {
         let probeId = "probe-\(UUID().uuidString)"
         probeRequestId = probeId
-        connectionPhase = .probing
-        status = "probing"
-        connectionStatus = "probing"
         scheduleProbeTimeout(for: probeId)
 
         client.sendRpcCommand(id: probeId, type: "get_state") { [weak self] result in
@@ -277,7 +364,7 @@ class CodeAgentViewModel: ObservableObject {
                 case .success(let response):
                     self?.handleProbeResponse(probeId: probeId, response: response)
                 case .failure(let err):
-                    self?.markConnectionFailed(message: "probe failed: \(err.localizedDescription)")
+                    self?.handleConnectionFailure(text: err.localizedDescription)
                 }
             }
         }
@@ -306,8 +393,8 @@ class CodeAgentViewModel: ObservableObject {
         let success = (response["success"] as? Bool) ?? false
         let command = response["command"] as? String
         guard success, command == "get_state" else {
-            let errorText = response["error"] as? String ?? "invalid probe response"
-            markConnectionFailed(message: errorText)
+            let errorText = response["error"] as? String ?? "Unable to connect to pi RPC"
+            handleConnectionFailure(text: errorText)
             return
         }
 
@@ -367,7 +454,7 @@ class CodeAgentViewModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             await MainActor.run {
                 guard let self = self, self.probeRequestId == probeId else { return }
-                self.markConnectionFailed(message: "probe timeout")
+                self.handleConnectionFailure(text: "probe timeout")
             }
         }
     }
@@ -385,7 +472,22 @@ class CodeAgentViewModel: ObservableObject {
 
     private func handlePromptFailure(for promptId: String, errorText: String) {
         guard pendingPromptId == promptId else { return }
-        chatMessages.append(ChatMessage(role: .assistant, content: "error: \(errorText)"))
+        let userMessage: String
+        switch classifyFailure(text: errorText) {
+        case .needsSetup:
+            userMessage = "Model key is missing. Please configure credentials and reconnect."
+            setNeedsModelSetup(message: userMessage)
+        case .auth:
+            userMessage = "Authentication failed. Please verify your API key."
+            markFailed(message: userMessage)
+        case .timeout:
+            userMessage = "Request timed out. Please try again."
+            markFailed(message: userMessage)
+        case .generic:
+            userMessage = "Request failed. Please retry."
+            markFailed(message: userMessage)
+        }
+        chatMessages.append(ChatMessage(role: .assistant, content: userMessage))
         lastResponse = errorText
         completePrompt()
     }
@@ -399,12 +501,34 @@ class CodeAgentViewModel: ObservableObject {
         promptTimeoutTask = nil
     }
 
-    private func markConnectionFailed(message: String) {
+    private func handleConnectionFailure(text: String) {
+        let normalized = [text, latestStderrLine].compactMap { $0 }.joined(separator: " ")
+        switch classifyFailure(text: normalized) {
+        case .needsSetup:
+            setNeedsModelSetup(message: "Model setup required. Add a valid API key and connect.")
+        case .auth:
+            markFailed(message: "Authentication failed. Please verify provider and key.")
+        case .timeout:
+            markFailed(message: "Connection timeout. Please retry.")
+        case .generic:
+            markFailed(message: "Unable to connect to pi RPC.")
+        }
+        lastResponse = text
+    }
+
+    private func setNeedsModelSetup(message: String) {
+        connectionPhase = .needsModelSetup
+        status = "setup required"
+        connectionStatus = "setup required"
+        replaceConnectionMessage(with: message)
+        cleanupPendingTasks()
+    }
+
+    private func markFailed(message: String) {
         connectionPhase = .failed(message)
         status = message
-        connectionStatus = message
-        lastResponse = message
-        replaceConnectionMessage(with: "Pi RPC connection failed: \(message)")
+        connectionStatus = "failed"
+        replaceConnectionMessage(with: message)
         cleanupPendingTasks()
     }
 
@@ -417,6 +541,90 @@ class CodeAgentViewModel: ObservableObject {
         promptTimeoutTask?.cancel()
         probeTimeoutTask = nil
         promptTimeoutTask = nil
+    }
+
+    private func handleClientExit(code: Int32) {
+        if suppressNextExit {
+            suppressNextExit = false
+            return
+        }
+
+        isAwaitingReply = false
+        completePrompt()
+
+        if case .connected = connectionPhase {
+            markFailed(message: "Agent exited (\(code)).")
+            return
+        }
+
+        handleConnectionFailure(text: latestStderrLine ?? "Agent exited before ready.")
+    }
+
+    private func classifyFailure(text: String) -> FailureKind {
+        let lowered = text.lowercased()
+
+        if lowered.contains("no models available") ||
+            lowered.contains("set an api key") ||
+            lowered.contains("models.json") ||
+            lowered.contains("model setup required") ||
+            lowered.contains("missing api key") {
+            return .needsSetup
+        }
+        if lowered.contains("unauthorized") ||
+            lowered.contains("invalid api key") ||
+            lowered.contains("authentication") ||
+            lowered.contains("forbidden") ||
+            lowered.contains("401") {
+            return .auth
+        }
+        if lowered.contains("timeout") {
+            return .timeout
+        }
+        return .generic
+    }
+
+    private func persistSelection() {
+        defaults.set(selectedProvider, forKey: "selectedProvider")
+        defaults.set(selectedModel, forKey: "selectedModel")
+    }
+
+    private func persistNonSensitiveSettings() {
+        persistSelection()
+        for provider in providerConfigs.keys {
+            if let cfg = providerConfigs[provider] {
+                defaults.set(cfg.baseUrl, forKey: "providerBaseUrl.\(provider)")
+            }
+        }
+    }
+
+    private func loadPersistedSettings() {
+        if let storedProvider = defaults.string(forKey: "selectedProvider"), providerConfigs.keys.contains(storedProvider) {
+            selectedProvider = storedProvider
+        }
+        if let storedModel = defaults.string(forKey: "selectedModel"), !storedModel.isEmpty {
+            selectedModel = storedModel
+        }
+
+        for provider in providerConfigs.keys {
+            if var cfg = providerConfigs[provider] {
+                if let storedBaseURL = defaults.string(forKey: "providerBaseUrl.\(provider)"), !storedBaseURL.isEmpty {
+                    cfg.baseUrl = storedBaseURL
+                }
+                cfg.apiKey = ProviderCredentialStore.loadAPIKey(provider: provider) ?? ""
+                providerConfigs[provider] = cfg
+            }
+        }
+    }
+
+    private func redactSecrets(in text: String) -> String {
+        var redacted = text
+        for (_, cfg) in providerConfigs {
+            let key = cfg.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !key.isEmpty {
+                redacted = redacted.replacingOccurrences(of: key, with: "***")
+            }
+        }
+        return redacted
     }
 
     private func stringifyJSON(_ value: [String: Any]) -> String {
@@ -452,7 +660,7 @@ struct FileItem: Identifiable {
     let type: FileType
     var `extension`: String?
     var isModified: Bool = false
-    
+
     enum FileType {
         case file, folder
     }
@@ -462,7 +670,7 @@ struct ChatMessage: Identifiable {
     let id = UUID()
     let role: MessageRole
     let content: String
-    
+
     enum MessageRole {
         case user, assistant
     }

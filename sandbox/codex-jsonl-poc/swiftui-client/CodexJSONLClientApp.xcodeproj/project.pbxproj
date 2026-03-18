@@ -19,6 +19,7 @@
 		F317BFCD425E4BDBA41FBB9F /* ProjectSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2C26713DD149C7A5054F2F; };
 		4D146695685D4EDDA1B294EB /* RealTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C619A5370947109D9441C3; };
 		D7435BEC4A794DC5AEA88918 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B7075D116E8456A85F2651C; };
+		9AC7FA54D43F4B9D8AEB7281 /* ProviderCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52FD39A49D44FA18DCC6DE5; };
 		6664DA12CABE445F96DBC2D3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1032D4C92DB3488BAF16C97A; };
 /* End PBXBuildFile section */
 
@@ -36,6 +37,7 @@
 		AF2C26713DD149C7A5054F2F /* ProjectSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CodexJSONLClient/Views/Components/ProjectSidebarView.swift"; sourceTree = "<group>"; };
 		70C619A5370947109D9441C3 /* RealTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CodexJSONLClient/Views/Components/RealTerminalView.swift"; sourceTree = "<group>"; };
 		0B7075D116E8456A85F2651C /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CodexJSONLClient/Views/Components/TerminalView.swift"; sourceTree = "<group>"; };
+		B52FD39A49D44FA18DCC6DE5 /* ProviderCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CodexJSONLClient/ProviderCredentialStore.swift"; sourceTree = "<group>"; };
 		1032D4C92DB3488BAF16C97A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "CodexJSONLClientApp/Assets.xcassets"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -73,6 +75,7 @@
 				EA81468246E04A31A8614295 /* App.swift */,
 				E6E30A87F7424EB7BDC33BA5 /* CodeAgentViewModel.swift */,
 				7CD15EF09FA44FF18522681C /* ContentView.swift */,
+				B52FD39A49D44FA18DCC6DE5 /* ProviderCredentialStore.swift */,
 				8CA76478AEE445488E49ADD4 /* Views */,
 			);
 			name = "CodexJSONLClient";
@@ -169,6 +172,7 @@
 				F317BFCD425E4BDBA41FBB9F /* ProjectSidebarView.swift in Sources */,
 				4D146695685D4EDDA1B294EB /* RealTerminalView.swift in Sources */,
 				D7435BEC4A794DC5AEA88918 /* TerminalView.swift in Sources */,
+				9AC7FA54D43F4B9D8AEB7281 /* ProviderCredentialStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
