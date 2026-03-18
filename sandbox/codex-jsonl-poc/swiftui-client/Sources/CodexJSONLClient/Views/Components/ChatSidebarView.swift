@@ -37,7 +37,7 @@ struct ChatSidebarView: View {
                         .font(.system(size: 13))
                         .textFieldStyle(.plain)
                         .foregroundColor(.white)
-                        .disabled(!vm.isConnected)
+                        .disabled(!vm.isConnected || vm.isAwaitingReply)
                     
                     Button(action: { vm.sendMessage() }) {
                         Image(systemName: "chevron.right.2")
@@ -45,7 +45,7 @@ struct ChatSidebarView: View {
                             .foregroundColor(vm.chatInput.isEmpty ? .gray.opacity(0.3) : CodeAgentTheme.accent)
                     }
                     .buttonStyle(.plain)
-                    .disabled(vm.chatInput.isEmpty || !vm.isConnected)
+                    .disabled(vm.chatInput.isEmpty || !vm.isConnected || vm.isAwaitingReply)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)

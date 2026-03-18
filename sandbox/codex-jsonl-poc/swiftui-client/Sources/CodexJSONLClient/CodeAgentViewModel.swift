@@ -6,7 +6,7 @@ class CodeAgentViewModel: ObservableObject {
     enum ConnectionPhase: Equatable {
         case idle
         case starting
-        case initializing
+        case probing
         case connected
         case failed(String)
     }
@@ -25,6 +25,7 @@ class CodeAgentViewModel: ObservableObject {
     @Published var logs: [LogEntry] = []
     @Published var connectionPhase: ConnectionPhase = .idle
     @Published var capabilities: [String] = []
+    @Published var isAwaitingReply: Bool = false
     @Published var executionMode: ExecutionMode = .planFirst
     @Published var selectedProvider: String = "OpenAI"
     @Published var selectedModel: String = "GPT-4o"
@@ -87,13 +88,12 @@ class CodeAgentViewModel: ObservableObject {
     private let maxLogs = 200
     private let client = AgentClient()
     private var hasAttemptedConnection = false
-
-    private let launchConfig = AgentLaunchConfig(
-        executablePath: "/Users/eric/Documents/CodeAgent/sandbox/codex-jsonl-poc/node-agent/dist/agent-macos-arm64",
-        arguments: [],
-        currentDirectoryURL: URL(fileURLWithPath: "/Users/eric/Documents/CodeAgent/sandbox/codex-jsonl-poc/node-agent", isDirectory: true),
-        environment: nil
-    )
+    private var probeRequestId: String?
+    private var pendingPromptId: String?
+    private var pendingAssistantDraftIndex: Int?
+    private var pendingAssistantText: String = ""
+    private var probeTimeoutTask: Task<Void, Never>?
+    private var promptTimeoutTask: Task<Void, Never>?
 
     init() {
         client.onLogLine = { [weak self] direction, raw, ts in
@@ -101,9 +101,9 @@ class CodeAgentViewModel: ObservableObject {
                 self?.appendLog(direction: direction, raw: raw, ts: ts)
             }
         }
-        client.onNotification = { [weak self] method, params in
+        client.onMessage = { [weak self] msg in
             Task { @MainActor in
-                self?.handleNotification(method: method, params: params)
+                self?.handleRpcMessage(msg)
             }
         }
         client.onExit = { [weak self] code in
@@ -112,6 +112,8 @@ class CodeAgentViewModel: ObservableObject {
                 self?.connectionPhase = .failed(message)
                 self?.status = message
                 self?.connectionStatus = message
+                self?.cleanupPendingTasks()
+                self?.isAwaitingReply = false
             }
         }
     }
@@ -125,15 +127,15 @@ class CodeAgentViewModel: ObservableObject {
         connectionStatus = "starting"
 
         do {
-            try client.start(config: launchConfig)
-            initializeAgent()
+            try client.start(config: buildLaunchConfig())
+            sendGetStateProbe()
         } catch {
             let message = "failed to start"
             connectionPhase = .failed(message)
             status = message
             connectionStatus = message
             lastResponse = error.localizedDescription
-            replaceConnectionMessage(with: "Failed to start local agent: \(error.localizedDescription)")
+            replaceConnectionMessage(with: "Failed to start local pi RPC: \(error.localizedDescription)")
         }
     }
 
@@ -144,26 +146,33 @@ class CodeAgentViewModel: ObservableObject {
             chatMessages.append(ChatMessage(role: .assistant, content: "Agent is not ready yet. Please wait for the connection to complete."))
             return
         }
+        guard pendingPromptId == nil else {
+            chatMessages.append(ChatMessage(role: .assistant, content: "A response is already in progress. Please wait for completion."))
+            return
+        }
 
         let userMsg = ChatMessage(role: .user, content: chatInput)
         chatMessages.append(userMsg)
         let outgoing = chatInput
         chatInput = ""
+        isAwaitingReply = true
+        pendingAssistantDraftIndex = nil
+        pendingAssistantText = ""
 
-        client.sendRequest(method: "agent/echo", params: ["msg": outgoing]) { [weak self] result in
+        let promptId = UUID().uuidString
+        pendingPromptId = promptId
+        schedulePromptTimeout(for: promptId)
+
+        client.sendRpcCommand(id: promptId, type: "prompt", payload: ["message": outgoing]) { [weak self] result in
             Task { @MainActor in
                 switch result {
-                case .success(let res):
-                    let rendered = self?.stringifyJSON(res) ?? "\(res)"
-                    self?.lastResponse = "echo: \(rendered)"
-                    if let echoed = res["echo"] {
-                        self?.chatMessages.append(ChatMessage(role: .assistant, content: self?.stringifyValue(echoed) ?? "\(echoed)"))
-                    } else {
-                        self?.chatMessages.append(ChatMessage(role: .assistant, content: rendered))
+                case .success(let response):
+                    if let success = response["success"] as? Bool, !success {
+                        let errorText = response["error"] as? String ?? "prompt failed"
+                        self?.handlePromptFailure(for: promptId, errorText: errorText)
                     }
                 case .failure(let err):
-                    self?.lastResponse = "echo error: \(err.localizedDescription)"
-                    self?.chatMessages.append(ChatMessage(role: .assistant, content: "error: \(err.localizedDescription)"))
+                    self?.handlePromptFailure(for: promptId, errorText: err.localizedDescription)
                 }
             }
         }
@@ -177,7 +186,7 @@ class CodeAgentViewModel: ObservableObject {
         switch connectionPhase {
         case .idle:
             return "DISCONNECTED"
-        case .starting, .initializing:
+        case .starting, .probing:
             return "CONNECTING"
         case .connected:
             return "AGENT READY"
@@ -190,7 +199,7 @@ class CodeAgentViewModel: ObservableObject {
         switch connectionPhase {
         case .idle:
             return .gray.opacity(0.8)
-        case .starting, .initializing:
+        case .starting, .probing:
             return .orange.opacity(0.9)
         case .connected:
             return .green.opacity(0.8)
@@ -213,48 +222,201 @@ class CodeAgentViewModel: ObservableObject {
         }
     }
 
-    private func initializeAgent() {
-        connectionPhase = .initializing
-        status = "initializing"
-        connectionStatus = "initializing"
-
-        client.sendRequest(method: "initialize", params: ["client": "SwiftUI", "version": "0.1.0"]) { [weak self] result in
-            Task { @MainActor in
-                switch result {
-                case .success(let res):
-                    let capabilities = (res["capabilities"] as? [String]) ?? []
-                    self?.capabilities = capabilities
-                    self?.connectionPhase = .connected
-                    self?.status = "connected"
-                    self?.connectionStatus = "connected"
-                    self?.lastResponse = "initialize: \(self?.stringifyJSON(res) ?? "\(res)")"
-                    self?.replaceConnectionMessage(with: "Local agent connected. Capabilities: \(capabilities.joined(separator: ", "))")
-                case .failure(let err):
-                    let message = "initialize failed"
-                    self?.connectionPhase = .failed(message)
-                    self?.status = message
-                    self?.connectionStatus = message
-                    self?.lastResponse = err.localizedDescription
-                    self?.replaceConnectionMessage(with: "Failed to initialize local agent: \(err.localizedDescription)")
-                }
-            }
-        }
-    }
-
-    private func handleNotification(method: String, params: [String: Any]?) {
-        let content = "[notify] \(method) \(params ?? [:])"
-        if method == "agent/notify" {
-            lastResponse = content
-        }
-        chatMessages.append(ChatMessage(role: .assistant, content: content))
-    }
-
     private func replaceConnectionMessage(with content: String) {
         if let firstAssistantIndex = chatMessages.firstIndex(where: { $0.role == .assistant }) {
             chatMessages[firstAssistantIndex] = ChatMessage(role: .assistant, content: content)
         } else {
             chatMessages.insert(ChatMessage(role: .assistant, content: content), at: 0)
         }
+    }
+
+    private func buildLaunchConfig() -> AgentLaunchConfig {
+        var environment: [String: String] = [:]
+        if let cfg = providerConfigs[selectedProvider], !cfg.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let key = cfg.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            switch selectedProvider {
+            case "OpenAI":
+                environment["OPENAI_API_KEY"] = key
+                if !cfg.baseUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    environment["OPENAI_BASE_URL"] = cfg.baseUrl
+                }
+            case "Anthropic":
+                environment["ANTHROPIC_API_KEY"] = key
+                if !cfg.baseUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    environment["ANTHROPIC_BASE_URL"] = cfg.baseUrl
+                }
+            case "DeepSeek":
+                environment["DEEPSEEK_API_KEY"] = key
+                if !cfg.baseUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    environment["DEEPSEEK_BASE_URL"] = cfg.baseUrl
+                }
+            default:
+                break
+            }
+        }
+
+        return AgentLaunchConfig(
+            executablePath: "/Users/eric/Documents/pi-mono/packages/coding-agent/dist/pi",
+            arguments: ["--mode", "rpc"],
+            currentDirectoryURL: URL(fileURLWithPath: "/Users/eric/Documents/pi-mono/packages/coding-agent", isDirectory: true),
+            environment: environment.isEmpty ? nil : environment
+        )
+    }
+
+    private func sendGetStateProbe() {
+        let probeId = "probe-\(UUID().uuidString)"
+        probeRequestId = probeId
+        connectionPhase = .probing
+        status = "probing"
+        connectionStatus = "probing"
+        scheduleProbeTimeout(for: probeId)
+
+        client.sendRpcCommand(id: probeId, type: "get_state") { [weak self] result in
+            Task { @MainActor in
+                switch result {
+                case .success(let response):
+                    self?.handleProbeResponse(probeId: probeId, response: response)
+                case .failure(let err):
+                    self?.markConnectionFailed(message: "probe failed: \(err.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func handleRpcMessage(_ message: [String: Any]) {
+        guard message["id"] == nil else { return }
+        guard let type = message["type"] as? String else { return }
+
+        switch type {
+        case "message_end":
+            handleAssistantMessageEnd(message)
+        case "agent_end":
+            handleAgentEnd(message)
+        default:
+            break
+        }
+    }
+
+    private func handleProbeResponse(probeId: String, response: [String: Any]) {
+        guard probeRequestId == probeId else { return }
+        probeTimeoutTask?.cancel()
+        probeTimeoutTask = nil
+        probeRequestId = nil
+
+        let success = (response["success"] as? Bool) ?? false
+        let command = response["command"] as? String
+        guard success, command == "get_state" else {
+            let errorText = response["error"] as? String ?? "invalid probe response"
+            markConnectionFailed(message: errorText)
+            return
+        }
+
+        if let data = response["data"] as? [String: Any] {
+            capabilities = ["rpc"]
+            lastResponse = "get_state: \(stringifyJSON(data))"
+        }
+        connectionPhase = .connected
+        status = "connected"
+        connectionStatus = "connected"
+        replaceConnectionMessage(with: "Pi RPC connected.")
+    }
+
+    private func handleAssistantMessageEnd(_ event: [String: Any]) {
+        guard pendingPromptId != nil else { return }
+        guard let message = event["message"] as? [String: Any] else { return }
+        guard (message["role"] as? String) == "assistant" else { return }
+
+        let extractedText = extractAssistantText(from: message)
+        guard !extractedText.isEmpty else { return }
+        pendingAssistantText = extractedText
+        if let index = pendingAssistantDraftIndex, chatMessages.indices.contains(index) {
+            chatMessages[index] = ChatMessage(role: .assistant, content: extractedText)
+        } else {
+            chatMessages.append(ChatMessage(role: .assistant, content: extractedText))
+            pendingAssistantDraftIndex = chatMessages.count - 1
+        }
+        lastResponse = "message_end received"
+    }
+
+    private func handleAgentEnd(_ event: [String: Any]) {
+        guard pendingPromptId != nil else { return }
+        if pendingAssistantDraftIndex == nil {
+            chatMessages.append(ChatMessage(role: .assistant, content: "No assistant message received."))
+        }
+        if let messages = event["messages"] as? [[String: Any]], let last = messages.last {
+            let summary = extractAssistantText(from: last)
+            if !summary.isEmpty {
+                lastResponse = summary
+            }
+        }
+        completePrompt()
+    }
+
+    private func extractAssistantText(from message: [String: Any]) -> String {
+        guard let content = message["content"] as? [[String: Any]] else { return "" }
+        let chunks = content.compactMap { item -> String? in
+            guard let type = item["type"] as? String, type == "text" else { return nil }
+            return item["text"] as? String
+        }
+        return chunks.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func scheduleProbeTimeout(for probeId: String) {
+        probeTimeoutTask?.cancel()
+        probeTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            await MainActor.run {
+                guard let self = self, self.probeRequestId == probeId else { return }
+                self.markConnectionFailed(message: "probe timeout")
+            }
+        }
+    }
+
+    private func schedulePromptTimeout(for promptId: String) {
+        promptTimeoutTask?.cancel()
+        promptTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 90_000_000_000)
+            await MainActor.run {
+                guard let self = self, self.pendingPromptId == promptId else { return }
+                self.handlePromptFailure(for: promptId, errorText: "prompt timeout")
+            }
+        }
+    }
+
+    private func handlePromptFailure(for promptId: String, errorText: String) {
+        guard pendingPromptId == promptId else { return }
+        chatMessages.append(ChatMessage(role: .assistant, content: "error: \(errorText)"))
+        lastResponse = errorText
+        completePrompt()
+    }
+
+    private func completePrompt() {
+        pendingPromptId = nil
+        pendingAssistantDraftIndex = nil
+        pendingAssistantText = ""
+        isAwaitingReply = false
+        promptTimeoutTask?.cancel()
+        promptTimeoutTask = nil
+    }
+
+    private func markConnectionFailed(message: String) {
+        connectionPhase = .failed(message)
+        status = message
+        connectionStatus = message
+        lastResponse = message
+        replaceConnectionMessage(with: "Pi RPC connection failed: \(message)")
+        cleanupPendingTasks()
+    }
+
+    private func cleanupPendingTasks() {
+        probeRequestId = nil
+        pendingPromptId = nil
+        pendingAssistantDraftIndex = nil
+        pendingAssistantText = ""
+        probeTimeoutTask?.cancel()
+        promptTimeoutTask?.cancel()
+        probeTimeoutTask = nil
+        promptTimeoutTask = nil
     }
 
     private func stringifyJSON(_ value: [String: Any]) -> String {

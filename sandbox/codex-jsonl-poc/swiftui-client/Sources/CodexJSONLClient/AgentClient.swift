@@ -43,7 +43,7 @@ final class AgentClient {
 
     private let pendingStore = PendingStore()
 
-    var onNotification: ((String, [String: Any]?) -> Void)?
+    var onMessage: (([String: Any]) -> Void)?
     var onLogLine: ((String, String, Date) -> Void)?
     var onExit: ((Int32) -> Void)?
 
@@ -85,17 +85,20 @@ final class AgentClient {
         cleanup(error: ClientError.processTerminated)
     }
 
-    func sendRequest(method: String, params: [String: Any]? = nil, completion: @escaping (Result<[String: Any], Error>) -> Void) {
-        let id = UUID().uuidString
-        var msg: [String: Any] = ["id": id, "method": method]
-        if let params = params { msg["params"] = params }
+    func sendRpcCommand(id: String = UUID().uuidString, type: String, payload: [String: Any] = [:], completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        var msg: [String: Any] = ["id": id, "type": type]
+        for (k, v) in payload {
+            msg[k] = v
+        }
         Task { await pendingStore.insert(id: id, callback: completion) }
         sendMessage(msg)
     }
 
-    func sendNotification(method: String, params: [String: Any]? = nil) {
-        var msg: [String: Any] = ["method": method]
-        if let params = params { msg["params"] = params }
+    func sendRpcEvent(type: String, payload: [String: Any] = [:]) {
+        var msg: [String: Any] = ["type": type]
+        for (k, v) in payload {
+            msg[k] = v
+        }
         sendMessage(msg)
     }
 
@@ -156,6 +159,21 @@ final class AgentClient {
 
     private func handleMessage(_ msg: [String: Any]) {
         if let id = msg["id"] as? String {
+            if msg["type"] as? String == "response" {
+                Task {
+                    if let callback = await pendingStore.take(id: id) {
+                        if let success = msg["success"] as? Bool, success == false {
+                            let errorText = msg["error"] as? String ?? "RPC command failed"
+                            let err = NSError(domain: "AgentClient", code: -1, userInfo: [NSLocalizedDescriptionKey: errorText])
+                            callback(.failure(err))
+                        } else {
+                            callback(.success(msg))
+                        }
+                    }
+                }
+                return
+            }
+
             if let error = msg["error"] as? [String: Any] {
                 let err = NSError(domain: "AgentClient", code: -1, userInfo: error)
                 Task {
@@ -165,20 +183,9 @@ final class AgentClient {
                 }
                 return
             }
-            if let result = msg["result"] as? [String: Any] {
-                Task {
-                    if let callback = await pendingStore.take(id: id) {
-                        callback(.success(result))
-                    }
-                }
-                return
-            }
         }
 
-        if let method = msg["method"] as? String, msg["id"] == nil {
-            let params = msg["params"] as? [String: Any]
-            onNotification?(method, params)
-        }
+        onMessage?(msg)
     }
 
     private func cleanup(error: Error) {
