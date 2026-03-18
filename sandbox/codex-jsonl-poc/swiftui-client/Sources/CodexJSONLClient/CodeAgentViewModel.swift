@@ -1,9 +1,20 @@
 import Foundation
 import SwiftUI
 
+@MainActor
 class CodeAgentViewModel: ObservableObject {
+    struct LogEntry: Identifiable {
+        let id = UUID()
+        let timestamp: Date
+        let direction: String
+        let rawLine: String
+    }
+
     // MARK: - App State
-    @Published var connectionStatus: String = "Connected"
+    @Published var connectionStatus: String = "disconnected"
+    @Published var status: String = "disconnected"
+    @Published var lastResponse: String = ""
+    @Published var logs: [LogEntry] = []
     @Published var executionMode: ExecutionMode = .planFirst
     @Published var selectedProvider: String = "OpenAI"
     @Published var selectedModel: String = "GPT-4o"
@@ -62,22 +73,72 @@ class CodeAgentViewModel: ObservableObject {
         DiffFile(name: "db.py", status: "M", isActive: true),
         DiffFile(name: "config.json", status: "M")
     ]
+
+    private let maxLogs = 200
+    private let client = AgentClient()
+
+    init() {
+        client.onLogLine = { [weak self] direction, raw, ts in
+            Task { @MainActor in
+                self?.appendLog(direction: direction, raw: raw, ts: ts)
+            }
+        }
+        client.onNotification = { [weak self] method, params in
+            Task { @MainActor in
+                let content = "[notify] \(method) \(params ?? [:])"
+                self?.chatMessages.append(ChatMessage(role: .assistant, content: content))
+            }
+        }
+        client.onExit = { [weak self] code in
+            Task { @MainActor in
+                self?.status = "exited (\(code))"
+                self?.connectionStatus = self?.status ?? "exited"
+            }
+        }
+    }
     
     // MARK: - Actions
     func sendMessage() {
         guard !chatInput.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         let userMsg = ChatMessage(role: .user, content: chatInput)
         chatMessages.append(userMsg)
+        let outgoing = chatInput
         chatInput = ""
-        
-        // Mock assistant response
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            self.chatMessages.append(ChatMessage(role: .assistant, content: "Understood. I'll check that for you."))
+
+        client.sendRequest(method: "agent/echo", params: ["msg": outgoing]) { [weak self] result in
+            Task { @MainActor in
+                switch result {
+                case .success(let res):
+                    self?.lastResponse = "echo: \(res)"
+                    self?.chatMessages.append(ChatMessage(role: .assistant, content: "\(res)"))
+                case .failure(let err):
+                    self?.lastResponse = "echo error: \(err.localizedDescription)"
+                    self?.chatMessages.append(ChatMessage(role: .assistant, content: "error: \(err.localizedDescription)"))
+                }
+            }
         }
     }
     
     func selectFile(_ name: String) {
         selectedFile = name
+    }
+
+    func start(nodePath: String) {
+        do {
+            try client.start(nodePath: nodePath)
+            status = "connected"
+            connectionStatus = "connected"
+        } catch {
+            status = "failed to start"
+            connectionStatus = status
+        }
+    }
+
+    private func appendLog(direction: String, raw: String, ts: Date) {
+        logs.append(LogEntry(timestamp: ts, direction: direction, rawLine: raw))
+        if logs.count > maxLogs {
+            logs.removeFirst(logs.count - maxLogs)
+        }
     }
 }
 

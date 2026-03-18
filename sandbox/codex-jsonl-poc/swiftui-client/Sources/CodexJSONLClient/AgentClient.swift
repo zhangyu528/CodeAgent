@@ -1,9 +1,28 @@
 import Foundation
 
+actor PendingStore {
+    private var pending: [String: (Result<[String: Any], Error>) -> Void] = [:]
+
+    func insert(id: String, callback: @escaping (Result<[String: Any], Error>) -> Void) {
+        pending[id] = callback
+    }
+
+    func take(id: String) -> ((Result<[String: Any], Error>) -> Void)? {
+        return pending.removeValue(forKey: id)
+    }
+
+    func drain(error: Error) -> [((Result<[String: Any], Error>) -> Void)] {
+        let callbacks = Array(pending.values)
+        pending.removeAll()
+        return callbacks
+    }
+}
+
 final class AgentClient {
     enum ClientError: Error {
         case processNotRunning
         case invalidMessage
+        case processTerminated
     }
 
     private let writeQueue = DispatchQueue(label: "agent.client.write")
@@ -13,8 +32,9 @@ final class AgentClient {
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
     private var buffer = Data()
+    private var isCleaningUp = false
 
-    private var pending: [String: (Result<[String: Any], Error>) -> Void] = [:]
+    private let pendingStore = PendingStore()
 
     var onNotification: ((String, [String: Any]?) -> Void)?
     var onLogLine: ((String, String, Date) -> Void)?
@@ -35,6 +55,7 @@ final class AgentClient {
 
         proc.terminationHandler = { [weak self] p in
             self?.onExit?(p.terminationStatus)
+            self?.cleanup(error: ClientError.processTerminated)
         }
 
         try proc.run()
@@ -42,6 +63,7 @@ final class AgentClient {
         process = proc
         stdinPipe = inPipe
         stdoutPipe = outPipe
+        isCleaningUp = false
 
         startReading()
     }
@@ -49,16 +71,14 @@ final class AgentClient {
     func stop() {
         guard let proc = process else { return }
         proc.terminate()
-        process = nil
-        stdinPipe = nil
-        stdoutPipe = nil
+        cleanup(error: ClientError.processTerminated)
     }
 
     func sendRequest(method: String, params: [String: Any]? = nil, completion: @escaping (Result<[String: Any], Error>) -> Void) {
         let id = UUID().uuidString
         var msg: [String: Any] = ["id": id, "method": method]
         if let params = params { msg["params"] = params }
-        pending[id] = completion
+        Task { await pendingStore.insert(id: id, callback: completion) }
         sendMessage(msg)
     }
 
@@ -127,14 +147,18 @@ final class AgentClient {
         if let id = msg["id"] as? String {
             if let error = msg["error"] as? [String: Any] {
                 let err = NSError(domain: "AgentClient", code: -1, userInfo: error)
-                if let callback = pending.removeValue(forKey: id) {
-                    callback(.failure(err))
+                Task {
+                    if let callback = await pendingStore.take(id: id) {
+                        callback(.failure(err))
+                    }
                 }
                 return
             }
             if let result = msg["result"] as? [String: Any] {
-                if let callback = pending.removeValue(forKey: id) {
-                    callback(.success(result))
+                Task {
+                    if let callback = await pendingStore.take(id: id) {
+                        callback(.success(result))
+                    }
                 }
                 return
             }
@@ -143,6 +167,30 @@ final class AgentClient {
         if let method = msg["method"] as? String, msg["id"] == nil {
             let params = msg["params"] as? [String: Any]
             onNotification?(method, params)
+        }
+    }
+
+    private func cleanup(error: Error) {
+        if isCleaningUp { return }
+        isCleaningUp = true
+
+        if let outPipe = stdoutPipe {
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            outPipe.fileHandleForReading.closeFile()
+        }
+        if let inPipe = stdinPipe {
+            inPipe.fileHandleForWriting.closeFile()
+        }
+
+        process = nil
+        stdinPipe = nil
+        stdoutPipe = nil
+
+        Task {
+            let callbacks = await pendingStore.drain(error: error)
+            for callback in callbacks {
+                callback(.failure(error))
+            }
         }
     }
 }

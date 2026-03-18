@@ -7,13 +7,20 @@ import AppKit
 class NativeTerminalController: ObservableObject {
     @Published var outputBuffer: NSAttributedString = NSAttributedString(string: "")
     
+    private let lifecycleQueue = DispatchQueue(label: "native.terminal.lifecycle")
     private var masterFd: Int32 = -1
     private var childPid: pid_t = -1
     private var readThread: Thread?
+    private var isStarted = false
+    private var isStopping = false
     
     weak var textView: NSTextView?
     
     func start() {
+        guard !isStarted else { return }
+        isStarted = true
+        isStopping = false
+
         var winsize = winsize()
         winsize.ws_col = 220
         winsize.ws_row = 50
@@ -21,6 +28,7 @@ class NativeTerminalController: ObservableObject {
         let pid = forkpty(&masterFd, nil, nil, &winsize)
 
         if pid < 0 {
+            isStarted = false
             appendText("Failed to create PTY\n", color: .red)
             return
         }
@@ -51,13 +59,14 @@ class NativeTerminalController: ObservableObject {
         let fd = masterFd
         readThread = Thread {
             var buf = [UInt8](repeating: 0, count: 4096)
-            while true {
+            while !(self.isStopping || Thread.current.isCancelled) {
                 let n = read(fd, &buf, buf.count)
                 if n <= 0 { break }
                 let data = Data(buf[0..<n])
                 if let text = String(bytes: data, encoding: .utf8) ?? String(bytes: data, encoding: .isoLatin1) {
                     DispatchQueue.main.async { [weak self] in
-                        self?.appendAnsi(text)
+                        guard let self = self, !self.isStopping else { return }
+                        self.appendAnsi(text)
                     }
                 }
             }
@@ -75,8 +84,39 @@ class NativeTerminalController: ObservableObject {
     }
     
     func stop() {
-        if childPid > 0 { kill(childPid, SIGTERM) }
-        if masterFd >= 0 { close(masterFd) }
+        guard isStarted, !isStopping else { return }
+        isStopping = true
+
+        let fd = masterFd
+        let pid = childPid
+        masterFd = -1
+        childPid = -1
+        textView = nil
+        readThread = nil
+        isStarted = false
+
+        lifecycleQueue.async {
+            if fd >= 0 {
+                close(fd)
+            }
+
+            guard pid > 0 else { return }
+
+            kill(pid, SIGTERM)
+
+            var status: Int32 = 0
+            var waitResult: pid_t = 0
+            for _ in 0..<10 {
+                waitResult = waitpid(pid, &status, WNOHANG)
+                if waitResult == pid || waitResult == -1 { break }
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+
+            if waitResult == 0 {
+                kill(pid, SIGKILL)
+                _ = waitpid(pid, &status, 0)
+            }
+        }
     }
     
     // 简单的 ANSI 解析：去除转义序列，保留文字
@@ -139,6 +179,10 @@ struct NativeTerminalView: NSViewRepresentable {
     class Coordinator: NSObject, NSTextViewDelegate {
         weak var textView: NSTextView?
         var controller: NativeTerminalController?
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
         
         @objc func didBecomeActive() {}
         

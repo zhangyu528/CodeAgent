@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CodeAgentMainView: View {
-    @StateObject private var vm = CodeAgentViewModel()
+    @ObservedObject var vm: CodeAgentViewModel
     
     var body: some View {
         ZStack {
@@ -106,6 +106,6 @@ struct CodeAgentMainView: View {
 
 struct CodeAgentMainView_Previews: PreviewProvider {
     static var previews: some View {
-        CodeAgentMainView()
+        CodeAgentMainView(vm: CodeAgentViewModel())
     }
 }

@@ -1,14 +1,14 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var vm = AgentViewModel()
+    @StateObject private var vm = CodeAgentViewModel()
     @State private var showingDebug = false
     @State private var dragOffset = CGSize.zero
     @State private var position = CGSize.zero
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            CodeAgentMainView()
+            CodeAgentMainView(vm: vm)
             
             // Debug Toggle (Draggable)
             Button(action: { showingDebug.toggle() }) {

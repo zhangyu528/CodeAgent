@@ -12,6 +12,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.windows.first(where: { $0.title != "" })?.makeKeyAndOrderFront(nil)
         }
     }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
 }
 
 @main
