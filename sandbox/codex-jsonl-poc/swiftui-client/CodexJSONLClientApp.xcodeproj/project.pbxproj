@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		3074BD8ACDD142CE93E81C4B /* AgentClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF00D867956472D92407AEF; };
-		9AF30011F2F043E8A142E6E4 /* AgentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412E4249A0DB4389A2F36F71; };
 		EC2B052A5D6449DC83A58284 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA81468246E04A31A8614295; };
 		F2F7721A36874670860C5CD8 /* CodeAgentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6E30A87F7424EB7BDC33BA5; };
 		330DCA1A83984BB38CF96DAB /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CD15EF09FA44FF18522681C; };
@@ -26,7 +25,6 @@
 /* Begin PBXFileReference section */
 		1A02AF1A51EE435A99DA80EC /* CodexJSONLClientApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CodexJSONLClientApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6FF00D867956472D92407AEF /* AgentClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CodexJSONLClient/AgentClient.swift"; sourceTree = "<group>"; };
-		412E4249A0DB4389A2F36F71 /* AgentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CodexJSONLClient/AgentViewModel.swift"; sourceTree = "<group>"; };
 		EA81468246E04A31A8614295 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CodexJSONLClient/App.swift"; sourceTree = "<group>"; };
 		E6E30A87F7424EB7BDC33BA5 /* CodeAgentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CodexJSONLClient/CodeAgentViewModel.swift"; sourceTree = "<group>"; };
 		7CD15EF09FA44FF18522681C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CodexJSONLClient/ContentView.swift"; sourceTree = "<group>"; };
@@ -72,7 +70,6 @@
 			isa = PBXGroup;
 			children = (
 				6FF00D867956472D92407AEF /* AgentClient.swift */,
-				412E4249A0DB4389A2F36F71 /* AgentViewModel.swift */,
 				EA81468246E04A31A8614295 /* App.swift */,
 				E6E30A87F7424EB7BDC33BA5 /* CodeAgentViewModel.swift */,
 				7CD15EF09FA44FF18522681C /* ContentView.swift */,
@@ -161,7 +158,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				3074BD8ACDD142CE93E81C4B /* AgentClient.swift in Sources */,
-				9AF30011F2F043E8A142E6E4 /* AgentViewModel.swift in Sources */,
 				EC2B052A5D6449DC83A58284 /* App.swift in Sources */,
 				F2F7721A36874670860C5CD8 /* CodeAgentViewModel.swift in Sources */,
 				330DCA1A83984BB38CF96DAB /* ContentView.swift in Sources */,

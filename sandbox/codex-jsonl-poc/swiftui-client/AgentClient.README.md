@@ -14,5 +14,5 @@ This folder is a Swift Package executable that launches a SwiftUI app.
 ## Files
 - `Sources/CodexJSONLClient/App.swift`
 - `Sources/CodexJSONLClient/AgentClient.swift`
-- `Sources/CodexJSONLClient/AgentViewModel.swift`
+- `Sources/CodexJSONLClient/CodeAgentViewModel.swift`
 - `Sources/CodexJSONLClient/ContentView.swift`

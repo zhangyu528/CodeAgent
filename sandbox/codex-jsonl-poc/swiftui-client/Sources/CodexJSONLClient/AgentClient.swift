@@ -1,5 +1,12 @@
 import Foundation
 
+struct AgentLaunchConfig {
+    let executablePath: String
+    let arguments: [String]
+    let currentDirectoryURL: URL?
+    let environment: [String: String]?
+}
+
 actor PendingStore {
     private var pending: [String: (Result<[String: Any], Error>) -> Void] = [:]
 
@@ -40,12 +47,16 @@ final class AgentClient {
     var onLogLine: ((String, String, Date) -> Void)?
     var onExit: ((Int32) -> Void)?
 
-    func start(nodePath: String) throws {
+    func start(config: AgentLaunchConfig) throws {
         if process != nil { return }
 
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: nodePath)
-        proc.arguments = []
+        proc.executableURL = URL(fileURLWithPath: config.executablePath)
+        proc.arguments = config.arguments
+        proc.currentDirectoryURL = config.currentDirectoryURL
+        if let environment = config.environment {
+            proc.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
+        }
 
         let inPipe = Pipe()
         let outPipe = Pipe()

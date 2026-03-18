@@ -37,6 +37,7 @@ struct ChatSidebarView: View {
                         .font(.system(size: 13))
                         .textFieldStyle(.plain)
                         .foregroundColor(.white)
+                        .disabled(!vm.isConnected)
                     
                     Button(action: { vm.sendMessage() }) {
                         Image(systemName: "chevron.right.2")
@@ -44,7 +45,7 @@ struct ChatSidebarView: View {
                             .foregroundColor(vm.chatInput.isEmpty ? .gray.opacity(0.3) : CodeAgentTheme.accent)
                     }
                     .buttonStyle(.plain)
-                    .disabled(vm.chatInput.isEmpty)
+                    .disabled(vm.chatInput.isEmpty || !vm.isConnected)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
@@ -106,8 +107,8 @@ struct ChatSidebarView: View {
                     HStack(spacing: 6) {
                         Circle()
                             .frame(width: 6, height: 6)
-                            .foregroundColor(.green.opacity(0.8))
-                        Text("MODEL READY")
+                            .foregroundColor(vm.connectionColor)
+                        Text(vm.connectionLabel)
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(.gray.opacity(0.6))
                     }

@@ -38,6 +38,9 @@ struct ContentView: View {
                 debugOverlay
             }
         }
+        .onAppear {
+            vm.connectIfNeeded()
+        }
     }
     
     private var debugOverlay: some View {
