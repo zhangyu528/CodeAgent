@@ -7,7 +7,16 @@ import { StableFooterRenderer } from './stable_footer_renderer';
 import { SlashHintManager } from './slash_hint_manager';
 import { TelemetryMonitor } from '../../../utils/logger';
 import { AgentController } from '../../../core/controller/agent_controller';
-import { getCliVersion, renderWelcomeCard } from './welcome_card';
+
+function getCliVersion(): string {
+  try {
+    const pkg = require('../../../package.json') as { version?: string };
+    const v = String(pkg?.version || '').trim();
+    return v || 'dev';
+  } catch {
+    return 'dev';
+  }
+}
 
 function envEnabled(name: string, defaultOn: boolean) {
   const raw = String(process.env[name] || '').trim();
@@ -156,13 +165,59 @@ export class TerminalManager {
     this.showWelcomeOnResize = true;
     
     process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
-    console.log(
-      renderWelcomeCard({
-        version: getCliVersion(),
-        provider: currentProvider,
-        providers,
-      }),
-    );
+    const welcomeContent = this.renderWelcomeContent(currentProvider, providers);
+    console.log(welcomeContent);
+  }
+
+  private renderWelcomeContent(currentProvider: string, providers: string[]): string {
+    const version = getCliVersion();
+    const termWidth = process.stdout.columns || 80;
+    const termHeight = process.stdout.rows || 24;
+    
+    const ASCII_LOGO = [
+      "  ___            _        _                    _  ",
+      " / __|___  __| | ___   /_\\  __ _ ___ _ _  __| |_ ",
+      "| (__/ _ \\/ _` |/ -_) / _ \\/ _` / -_) ' \\/ _`  _|",
+      " \\___\\___/\\__,_|\\___|/_/ \\_\\__, \\___|_||_\\__,_\\__|",
+      "                           |___/                  ",
+    ];
+    
+    const isBuiltIn = currentProvider.includes('内置免费');
+    const providerColor = isBuiltIn ? chalk.green : chalk.cyan;
+    const providersText = providers.length > 0 ? providers.join(', ') : '无';
+    
+    function centerText(text: string): string {
+      const padding = Math.max(0, Math.floor((termWidth - text.length) / 2));
+      return ' '.repeat(padding) + text;
+    }
+    
+    const logoLines = ASCII_LOGO.map(line => centerText(line));
+    const versionLine = centerText(`v${version}`);
+    const providerText = centerText(`Provider: ${providerColor(currentProvider)} (可用: ${providersText})`);
+    const hintLine = centerText(chalk.gray('输入消息开始对话'));
+    const footerLine = centerText(chalk.gray('Ctrl+C 退出'));
+    
+    const contentLines = [
+      ...logoLines,
+      '',
+      versionLine,
+      '',
+      providerText,
+      '',
+      centerText('─'.repeat(Math.min(60, termWidth - 20))),
+      '',
+      hintLine,
+      '',
+      footerLine,
+    ];
+    
+    const totalContentHeight = contentLines.length;
+    const topPadding = Math.max(0, Math.floor((termHeight - totalContentHeight) / 2));
+    
+    return [
+      '\n'.repeat(topPadding),
+      ...contentLines,
+    ].join('\n');
   }
 
   clearWelcomeOnResize() {

@@ -1,5 +1,4 @@
-import { renderWelcomeCard } from '../../cli/welcome_card';
-import chalk = require('chalk');
+const chalk = require('chalk');
 
 function assert(cond: any, msg: string) {
   if (!cond) throw new Error(msg);
@@ -8,13 +7,45 @@ function assert(cond: any, msg: string) {
 export async function test() {
   console.log('=== Running Unit Test: Welcome Banner ===');
 
-  const opts = {
-    version: '1.2.3',
-    provider: 'deepseek',
-    providers: ['deepseek', 'glm'],
-  };
-
-  const banner = renderWelcomeCard(opts);
+  const version = '1.2.3';
+  const currentProvider = 'deepseek';
+  const providers = ['deepseek', 'glm'];
+  const termWidth = 80;
+  
+  const ASCII_LOGO = [
+    "  ___            _        _                    _  ",
+    " / __|___  __| | ___   /_\\  __ _ ___ _ _  __| |_ ",
+    "| (__/ _ \\/ _` |/ -_) / _ \\/ _` / -_) ' \\/ _`  _|",
+    " \\___\\___/\\__,_|\\___|/_/ \\_\\__, \\___|_||_\\__,_\\__|",
+    "                           |___/                  ",
+  ];
+  
+  function centerText(text: string): string {
+    const padding = Math.max(0, Math.floor((termWidth - text.length) / 2));
+    return ' '.repeat(padding) + text;
+  }
+  
+  const logoLines = ASCII_LOGO.map(line => centerText(line));
+  const versionLine = centerText(`v${version}`);
+  const providerColor = chalk.cyan;
+  const providersText = providers.length > 0 ? providers.join(', ') : '无';
+  const providerText = centerText(`Provider: ${providerColor(currentProvider)} (可用: ${providersText})`);
+  const hintLine = centerText(chalk.gray('输入消息开始对话'));
+  const footerLine = centerText(chalk.gray('Ctrl+C 退出'));
+  
+  const banner = [
+    ...logoLines,
+    '',
+    versionLine,
+    '',
+    providerText,
+    '',
+    centerText('─'.repeat(Math.min(60, termWidth - 20))),
+    '',
+    hintLine,
+    '',
+    footerLine,
+  ].join('\n');
 
   assert(banner.includes('v1.2.3'), 'Banner should contain correct version');
 

@@ -123,6 +123,10 @@ export class AgentController {
     this.defaultProviderName = name;
   }
 
+  setUIAdapter(ui: IUIAdapter) {
+    this.ui = ui;
+  }
+
   getAuthorizedPath(): string {
     return this.security.getWorkspaceRoot();
   }

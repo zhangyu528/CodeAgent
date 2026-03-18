@@ -1,5 +1,4 @@
 import blessed from 'blessed';
-import { getCliVersion } from './welcome_card';
 
 export interface WelcomeData {
   provider: string;
@@ -14,6 +13,16 @@ const ASCII_LOGO = [
   "                           |___/                  ",
 ];
 
+function getCliVersion(): string {
+  try {
+    const pkg = require('../../../package.json') as { version?: string };
+    const v = String(pkg?.version || '').trim();
+    return v || 'dev';
+  } catch {
+    return 'dev';
+  }
+}
+
 export class BlessedWelcome {
   private screen: ReturnType<typeof blessed.screen>;
 
@@ -27,42 +36,104 @@ export class BlessedWelcome {
   render(data: WelcomeData, onSubmit: (input: string) => void) {
     const version = getCliVersion();
     
-    // Logo
-    const logo = ASCII_LOGO.join('\n');
+    const isBuiltIn = data.provider.includes('内置免费');
     
-    // 计算logo的高度
-    const logoLines = ASCII_LOGO.length;
-    
-    const lines = [
-      '',
-      logo,
-      '',
-      `v${version}`,
-      '',
-      `Provider: ${data.provider} (Available: ${data.providers.join(', ')})`,
-    ];
-
-    const content = lines.join('\n');
-
-    // 主容器 - 在上半部分
+    // Main Container for vertical centering
     const container = blessed.box({
+      top: 'center',
+      left: 'center',
+      width: '80%',
+      height: 25,
+      style: {
+        bg: 'black',
+        fg: 'white',
+      },
+    });
+
+    // Logo区域
+    const logoBox = blessed.box({
+      parent: container,
       top: 0,
       left: 'center',
       width: '100%',
-      height: '50%',
-      content: content,
+      height: 12,
+      content: this.buildLogoContent(version, data, isBuiltIn),
+      tags: true,
+      align: 'center',
       style: {
         fg: 'white',
         bg: 'black',
       },
     });
 
-    // 输入框 - 在中间位置
-    const inputBox = blessed.textbox({
-      top: '50%',
+    // 分隔线
+    const divider = blessed.line({
+      parent: container,
+      top: 12,
+      left: 'center',
+      width: '100%',
+      orientation: 'horizontal',
+      style: {
+        fg: 'gray',
+        bg: 'black',
+      },
+    });
+
+    // 输入提示说明
+    const instructionBox = blessed.box({
+      parent: container,
+      top: 14,
+      left: 'center',
+      width: '100%',
+      height: 1,
+      content: '{gray-fg}输入消息开始对话，或按 Enter 开始{/}',
+      tags: true,
+      align: 'center',
+      style: {
+        fg: 'gray',
+        bg: 'black',
+      },
+    });
+
+    // 输入区域容器
+    const inputContainer = blessed.box({
+      parent: container,
+      top: 16,
       left: 'center',
       width: '80%',
       height: 3,
+      style: {
+        fg: 'white',
+        bg: 'black',
+        border: {
+          type: 'line',
+          fg: 'cyan',
+        },
+      },
+    });
+
+    // 输入提示符
+    const prompt = blessed.box({
+      parent: inputContainer,
+      top: 0,
+      left: 1,
+      width: 2,
+      content: '{cyan-fg}❯{/}',
+      tags: true,
+      style: {
+        fg: 'cyan',
+        bg: 'black',
+      },
+    });
+
+    // 输入框
+    const inputBox = blessed.textbox({
+      parent: inputContainer,
+      top: 0,
+      left: 3,
+      width: '100%-5',
+      height: 1,
+      tags: true,
       style: {
         fg: 'white',
         bg: 'black',
@@ -74,18 +145,31 @@ export class BlessedWelcome {
       inputOnFocus: true,
     });
 
+    // 底部提示
+    const footerBox = blessed.box({
+      parent: container,
+      top: 20,
+      left: 'center',
+      width: '100%',
+      height: 1,
+      content: '{gray-fg}Ctrl+C 退出{/}',
+      tags: true,
+      align: 'center',
+      style: {
+        fg: 'gray',
+        bg: 'black',
+      },
+    });
+
     this.screen.append(container);
-    this.screen.append(inputBox);
     
     inputBox.focus();
     this.screen.render();
 
-    // 监听回车事件
     inputBox.on('submit', (value: string) => {
       onSubmit(value);
     });
 
-    // 监听任意按键开始对话
     this.screen.key('enter', () => {
       const value = inputBox.getValue();
       if (value.trim()) {
@@ -94,6 +178,26 @@ export class BlessedWelcome {
         onSubmit('');
       }
     });
+
+    this.screen.key(['C-c', 'q', 'C-d'], () => {
+      process.exit(0);
+    });
+  }
+
+  private buildLogoContent(version: string, data: WelcomeData, isBuiltIn: boolean): string {
+    const logo = ASCII_LOGO.join('\n');
+    const providerColor = isBuiltIn ? 'green' : 'cyan';
+    const providersText = data.providers.length > 0 ? data.providers.join(', ') : '无';
+    
+    const lines = [
+      '',
+      logo,
+      '',
+      `{bold}v${version}{/bold}`,
+      '',
+      `{${providerColor}-fg}Provider:{/} ${data.provider} (可用: ${providersText})`,
+    ];
+    return lines.join('\n');
   }
 
   destroy() {

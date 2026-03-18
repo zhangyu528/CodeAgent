@@ -2,23 +2,22 @@
 调整 CLI 欢迎横幅：彩色图案、包含版本与 Provider，极简显示
 
 **Summary**  
-- 将欢迎区改为“左侧彩色图案 + 右侧文本”卡片。  
+- 将欢迎区改为居中显示的卡片布局（使用 `blessed` 库实现）。
+- 欢迎卡片在垂直和水平方向均居中显示，提供现代 TUI 体验。
 - 仅展示产品名+版本、当前 Provider 及可用 Provider 列表。
 - 移除状态栏显示说明和 /help 命令提示，保持界面清爽。
-- 版本信息与 Provider 信息之间增加空行间隔。
+- 布局逻辑：初始进入为居中“欢迎模式”，提交首个命令后自动切换为标准“工作模式”。
 
 **Implementation Changes**  
-- `src/index.ts`:  
-  - `renderWelcomeCard`：左侧图案用 3~4 种颜色渐变，右侧文字保持单色。  
-  - 右侧文本行设计：  
-    1) `CodeAgent CLI v<version>`（粗体 cyan）  
-    2) (空行)
-    3) `Provider: <default> (可用: …)`（cyan）  
-  - 移除状态栏显示说明（"状态栏显示 Mode/Token/Last Tool"）。
-  - 移除帮助信息提示（"输入 /help 查看全部命令与配置开关"）。
-  - 版本号从 `package.json` 读取；若失败则显示 `dev`。  
-  - 确保颜色调用集中在欢迎渲染，不影响 HUD/流式输出。  
-- 若引入颜色工具：复用现有 `chalk`，不增加新依赖。
+- `src/apps/cli/components/input_manager.ts`:
+  - `isWelcomeMode`: 维护初始欢迎状态。
+  - `updateLayout`: 动态调整组件位置。欢迎模式下隐藏输出框，将 Logo 和输入框居中；工作模式下恢复顶部 Logo、中间输出、底部输入。
+  - `logoBox`：使用 `align: 'center'` 确保 ASCII Logo 和文字水平居中。
+  - `buildLogoContent`：包含版本号、Provider 信息及快捷键提示。
+- `src/apps/cli/components/blessed_welcome.ts`:
+  - 同样支持居中布局和 `align: 'center'`，作为独立组件备用。
+- 版本号从 `package.json` 读取；若失败则显示 `dev`。
+
 
 **Test Plan**  
 - 手动启动 `npm start`：首屏出现彩色图案 + 极简文本；版本与 Provider 之间有空行；无多余说明行。  

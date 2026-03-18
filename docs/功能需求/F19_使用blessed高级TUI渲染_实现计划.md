@@ -2,22 +2,20 @@
 
 ## 1. 目标 (Objective)
 
-引入 blessed 库作为高级 TUI 渲染层，提供现代 CLI 界面体验，替代当前简单的 console.log 渲染方式。
+引入 blessed 库作为高级 TUI 渲染层，提供现代 CLI 界面体验。
+
+**核心决策：**
+- ❌ **不保留HUD**：不显示底部状态栏
+- ❌ **无兼容性**：只使用blessed，移除纯文本fallback
+- ✅ **解耦**：欢迎界面和REPL输入使用统一组件
 
 ## 2. 背景 (Background)
 
-当前 CLI 使用原始的 console.log 进行渲染，存在以下问题：
+当前 CLI 使用原始的 console.log + readline 进行渲染，存在以下问题：
 - 窗口大小改变时需要手动重绘
 - 无动画支持
 - 样式管理不够灵活
-- 无窗口系统，布局需要手动计算
-
-blessed 是一个现代 TUI 库，提供：
-- 窗口/面板系统
-- 自动布局管理
-- Partial Update（只更新变化部分）
-- 组件化开发
-- 丰富的样式系统
+- 输入组件分散（欢迎用blessed，REPL用readline）
 
 ## 3. 技术方案
 
@@ -28,157 +26,138 @@ npm install blessed
 npm install -D @types/blessed
 ```
 
-### 3.2 架构设计
+### 3.2 目标架构
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Screen (blessed)                      │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │              Welcome Container                     │   │
-│  │  ┌─────────────────────────────────────────┐  │   │
-│  │  │           ASCII Logo (上半部分)            │  │   │
-│  │  └─────────────────────────────────────────┘  │   │
-│  │              Version + Provider Info             │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                          │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │           Input Box (中间位置)                   │   │
-│  └─────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
+目标架构:
+─────────────────────────────────────────────────
+┌────────────────────────────────────────────────┐
+│              InputManager (blessed)             │
+│  ├── WelcomeScreen (欢迎)                       │
+│  └── InputBox (输入框)                          │
+│  → 统一管理输入，事件驱动                       │
+└────────────────────────────────────────────────┘
+         ↓  onCommand: (cmd) => void
+┌────────────────────────────────────────────────┐
+│              REPL (命令处理)                    │
+│  └── 处理命令分发                               │
+└────────────────────────────────────────────────┘
+         ↓
+┌────────────────────────────────────────────────┐
+│              Core (Agent + Tools + LLM)        │
+└────────────────────────────────────────────────┘
 ```
-
-### 3.3 核心组件
-
-#### BlessedWelcome 类
-
-```typescript
-export class BlessedWelcome {
-  private screen: blessed.Screen;
-
-  constructor() {
-    this.screen = blessed.screen({
-      smartCSR: true,
-      title: 'CodeAgent CLI',
-    });
-  }
-
-  render(data: WelcomeData, onSubmit: (input: string) => void) {
-    // Logo在上半部分
-    // 输入框在中间位置 (top: '50%')
-    // 用户可以直接输入命令
-  }
-
-  destroy() {
-    this.screen.destroy();
-  }
-}
-```
-
-### 3.4 欢迎界面布局
-
-- **Logo位置**：上半部分
-- **输入框位置**：中间位置 (50%)
-- **无HUD显示**：简洁的欢迎界面
-- **用户交互**：直接输入命令，按回车执行
 
 ## 4. 实现计划
 
-### Phase 1: 欢迎界面改造 ✅ 已完成
+### Phase 1: 欢迎界面 ✅ 已完成
 
 1. ✅ 安装 blessed 依赖
-2. ✅ 创建 `src/apps/cli/components/blessed_welcome.ts`
-3. ✅ 实现 BlessedWelcome 类
-4. ✅ Logo在上半部分，输入框在中间
-5. ✅ 支持用户直接输入命令
-6. ✅ 集成到 index.ts
+2. ✅ 创建 `blessed_welcome.ts`
+3. ✅ Logo在上半部分，输入框在中间
+4. ✅ 支持用户直接输入命令
 
-### Phase 2: 状态栏升级（待定）
+### Phase 2: 统一输入组件 ✅ 已完成
 
-1. 将 HUD 迁移到 blessed Box
-2. 利用 blessed 的布局系统
+**目标**: 创建 InputManager 统一管理输入，实现动态布局切换。
 
-### Phase 3: 交互增强（待定）
+#### 4.1 创建 InputManager
 
-1. 添加加载动画（spinner）
-2. 添加进度条组件
+**文件**: `src/apps/cli/components/input_manager.ts`
 
-## 5. 兼容性
+- ✅ 实现 `isWelcomeMode` 状态。
+- ✅ 动态布局逻辑 (`updateLayout`)：首屏居中显示，输入后自动转为生产模式。
+- ✅ 解决 `Ctrl+D` (EOF) 退出逻辑，支持全局监听。
+- ✅ 解决水平居中问题 (`align: 'center'`)。
 
-### 支持的环境
+#### 4.2 核心职责
 
-| 环境 | 支持情况 |
-|------|---------|
-| Windows Terminal | ✅ 完全支持 |
-| PowerShell | ✅ 支持 |
-| CMD | ✅ 支持 |
-| Linux / Mac Terminal | ✅ 完全支持 |
-
-### 不支持的环境
-
-| 环境 | 说明 |
+| 职责 | 说明 |
 |------|------|
-| Git Bash / MSYS2 | 不支持，需要使用 Windows Terminal |
+| 欢迎界面显示 | Logo + 版本 + Provider 信息，水平垂直居中 |
+| 输入框管理 | blessed textbox，自适应布局 |
+| 命令提交 | onCommand 事件，触发布局转换 |
+| 退出处理 | Ctrl+C / q / Ctrl+D 全局退出 |
 
-### Fallback 方案
+### Phase 3: 重构index.ts (解耦)
 
-如果 blessed 不可用（如检测到 Git Bash），回退到纯文本模式：
+**目标**: 清晰的启动流程
 
 ```typescript
-export function isBlessedSupported(): boolean {
-  const isDumb = process.env.TERM === 'dumb';
-  const hasValidTerm = process.env.TERM && process.env.TERM !== 'dumb';
-  return Boolean(hasValidTerm);
+async function bootstrap() {
+  // 1. 初始化Core
+  const { controller, engine } = await createAgent(uiAdapter);
+  
+  // 2. 创建统一输入管理器
+  const inputManager = new InputManager({
+    provider: controller.getProviderName(),
+    providers: engine.listProviders(),
+    onCommand: handleCommand,
+  });
+  
+  // 3. 启动输入
+  inputManager.start();
 }
 ```
 
-## 6. 风险与注意事项
+### Phase 4: 简化REPL
 
-1. **Windows Git Bash**：需要提示用户使用 Windows Terminal
-2. **依赖增加**：blessed 是额外依赖
-3. **样式兼容性**：不同终端样式可能有差异
-4. **保留原有逻辑**：blessed 仅用于展示，核心逻辑保持不变
+- REPL专注于命令处理逻辑
+- 输入由InputManager统一管理
+- 事件驱动: Input → Command → Core → Output
+
+## 5. 预期界面
+
+```
+┌─────────────────────────────────────────────────┐
+│  ___            _        _                    _  │
+│ / __|___  __| | ___   /_\  __ _ ___ _ _  __| │_ │
+│| (__/ _ \/ _` |/ -_) / _ \/ _` / -_) ' \/ _`  _│
+│ \___\___\__,_|\___|/_/ \_\__, \___|_||_\__,_\__│
+│                           |___/                  │
+│                                                  │
+│ vdev                                             │
+│ Provider: glm                                   │
+│                                                  │
+│ ❯ _ (blessed输入框，无HUD)                    │
+└─────────────────────────────────────────────────┘
+```
+
+## 6. 兼容性决策
+
+- ❌ **不保留HUD**：简洁模式
+- ❌ **无纯文本fallback**：只支持blessed
+- ❌ **不支持Git Bash**：仅Windows Terminal/PowerShell
 
 ## 7. 改动文件清单
 
-| 文件 | 改动 | 状态 |
+| 文件 | 改动 | 阶段 |
 |------|------|------|
-| package.json | 添加 blessed 依赖 | ✅ |
-| src/apps/cli/components/blessed_welcome.ts | 新建 blessed 欢迎组件 | ✅ |
-| src/apps/cli/index.ts | 集成 blessed 渲染 | ✅ |
-| src/apps/cli/components/terminal_manager.ts | 支持 resize 重绘 | ✅ |
-| src/apps/cli/components/welcome_card.ts | 保留纯文本 fallback | ✅ |
+| package.json | 添加blessed依赖 | Phase 1 ✅ |
+| blessed_welcome.ts | 欢迎组件 | Phase 1 ✅ |
+| input_manager.ts | 统一输入组件 | Phase 2 |
+| index.ts | 解耦启动逻辑 | Phase 3 |
+| repl.ts | 简化为命令处理器 | Phase 4 |
 
-## 8. 使用说明
+## 8. 状态
 
-### 启动流程
-
-1. CLI启动 → 检测终端是否支持blessed
-2. 如果支持 → 显示blessed欢迎界面（Logo + 输入框）
-3. 用户输入命令 → 按回车执行 → 进入REPL
-4. 如果不支持 → 使用纯文本欢迎界面
-
-### 预期界面
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  ___            _        _                    _         │
-│ / __|___  __| | ___   /_\  __ _ ___ _ _  __| |_      │
-│| (__/ _ \/ _` |/ -_) / _ \/ _` / -_) ' \/ _`  _|    │
-│ \___\___\__,_|\___|/_/ \_\__, \___|_||_\__,_\__|     │
-│                           |___/                        │
-│                                                          │
-│ vdev                                                 │
-│ Provider: glm (Available: glm...)                     │
-│                                                          │
-│ > _ (输入框在中间位置)                                 │
-└─────────────────────────────────────────────────────────┘
-```
-
-## 9. 状态
-
-- [x] 安装 blessed 依赖
-- [x] 创建 BlessedWelcome 类
-- [x] 集成到 CLI 启动流程
+### Phase 1: 欢迎界面
+- [x] 安装blessed依赖
+- [x] 创建BlessedWelcome类
 - [x] Logo在上半部分，输入框在中间
 - [x] 用户可直接输入命令
-- [x] Fallback 支持
+
+### Phase 2: 统一输入组件
+- [x] 创建InputManager类
+- [x] 欢迎界面复用InputManager（居中布局）
+- [x] 命令提交事件处理（触发布局转换）
+- [x] 集成到index.ts
+- [x] 全局支持 Ctrl+D 退出
+
+### Phase 3: 重构index.ts
+- [x] 解耦启动逻辑
+- [ ] 完善命令执行逻辑
+
+### Phase 4: 简化REPL
+- [ ] REPL专注命令处理
+- [ ] 事件驱动架构

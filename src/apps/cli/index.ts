@@ -1,30 +1,49 @@
 import * as dotenv from 'dotenv';
-import * as readline from 'readline';
 import { logger, TelemetryMonitor } from '../../utils/logger';
 import { TerminalManager } from './components/terminal_manager';
 import { createAgent } from './components/factory';
 import { getDefaultSlashCommands } from './components/slash_commands';
-import { REPL } from './components/repl';
-import { attachKeybindings } from './components/keybindings';
-import { buildCompleter } from './components/readline_completer';
 import { TTY_UIAdapter } from './adapter';
-import { BlessedWelcome, isBlessedSupported } from './components/blessed_welcome';
+import { InputManager } from './components/input_manager';
 
 // 1. Initial Setup
 dotenv.config({ quiet: true });
 const telemetry = new TelemetryMonitor();
 
 export async function bootstrap() {
-  // 检查是否支持blessed
-  const useBlessed = isBlessedSupported();
-  
-  // 2. 初始化 Core
-  const terminal = new TerminalManager();
-  await terminal.init();
+  try {
+    // Blessed 支持检测逻辑（最简化版）
+    // 只排除一种情况：TERM 环境变量明确设置为 "dumb"
+    // 在其他所有情况下，都尝试使用 blessed
+    const isDumb = process.env.TERM === 'dumb';
+    
+    // 检查是否强制启用 blessed（通过环境变量）
+    const forceBlessed = process.env.FORCE_BLESSED === '1' || process.env.FORCE_BLESSED === 'true';
+    
+    // 简化的判断逻辑：只要不是 dumb 终端，就可以尝试使用 blessed
+    // 或者用户强制启用
+    const blessedSupported = !isDumb || forceBlessed;
+    
+    if (!blessedSupported) {
+      console.error('Blessed is not supported in this terminal.');
+      console.error('Requirement:');
+      console.error('  - TERM environment variable must not be "dumb"');
+      console.error('');
+      console.error('Current status:');
+      console.error(`  - TERM: ${process.env.TERM || 'not set'}`);
+      console.error('');
+      console.error('Solution:');
+      console.error('  Set FORCE_BLESSED=1 to force enable blessed mode');
+      process.exit(1);
+    }
+    
+    // 2. 初始化 Core
+    const terminal = new TerminalManager();
+    await terminal.init();
 
-  const uiAdapter = new TTY_UIAdapter({
-    suspendInput: async (fn) => terminal.suspendInput(fn),
-    onStatus: (status) => {
+    const uiAdapter = new TTY_UIAdapter({
+      suspendInput: async (fn) => terminal.suspendInput(fn),
+      onStatus: (status) => {
         if (status.type === 'think') {
             terminal.getHUD().setMode('THINKING');
             terminal.render();
@@ -39,110 +58,45 @@ export async function bootstrap() {
             terminal.render();
         } else if (status.type === 'final_answer') {
             terminal.getHUD().setMode('IDLE');
-            terminal.updateStatus(null as any);
             terminal.render();
         }
-    }
-  });
-
-  const { controller, engine } = await createAgent(uiAdapter);
-  const commands = getDefaultSlashCommands();
-
-  // 如果使用blessed，显示欢迎界面并等待用户输入
-  let initialInput = '';
-  if (useBlessed) {
-    const blesseInstance = new BlessedWelcome();
-    blesseInstance.render(
-      {
-        provider: controller.getProviderName(),
-        providers: engine.listProviders(),
-      },
-      (input: string) => {
-        initialInput = input;
       }
-    );
-    
-    // 等待用户按下回车后启动REPL
-    await new Promise<void>((resolve) => {
-      const handler = (buffer: Buffer) => {
-        blesseInstance.destroy();
-        process.stdin.removeListener('data', handler);
-        resolve();
-      };
-      process.stdin.on('data', handler);
     });
+
+    const { controller, engine } = await createAgent(uiAdapter);
+    const commands = getDefaultSlashCommands();
+
+    console.log('Creating InputManager...');
+
+    // 3. 使用InputManager统一管理输入（纯Blessed模式）
+    const inputManager = new InputManager({
+      provider: controller.getProviderName(),
+      providers: engine.listProviders(),
+      onExit: () => {
+        logger.info('Goodbye!');
+        process.exit(0);
+      },
+      controller,
+      engine,
+      commands,
+      telemetry,
+      ui: uiAdapter,
+      terminal,
+    });
+
+    console.log('Starting InputManager...');
+
+    // 启动输入管理器（显示欢迎界面+输入框）
+    inputManager.start();
+
+    console.log('InputManager started successfully!');
+    
+    // 保持进程运行
+    process.stdin.resume();
+  } catch (err) {
+    console.error('Bootstrap error:', err);
+    throw err;
   }
-
-  // 继续正常的REPL启动流程
-  const completer = buildCompleter({
-    cwd: process.cwd(),
-    slashCommands: commands.map(c => c.name),
-    getModelProviders: () => engine.listProviders(),
-  });
-
-  const repl = new REPL(controller, engine, terminal, commands, telemetry, uiAdapter, {
-    completer,
-  });
-  const { rl, refreshPrompt } = await repl.start();
-
-  // 如果用户已经在欢迎界面输入了命令，直接执行
-  if (initialInput.trim()) {
-    rl.emit('line', initialInput);
-  }
-
-  // blessed模式下跳过HUD显示，直接进入REPL
-  if (useBlessed) {
-    // 直接设置prompt，不渲染HUD
-    refreshPrompt();
-    rl.prompt();
-    return;
-  }
-
-  const keybindings = attachKeybindings({
-    rl,
-    isTTY: Boolean(process.stdin.isTTY),
-    getMode: () => terminal.getHUD().getMode() as any,
-    isInputSuspended: () => terminal.isInputSuspended(),
-    isCapturing: () => repl.isCapturing(),
-    cancelCapture: () => {
-      repl.cancelCapture();
-      terminal.getHUD().setMode('IDLE');
-      terminal.render();
-      refreshPrompt();
-      rl.prompt(true);
-    },
-    abortCurrent: () => repl.abortCurrent(),
-    onClearScreen: () => {
-      process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
-      terminal.showWelcome(engine.listProviders(), controller.getProviderName());
-      terminal.render();
-      rl.prompt(true);
-    },
-    onExit: () => {
-      logger.info('Goodbye!');
-      keybindings.detach();
-      process.exit(0);
-    },
-    onHint: (text) => logger.info(text),
-    onToggleHUD: () => terminal.toggleHUD(),
-    onCommandHints: (hints) => terminal.setCommandHints(hints),
-    onMoveSelection: (delta) => terminal.moveHintSelection(delta),
-    hasHints: () => terminal.hasHints(),
-    slashCommands: commands.map(c => ({ name: c.name, description: c.description })),
-    onSlash: () => {
-      repl.showSlashMenu(rl).catch(err => {
-        logger.error('Slash menu error: ' + err.message);
-      });
-    }
-  });
-
-  if (!useBlessed) {
-    terminal.showWelcome(engine.listProviders(), controller.getProviderName());
-  }
-  terminal.updateStatus(controller, { render: false });
-  refreshPrompt();
-  rl.prompt();
-  terminal.render();
 }
 
 if (require.main === module) {
