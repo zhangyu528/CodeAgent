@@ -36,11 +36,20 @@ struct ChatSidebarView: View {
             
             VStack(spacing: 12) {
                 HStack(spacing: 8) {
-                    TextField("How can I help you today?", text: $vm.chatInput)
-                        .font(.system(size: 13))
-                        .textFieldStyle(.plain)
-                        .foregroundColor(.white)
-                        .disabled(!vm.isConnected || vm.isAwaitingReply)
+                    ZStack(alignment: .leading) {
+                        if vm.chatInput.isEmpty {
+                            Text("How can I help you today?")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray.opacity(0.7))
+                        }
+
+                        ChatComposerTextView(
+                            text: $vm.chatInput,
+                            isDisabled: !vm.isConnected || vm.isAwaitingReply,
+                            onSubmit: vm.sendMessage
+                        )
+                    }
+                    .frame(minHeight: 24, maxHeight: 88)
                     
                     Button(action: { vm.sendMessage() }) {
                         Image(systemName: "chevron.right.2")
@@ -204,6 +213,91 @@ struct ChatSidebarView: View {
             }
         }
         .background(CodeAgentTheme.bg)
+    }
+}
+
+struct ChatComposerTextView: NSViewRepresentable {
+    @Binding var text: String
+    let isDisabled: Bool
+    let onSubmit: () -> Void
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+
+        let textView = SubmitAwareTextView()
+        textView.delegate = context.coordinator
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticDataDetectionEnabled = false
+        textView.font = .systemFont(ofSize: 13)
+        textView.textColor = .white
+        textView.onSubmit = onSubmit
+        textView.textContainerInset = NSSize(width: 0, height: 4)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.containerSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+        textView.textContainer?.widthTracksTextView = true
+        textView.string = text
+
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        guard let textView = nsView.documentView as? SubmitAwareTextView else { return }
+        if textView.string != text {
+            textView.string = text
+        }
+        textView.isEditable = !isDisabled
+        textView.isSelectable = true
+        textView.onSubmit = onSubmit
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        @Binding var text: String
+
+        init(text: Binding<String>) {
+            _text = text
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text = textView.string
+        }
+    }
+}
+
+final class SubmitAwareTextView: NSTextView {
+    var onSubmit: (() -> Void)?
+
+    override func keyDown(with event: NSEvent) {
+        let isReturnKey = event.keyCode == 36 || event.keyCode == 76
+        if isReturnKey {
+            if hasMarkedText() {
+                super.keyDown(with: event)
+                return
+            }
+
+            let flags = event.modifierFlags.intersection([.shift, .option])
+            if flags.isEmpty {
+                onSubmit?()
+                return
+            }
+        }
+        super.keyDown(with: event)
     }
 }
 
