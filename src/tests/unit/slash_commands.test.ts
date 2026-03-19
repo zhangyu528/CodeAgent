@@ -33,7 +33,8 @@ export async function test() {
   console.log('✅ Slash commands checks passed.');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ Slash commands test failed:', e.message);
     process.exit(1);

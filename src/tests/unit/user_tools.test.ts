@@ -1,7 +1,7 @@
-import { UserSelectTool } from '../../tools/user_select_tool';
-import { UserCheckboxTool } from '../../tools/user_checkbox_tool';
-import { UserEditorTool } from '../../tools/user_editor_tool';
-import { UIAdapter } from '../../cli/ui_adapter';
+import { UserSelectTool } from '../../core/tools/user_select_tool';
+import { UserCheckboxTool } from '../../core/tools/user_checkbox_tool';
+import { UserEditorTool } from '../../core/tools/user_editor_tool';
+import { UIAdapter } from '../../apps/cli/components/ui_adapter';
 
 class MockUI implements UIAdapter {
   isInteractive(): boolean { return true; }
@@ -34,7 +34,8 @@ export async function test() {
   console.log('✅ User tools works.');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ User tools test failed:', e.message);
     process.exit(1);

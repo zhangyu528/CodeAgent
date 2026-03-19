@@ -1,12 +1,12 @@
-import { LLMEngine } from '../../llm/engine';
-import { AgentController } from '../../controller/agent_controller';
-import { Planner } from '../../controller/planner';
-import { ReadFileTool } from '../../tools/read_file_tool';
-import { WriteFileTool } from '../../tools/write_file_tool';
-import { RunCommandTool } from '../../tools/run_command_tool';
-import { SecurityLayer } from '../../controller/security_layer';
-import { MemoryManager } from '../../controller/memory_manager';
-import { MockProvider } from '../../llm/mock_provider';
+import { LLMEngine } from '../../core/llm/engine';
+import { AgentController } from '../../core/controller/agent_controller';
+import { Planner } from '../../core/controller/planner';
+import { ReadFileTool } from '../../core/tools/read_file_tool';
+import { WriteFileTool } from '../../core/tools/write_file_tool';
+import { RunCommandTool } from '../../core/tools/run_command_tool';
+import { SecurityLayer } from '../../core/controller/security_layer';
+import { MemoryManager } from '../../core/controller/memory_manager';
+import { MockProvider } from '../../core/llm/mock_provider';
 
 export async function test() {
   console.log('=== Running CodeAgent P1 Planner Test (MockProvider) ===\n');
@@ -36,7 +36,8 @@ export async function test() {
   console.log('\n=== Planner Test Finished Successfully ===');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(err => {
     console.error('\n[Fatal Error]', err.message || err);
     process.exit(1);

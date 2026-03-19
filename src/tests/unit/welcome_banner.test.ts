@@ -1,4 +1,4 @@
-const chalk = require('chalk');
+import chalk from 'chalk';
 
 function assert(cond: any, msg: string) {
   if (!cond) throw new Error(msg);
@@ -59,7 +59,8 @@ export async function test() {
   console.log('✅ Welcome banner content and formatting verified.');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ Welcome banner test failed:', e.message);
     process.exit(1);

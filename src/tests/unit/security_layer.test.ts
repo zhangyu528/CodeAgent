@@ -1,4 +1,4 @@
-import { SecurityLayer } from '../../controller/security_layer';
+import { SecurityLayer } from '../../core/controller/security_layer';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -62,7 +62,8 @@ export async function test() {
   console.log('\n=== SecurityLayer Unit Test Pass ===');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ SecurityLayer Test Failed:', e.message);
     process.exit(1);

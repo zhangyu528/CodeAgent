@@ -1,4 +1,4 @@
-import { renderUnifiedDiff } from '../../cli/diff_renderer';
+import { renderUnifiedDiff } from '../../apps/cli/components/diff_renderer';
 
 function stripAnsi(s: string) {
   return s.replace(/\x1b\[[0-9;]*m/g, '');
@@ -23,7 +23,8 @@ export async function test() {
   console.log('✅ Diff renderer works.');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ Diff renderer test failed:', e.message);
     process.exit(1);

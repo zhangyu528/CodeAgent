@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import chalk = require('chalk');
+import chalk from 'chalk';
 import { select, input, password, confirm } from '@inquirer/prompts';
 import { GLMProvider } from '../../../core/llm/glm_provider';
 import { OpenAIProvider } from '../../../core/llm/openai_provider';

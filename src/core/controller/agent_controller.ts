@@ -6,7 +6,10 @@ import { SecurityLayer } from './security_layer';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { IUIAdapter } from '../interfaces/ui';
-import { renderUnifiedDiff } from '../../apps/cli/components/diff_renderer'; // Updated path
+import { renderUnifiedDiff } from '../../apps/cli/components/diff_renderer';
+import { SessionService } from '../session/service';
+import { SessionSummary } from '../session/types';
+import { getSystemPrompt } from '../prompts/system_prompt';
 
 type DiffConfirmMode = 'always' | 'smart' | 'off';
 
@@ -32,6 +35,8 @@ export class AgentController {
   private security: SecurityLayer;
   private systemPromptContext: { bootSnapshot?: string } | undefined;
   private ui: IUIAdapter;
+  private sessionService: SessionService | undefined;
+  private activeSessionId: string | null = null;
 
   constructor(
     engine: LLMEngine,
@@ -40,7 +45,7 @@ export class AgentController {
     security: SecurityLayer,
     ui: IUIAdapter,
     memory?: MemoryManager,
-    options?: { maxIterations?: number; systemPromptContext?: { bootSnapshot?: string } }
+    options?: { maxIterations?: number; systemPromptContext?: { bootSnapshot?: string }; sessionService?: SessionService | undefined }
   ) {
     this.engine = engine;
     this.defaultProviderName = defaultProviderName;
@@ -49,6 +54,7 @@ export class AgentController {
     this.memory = memory || new MemoryManager();
     this.maxIterations = options?.maxIterations ?? 10;
     this.systemPromptContext = options?.systemPromptContext;
+    this.sessionService = options?.sessionService;
     tools.forEach(tool => this.tools.set(tool.name, tool));
   }
 
@@ -131,6 +137,84 @@ export class AgentController {
     return this.security.getWorkspaceRoot();
   }
 
+  getCurrentSessionId(): string | null {
+    return this.activeSessionId;
+  }
+
+  listRecentSessions(limit: number = 10): SessionSummary[] {
+    if (!this.sessionService) return [];
+    return this.sessionService.listRecentSessions(limit);
+  }
+
+  createNewSession(initialPrompt?: string): { sessionId: string; replay: Message[] } | null {
+    if (!this.sessionService) return null;
+
+    const session = initialPrompt && initialPrompt.trim()
+      ? this.sessionService.createSession({
+        initialPrompt,
+        provider: this.getProviderName(),
+        model: this.getModelName(),
+        cwd: this.getAuthorizedPath(),
+      })
+      : this.sessionService.createEmptySession({
+        provider: this.getProviderName(),
+        model: this.getModelName(),
+        cwd: this.getAuthorizedPath(),
+      });
+
+    this.activeSessionId = session.id;
+    const replay = this.sessionService.getSessionMessagesAsLLM(session.id);
+    this.resetMemoryWithHistory(replay);
+    return { sessionId: session.id, replay };
+  }
+
+  resumeSession(sessionId: string): { sessionId: string; replay: Message[] } {
+    if (!this.sessionService) {
+      throw new Error('Session service is not enabled.');
+    }
+    const session = this.sessionService.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    const replay = this.sessionService.getSessionMessagesAsLLM(sessionId);
+    this.activeSessionId = sessionId;
+    this.resetMemoryWithHistory(replay);
+    return { sessionId, replay };
+  }
+
+  endCurrentSession(): void {
+    if (!this.sessionService || !this.activeSessionId) return;
+    this.sessionService.endSession(this.activeSessionId);
+    this.activeSessionId = null;
+
+  }
+  resetActiveSession(): void {
+    this.activeSessionId = null;
+    this.memory.clearHistory();
+  }
+  markCurrentSessionInterrupted(): void {
+    if (!this.sessionService || !this.activeSessionId) return;
+    this.sessionService.markInterrupted(this.activeSessionId);
+  }
+
+  private resetMemoryWithHistory(history: Message[]): void {
+    this.memory.clearHistory();
+    this.memory.addMessages(history.filter(m => m.role !== 'system'));
+  }
+
+  private ensureSessionForPrompt(prompt: string): { sessionId: string | null; alreadyPersistedUser: boolean } {
+    if (!this.sessionService) return { sessionId: null, alreadyPersistedUser: false };
+
+    if (!this.activeSessionId) {
+      const created = this.createNewSession(prompt);
+      if (!created) return { sessionId: null, alreadyPersistedUser: false };
+      return { sessionId: created.sessionId, alreadyPersistedUser: true };
+    }
+
+    return { sessionId: this.activeSessionId, alreadyPersistedUser: false };
+  }
+
   private async previewDiffIfNeeded(toolName: string, args: any): Promise<{ allowed: boolean; error?: string }> {
     const mode = parseDiffConfirmMode();
     const filePath: string = String(args?.filePath || '').trim();
@@ -168,9 +252,6 @@ export class AgentController {
     if (oldText === newText) return { allowed: true };
 
     const diffText = renderUnifiedDiff(oldText, newText, filePath, 3);
-    
-    // We don't have a direct showDiff in IUIAdapter anymore, we'll use print or a specialized method if needed.
-    // For now, let's assume UI can handle diff rendering in its print or we add it to IUIAdapter if it's core.
     this.ui.print(diffText);
 
     const shouldConfirm = mode === 'always' || (mode === 'smart' && (fileExists || newText.length > 500));
@@ -183,15 +264,21 @@ export class AgentController {
   }
 
   async run(task: string, initialMessages?: Message[]): Promise<{ content: string; messages: Message[] }> {
-    const { getSystemPrompt } = require('../prompts/system_prompt');
     const systemPromptMessage = { role: 'system' as const, content: getSystemPrompt(this.systemPromptContext) };
 
     this.memory.setSystemPrompt(systemPromptMessage);
     if (initialMessages && initialMessages.length > 0) {
       this.memory.addMessages(initialMessages.filter(m => m.role !== 'system'));
     }
+
+    const sessionInfo = this.ensureSessionForPrompt(task);
     if (task) {
-      this.memory.addMessage({ role: 'user', content: task });
+      if (!sessionInfo.alreadyPersistedUser) {
+        this.memory.addMessage({ role: 'user', content: task });
+        if (sessionInfo.sessionId && this.sessionService) {
+          this.sessionService.appendUserMessage(sessionInfo.sessionId, task);
+        }
+      }
     }
 
     let iteration = 0;
@@ -234,7 +321,6 @@ export class AgentController {
                 result = `Error: Security Block. Directory is outside of workspace: ${args.directoryPath}`;
                 isAllowed = false;
               } else if (toolName === 'web_search' || toolName === 'browse_page' || toolName === 'run_command') {
-                // Simplified security check for logic flow
                 let check: any;
                 if (toolName === 'web_search') check = this.security.checkWebText(String(args.query || ''));
                 else if (toolName === 'browse_page') check = this.security.checkUrl(String(args.url || ''));
@@ -269,9 +355,15 @@ export class AgentController {
 
             this.ui.onToolEnd(toolName, result);
             this.memory.addMessage({ role: 'tool', content: result, toolCallId: toolCall.id });
+            if (sessionInfo.sessionId && this.sessionService) {
+              this.sessionService.appendToolMessage(sessionInfo.sessionId, toolName, result, args);
+            }
           }
         } else {
           this.ui.onStatusUpdate({ type: 'final_answer', content: message.content });
+          if (sessionInfo.sessionId && this.sessionService) {
+            this.sessionService.appendAssistantMessage(sessionInfo.sessionId, message.content || '');
+          }
           return { content: message.content, messages: this.memory.getMessages() };
         }
       } catch (error: any) {
@@ -282,12 +374,23 @@ export class AgentController {
     throw new Error(`Max iterations (${this.maxIterations}) reached.`);
   }
 
-  async askStream(prompt: string, opts?: { signal?: AbortSignal }): Promise<void> {
-    const { getSystemPrompt } = require('../prompts/system_prompt');
+  async askStream(prompt: string, opts?: { signal?: AbortSignal; sessionId?: string }): Promise<void> {
     const systemPromptMessage = { role: 'system' as const, content: getSystemPrompt(this.systemPromptContext) };
 
     this.memory.setSystemPrompt(systemPromptMessage);
-    if (prompt) this.memory.addMessage({ role: 'user', content: prompt });
+
+    if (opts?.sessionId && this.sessionService) {
+      this.resumeSession(opts.sessionId);
+    }
+
+    const sessionInfo = this.ensureSessionForPrompt(prompt);
+
+    if (!sessionInfo.alreadyPersistedUser && prompt) {
+      this.memory.addMessage({ role: 'user', content: prompt });
+      if (sessionInfo.sessionId && this.sessionService) {
+        this.sessionService.appendUserMessage(sessionInfo.sessionId, prompt);
+      }
+    }
 
     try {
       const messages = this.memory.getMessages();
@@ -300,6 +403,9 @@ export class AgentController {
       }
 
       this.memory.addMessage({ role: 'assistant', content: fullResponse });
+      if (sessionInfo.sessionId && this.sessionService) {
+        this.sessionService.appendAssistantMessage(sessionInfo.sessionId, fullResponse);
+      }
       this.ui.onStatusUpdate({ type: 'final_answer', content: fullResponse });
     } catch (error: any) {
       this.ui.error(error.message || String(error));

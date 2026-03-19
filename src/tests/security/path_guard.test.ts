@@ -1,8 +1,8 @@
-import { SecurityLayer } from '../../controller/security_layer';
-import { AgentController } from '../../controller/agent_controller';
-import { LLMEngine } from '../../llm/engine';
-import { ReadFileTool } from '../../tools/read_file_tool';
-import { MockProvider } from '../../llm/mock_provider';
+import { SecurityLayer } from '../../core/controller/security_layer';
+import { AgentController } from '../../core/controller/agent_controller';
+import { LLMEngine } from '../../core/llm/engine';
+import { ReadFileTool } from '../../core/tools/read_file_tool';
+import { MockProvider } from '../../core/llm/mock_provider';
 
 async function testPathGuard() {
   console.log('=== Running Security Test: Path Guard (E2E, MockProvider) ===');

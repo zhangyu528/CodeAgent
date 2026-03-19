@@ -12,6 +12,7 @@ import { test as testSlashCommands } from './slash_commands.test';
 import { test as testSetupWizard } from './setup_wizard.test';
 import { test as testWelcomeBanner } from './welcome_banner.test';
 import { test as testKeybindings } from './keybindings.test';
+import { test as testSessionService } from './session_service.test';
 
 async function runAllUnitTests() {
   console.log('🚀 Starting All Unit Tests...\n');
@@ -32,6 +33,7 @@ async function runAllUnitTests() {
     await testSetupWizard();
     await testWelcomeBanner();
     await testKeybindings();
+    await testSessionService();
 
     const duration = ((Date.now() - start) / 1000).toFixed(2);
     console.log(`\n✨ All Unit Tests Passed! (Duration: ${duration}s)`);

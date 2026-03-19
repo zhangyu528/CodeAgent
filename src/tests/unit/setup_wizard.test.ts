@@ -1,4 +1,4 @@
-import { generateEnvContent } from '../../cli/setup_wizard';
+import { generateEnvContent } from '../../apps/cli/components/setup_wizard';
 
 function assert(cond: any, msg: string) {
   if (!cond) throw new Error(msg);
@@ -32,7 +32,8 @@ export async function test() {
   console.log('✅ generateEnvContent correctly generates .env content.');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ setup_wizard test failed:', e.message);
     process.exit(1);

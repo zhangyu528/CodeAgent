@@ -1,5 +1,5 @@
-import { MemoryManager } from '../../controller/memory_manager';
-import { Message } from '../../llm/provider';
+import { MemoryManager } from '../../core/controller/memory_manager';
+import { Message } from '../../core/llm/provider';
 
 export async function test() {
   console.log('=== Running Unit Test: MemoryManager ===');
@@ -65,7 +65,8 @@ export async function test() {
   console.log('\n=== MemoryManager Unit Test Pass ===');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ MemoryManager Test Failed:', e.message);
     process.exit(1);

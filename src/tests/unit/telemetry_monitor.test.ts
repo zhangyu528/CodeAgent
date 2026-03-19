@@ -28,7 +28,8 @@ export async function test() {
   console.log('✅ TelemetryMonitor aggregates token usage by provider.');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ TelemetryMonitor Test Failed:', e.message);
     process.exit(1);

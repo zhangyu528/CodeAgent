@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 export type SlashHandlerResult = { handled: boolean; error?: string };
 
 export type SlashCommandDef = {
@@ -21,12 +22,52 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       },
     },
     {
+      name: '/new',
+      usage: '/new',
+      description: '保存当前会话并返回欢迎页（欢迎页输入内容回车可新建）',
+      category: 'Session',
+      handler: async (ctx) => {
+        if (ctx.getPageState?.() === 'chat') {
+          if (ctx.isStreaming?.()) {
+            ctx.abortStreaming?.();
+          }
+          ctx.controller.endCurrentSession?.();
+          ctx.returnToWelcome?.();
+          return;
+        }
+        ctx.info('已在欢迎页，输入内容后回车即可新建会话。');
+      },
+    },
+    {
+      name: '/history',
+      usage: '/history',
+      description: '查看最近会话列表',
+      category: 'Session',
+      handler: async (ctx) => {
+        const rows = ctx.controller.listRecentSessions(10);
+        if (!rows.length) {
+          ctx.info('暂无历史会话。');
+          return;
+        }
+        const lines = rows.map((s: any, idx: number) => `${idx + 1}. ${s.title} [${s.status}] ${s.provider}/${s.model} ${s.updatedAt}`);
+        ctx.print(lines.join('\n'));
+      },
+    },
+    {
+      name: '/exit',
+      usage: '/exit',
+      description: '结束当前会话并退出',
+      category: 'Session',
+      handler: async (ctx) => {
+        await ctx.requestExit?.();
+      },
+    },
+    {
       name: '/model',
       usage: '/model',
       description: '交互式切换当前 Provider 的模型',
       category: 'Model',
       handler: async (ctx) => {
-        const chalk = require('chalk');
         const models = await ctx.controller.listModels();
         if (models.length === 0) {
           ctx.info(chalk.yellow('当前 Provider 不支持在线列出模型，或获取失败。'));
@@ -53,7 +94,6 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       description: '交互式切换 AI 服务商',
       category: 'Model',
       handler: async (ctx) => {
-        const chalk = require('chalk');
         const providers = ctx.engine.listProviders();
         const current = ctx.controller.getProviderName();
 
@@ -97,7 +137,6 @@ export function getBestMatch(line: string, commands: SlashCommandDef[], selected
 }
 
 function renderOutputSidebar(ctx: any, _title: string, lines: string[]): void {
-  const chalk = require('chalk');
   ctx.print('');
   for (const line of lines) {
     ctx.print(`  ${chalk.cyan('┃')} ${line}`);
@@ -141,7 +180,6 @@ export async function dispatchSlash(
 }
 
 export function buildHelpLines(ctx: any): string[] {
-  const chalk = require('chalk');
   const cmds: SlashCommandDef[] = Array.isArray(ctx.commands) ? ctx.commands : [];
 
   const results: string[] = [];

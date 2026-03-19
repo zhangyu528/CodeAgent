@@ -14,7 +14,7 @@
 │          InputManager (Blessed TUI)            │
 │  ├── Welcome Mode                              │
 │  ├── Chat Mode                                 │
-│  ├── Slash Popup                               │
+│  ├── Smart Slash Hint (SlashCommandPopup)      │
 │  ├── Select Modal (/model,/provider)           │
 │  └── BlessedUIAdapter (IUIAdapter impl)        │
 └────────────────────────────────────────────────┘
@@ -40,6 +40,7 @@
 - [x] 输入区域为 Slate 极简风：暗背景、低饱和边框、更窄宽度（welcome 64%，chat 72%）。
 - [x] 输入框同组件内显示模型行：`Model: provider/model`，并在切换后即时同步。
 - [x] 输入框支持 placeholder：空输入显示、输入后隐藏、清空后回显。
+- [x] **Smart Slash Hint**: 输入 `/` 自动弹出命令建议列表，支持 `↑/↓` 选择，`Enter/Tab` 补全。
 - [x] Slash 执行上下文统一走 Blessed `ui`，不再直写 stdout。
 - [x] Controller 会话期 UIAdapter 固定，不再在请求中 `setUIAdapter` 切换。
 
@@ -58,6 +59,7 @@
 
 - `src/apps/cli/index.ts`
 - `src/apps/cli/components/input_manager.ts`
+- `src/apps/cli/components/slash_popup.ts`
 - `src/apps/cli/components/slash_commands.ts`
 - (removed) `src/apps/cli/components/repl.ts`
 - (removed) `src/apps/cli/components/blessed_welcome.ts`

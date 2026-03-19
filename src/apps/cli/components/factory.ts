@@ -8,8 +8,9 @@ import { ContextInformer } from '../../../core/controller/context_informer';
 import { logger } from '../../../utils/logger';
 import { runInitWizard } from './setup_wizard';
 import { IUIAdapter } from '../../../core/interfaces/ui';
+import { SessionService } from '../../../core/session/service';
+import { SqliteSessionRepository } from '../../../core/session/sqlite_session_repository';
 
-// Tools
 import { ReadFileTool } from '../../../core/tools/read_file_tool';
 import { WriteFileTool } from '../../../core/tools/write_file_tool';
 import { RunCommandTool } from '../../../core/tools/run_command_tool';
@@ -31,12 +32,21 @@ function formatProviders(list: string[]) {
   return list.length > 0 ? list.join(', ') : '(none)';
 }
 
+function createSessionServiceOrNull(): SessionService | undefined {
+  try {
+    const repo = new SqliteSessionRepository(process.env.CODEAGENT_SESSION_DB?.trim() || undefined);
+    return new SessionService(repo);
+  } catch (error: any) {
+    logger.info(`Session storage disabled: ${error?.message || String(error)}`);
+    return undefined;
+  }
+}
+
 export async function createAgent(ui: IUIAdapter) {
   const engine = new LLMEngine();
 
   let reg = registerProvidersFromEnv(engine);
-  
-  // 只有当没有任何provider（包括内置免费GLM）时才运行初始化向导
+
   if (reg.registered.length === 0) {
     const success = await runInitWizard();
     if (success) {
@@ -65,7 +75,6 @@ export async function createAgent(ui: IUIAdapter) {
     defaultProvider = providers.length === 1 ? providers[0]! : (engine.hasProvider('glm') ? 'glm' : providers[0]!);
   }
 
-  // HITL Approval Handler through UIAdapter
   const approvalHandler = async (description: string) => {
     logger.stopSpinner();
     return ui.confirm(description);
@@ -92,7 +101,6 @@ export async function createAgent(ui: IUIAdapter) {
     new UserEditorTool(ui as any),
   ];
 
-  // F6: Workspace Trust Check
   const isTrusted = await security.isWorkspaceTrusted();
   if (!isTrusted) {
     const root = process.cwd();
@@ -110,9 +118,11 @@ export async function createAgent(ui: IUIAdapter) {
   const memory = new MemoryManager(4000);
   const contextInformer = new ContextInformer();
   const bootSnapshot = await contextInformer.buildBootSnapshot(process.cwd());
+  const sessionService = createSessionServiceOrNull();
 
   const controller = new AgentController(engine, tools, defaultProvider, security, ui, memory, {
-    systemPromptContext: { bootSnapshot }
+    systemPromptContext: { bootSnapshot },
+    ...(sessionService ? { sessionService } : {}),
   });
 
   return { controller, engine, ui };

@@ -1,6 +1,6 @@
-import { WebSearchTool } from '../../tools/web_search_tool';
-import { BrowsePageTool } from '../../tools/browse_page_tool';
-import { SecurityLayer } from '../../controller/security_layer';
+import { WebSearchTool } from '../../core/tools/web_search_tool';
+import { BrowsePageTool } from '../../core/tools/browse_page_tool';
+import { SecurityLayer } from '../../core/controller/security_layer';
 
 function assert(cond: any, msg: string) {
   if (!cond) throw new Error(msg);
@@ -75,7 +75,8 @@ export async function test() {
   }
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ Web Tools Integration Test Failed:', e.message);
     process.exit(1);

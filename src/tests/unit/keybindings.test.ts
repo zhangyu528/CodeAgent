@@ -1,4 +1,4 @@
-import { attachKeybindings } from '../../cli/keybindings';
+import { attachKeybindings } from '../../apps/cli/components/keybindings';
 import { EventEmitter } from 'events';
 
 function assert(cond: any, msg: string) {
@@ -74,7 +74,8 @@ export async function test() {
   console.log('✅ Keybindings optimized behaviors verified.');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ Keybindings test failed:', e.message);
     process.exit(1);

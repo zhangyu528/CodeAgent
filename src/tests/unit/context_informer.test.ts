@@ -1,4 +1,4 @@
-import { ContextInformer } from '../../controller/context_informer';
+import { ContextInformer } from '../../core/controller/context_informer';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -70,7 +70,8 @@ export async function test() {
   }
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ ContextInformer Test Failed:', e.message);
     process.exit(1);

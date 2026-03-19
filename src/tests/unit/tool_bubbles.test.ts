@@ -1,4 +1,4 @@
-import { ToolBubbles } from '../../cli/tool_bubbles';
+import { ToolBubbles } from '../../apps/cli/components/tool_bubbles';
 
 export async function test() {
   console.log('=== Running Unit Test: Tool Bubbles ===');
@@ -23,7 +23,8 @@ export async function test() {
   console.log('✅ Tool bubbles works.');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ Tool bubbles test failed:', e.message);
     process.exit(1);

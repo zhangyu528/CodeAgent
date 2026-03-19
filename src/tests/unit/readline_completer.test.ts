@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { buildCompleter } from '../../cli/readline_completer';
+import { buildCompleter } from '../../apps/cli/components/readline_completer';
 
 export async function test() {
   console.log('=== Running Unit Test: Readline Completer ===');
@@ -39,7 +39,8 @@ export async function test() {
   console.log('✅ Readline completer works.');
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ Readline completer test failed:', e.message);
     process.exit(1);

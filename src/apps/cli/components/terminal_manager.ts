@@ -1,12 +1,15 @@
 import * as readline from 'readline';
 import * as path from 'path';
-import chalk = require('chalk');
+import { createRequire } from 'module';
+import chalk from 'chalk';
 import { HUD } from './hud';
 import { ToolBubbles } from './tool_bubbles';
 import { StableFooterRenderer } from './stable_footer_renderer';
 import { SlashHintManager } from './slash_hint_manager';
 import { TelemetryMonitor } from '../../../utils/logger';
 import { AgentController } from '../../../core/controller/agent_controller';
+
+const require = createRequire(import.meta.url);
 
 function getCliVersion(): string {
   try {

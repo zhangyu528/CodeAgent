@@ -1,15 +1,15 @@
-import { LLMEngine } from '../../llm/engine';
-import { AgentController } from '../../controller/agent_controller';
-import { Planner } from '../../controller/planner';
-import { ReadFileTool } from '../../tools/read_file_tool';
-import { WriteFileTool } from '../../tools/write_file_tool';
-import { RunCommandTool } from '../../tools/run_command_tool';
-import { ListDirectoryTool } from '../../tools/list_directory_tool';
-import { FileSearchTool } from '../../tools/file_search_tool';
-import { ReplaceContentTool } from '../../tools/replace_content_tool';
-import { SecurityLayer } from '../../controller/security_layer';
-import { MemoryManager } from '../../controller/memory_manager';
-import { MockProvider } from '../../llm/mock_provider';
+import { LLMEngine } from '../../core/llm/engine';
+import { AgentController } from '../../core/controller/agent_controller';
+import { Planner } from '../../core/controller/planner';
+import { ReadFileTool } from '../../core/tools/read_file_tool';
+import { WriteFileTool } from '../../core/tools/write_file_tool';
+import { RunCommandTool } from '../../core/tools/run_command_tool';
+import { ListDirectoryTool } from '../../core/tools/list_directory_tool';
+import { FileSearchTool } from '../../core/tools/file_search_tool';
+import { ReplaceContentTool } from '../../core/tools/replace_content_tool';
+import { SecurityLayer } from '../../core/controller/security_layer';
+import { MemoryManager } from '../../core/controller/memory_manager';
+import { MockProvider } from '../../core/llm/mock_provider';
 
 async function runComprehensiveTests() {
   console.log('╔══════════════════════════════════════╗');

@@ -1,5 +1,5 @@
-import { LLMEngine } from '../../llm/engine';
-import { registerProvidersFromEnv } from '../../llm/register_providers';
+import { LLMEngine } from '../../core/llm/engine';
+import { registerProvidersFromEnv } from '../../core/llm/register_providers';
 
 function assert(cond: any, msg: string) {
   if (!cond) throw new Error(msg);
@@ -52,7 +52,8 @@ export async function test() {
   }
 }
 
-if (require.main === module) {
+const isMain = Boolean(process.argv[1]) && import.meta.url.endsWith(process.argv[1]!.replace(/\\\\/g, '/'));
+if (isMain) {
   test().catch(e => {
     console.error('❌ registerProvidersFromEnv Test Failed:', e.message);
     process.exit(1);
