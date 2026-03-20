@@ -1,31 +1,28 @@
 **Title**
-调整 CLI 欢迎横幅与输入区：极简暗色、版本号与执行路径
+调整 CLI 欢迎横幅：Ink 驱动的居中落地页与状态卡片
 
 **Summary**
-- 欢迎区保持居中布局（Blessed），但内容收敛为 Logo + 版本号 + 执行/授权路径。
-- 输入区采用 Slate 极简风：暗色背景、低饱和边框，视觉与主内容有明确区隔。
-- 输入区同一组件内包含两行：输入行 + 模型行（`Model: provider/model`）。
-- 新增输入 placeholder，空输入可见，输入后隐藏，清空后回显。
+- 欢迎页采用现代“落地页”设计，核心内容在屏幕垂直水平居中。
+- 引入青色 (Cyan) 高亮 ASCII Logo 增强品牌感。
+- 核心状态信息（版本、Provider、Workspace）通过圆角边框卡片集中展示。
+- **输入框居中**: Welcome 模式下，输入框随欢迎内容一起居中，形成视觉焦点。
 
 **Implementation Changes**
-- `src/apps/cli/components/input_manager.ts`:
-  - `buildLogoContent`：欢迎页展示改为 `版本号` 与 `执行/授权路径`。
-  - 版本号回退值改为 `unknown`（不再显示 `dev`）。
-  - 输入区样式改为 Slate token：
-    - `bg: #11161c`
-    - `border: #3a5566`
-    - 输入主文字 `#d7e0e7`
-    - 模型行弱化为灰色
-  - 输入容器宽度收窄：welcome `64%`，chat `72%`。
-  - 输入行纵向位置下移（避免视觉贴顶）。
-  - 增加 `inputPlaceholder` 与 `refreshInputPlaceholder()`，统一处理显示/隐藏。
+- `src/apps/cli/ink/components/ui_blocks.tsx`:
+  - `WelcomePage`: 使用 Ink Flexbox 实现全自动居中布局。
+  - `Status Card`: 新增带边框的信息容器，区分核心数据与背景引导。
+  - `Action Hints`: 对 `/history`、`/help` 等关键词进行标色，提升引导性。
+  - `InputBar`: 
+    - 欢迎模式下边框色为 `cyan`，聊天模式下为 `gray`。
+    - 底部提示语根据当前模式动态切换。
+- `src/apps/cli/ink/app.tsx`:
+  - 动态渲染逻辑：Welcome 模式下将 `InputArea` 作为 `WelcomePage` 的子组件渲染（实现居中）；Chat 模式下单独渲染在容器底部。
 
 **Test Plan**
-- 启动 CLI：欢迎页显示 `版本号` 与 `执行/授权路径`，不再显示 Provider/快捷键文案。
-- 输入框空态可见 placeholder；开始输入后消失；删除为空后再次出现。
-- 执行 `/model`、`/provider` 后，输入框下方模型行即时更新。
-- 运行 `npm run build` 通过。
+- 启动 CLI：首页 Logo 为青色，所有文字与输入框在屏幕正中对齐。
+- 输入内容并回车：布局自动切换，输入框下沉至屏幕底部，顶部切换为 Chat Header。
+- 验证 Resize：调整窗口大小时，欢迎页内容始终保持在屏幕中央。
 
 **Assumptions**
-- 默认授权路径即当前执行路径（`process.cwd()`），不提供单独授权路径配置入口。
-- 终端支持基本 ANSI 颜色；低能力终端按 Blessed 默认能力降级显示。
+- 终端支持基本 ANSI 颜色以显示青色 Logo。
+- 最小终端行数建议为 12 行，以完整展示居中卡片。

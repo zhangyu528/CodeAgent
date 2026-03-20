@@ -1,65 +1,52 @@
-# F19 使用 Blessed 高级 TUI 渲染 - 实现状态更新
+# F19 使用 Ink (React) 现代 TUI 渲染 - 实现状态更新
 
 ## 1. 目标
 
-将 CLI 收敛为 **Blessed 单栈**：
-- 输入、渲染、交互审批、Slash 命令统一在 Blessed UI 中完成。
-- 移除运行时 UIAdapter 动态切换。
-- 主路径不再依赖 REPL/readline 交互循环。
+将 CLI 从 Blessed 迁移至 **Ink (React-based TUI)** 栈：
+- 利用 React 的状态驱动模型管理复杂的 UI 交互。
+- 统一输入、渲染、交互审批、Slash 命令在 Ink 组件中完成。
+- 提供更现代、更易扩展的 TUI 开发体验。
 
 ## 2. 当前架构（已落地）
 
 ```
 ┌────────────────────────────────────────────────┐
-│          InputManager (Blessed TUI)            │
-│  ├── Welcome Mode                              │
-│  ├── Chat Mode                                 │
-│  ├── Smart Slash Hint (SlashCommandPopup)      │
-│  ├── Select Modal (/model,/provider)           │
-│  └── BlessedUIAdapter (IUIAdapter impl)        │
+│             InkApp (React Context)             │
+│  ├── WelcomePage (Landing Layout)              │
+│  ├── ChatPage (Message Stream)                 │
+│  ├── InputArea (Unified Input Container)       │
+│  │    ├── InputBar (Visual Input Box)          │
+│  │    ├── SlashPalette (Anchored Floating UI)  │
+│  │    └── HistoryPicker (Anchored Floating UI) │
+│  └── InkUIAdapter (IUIAdapter implementation)  │
 └────────────────────────────────────────────────┘
                      │
                      ▼
 ┌────────────────────────────────────────────────┐
-│      AgentController + LLMEngine + Tools       │
+│      AgentController + SessionService          │
 └────────────────────────────────────────────────┘
 ```
 
-## 3. 启动链路（现状）
+## 3. 核心界面行为
 
-`src/apps/cli/index.ts`：
-1. 校验 Blessed 终端支持（`TERM != dumb` 或 `FORCE_BLESSED=1`）。
-2. 创建 `InputManager`。
-3. 使用 `inputManager.getBlessedUIAdapter()` 创建 Agent。
-4. 将 runtime 通过 `attachRuntime(...)` 绑定回 `InputManager`。
-5. 启动 `inputManager.start()`。
+- [x] **动态布局**: Welcome 模式下 Logo、信息卡片和输入框整体居中；Chat 模式下输入框固定在底部。
+- [x] **跟随式弹出层**: `SlashPalette` 和 `HistoryPicker` 使用绝对定位锚点，在 Welcome 模式显示在输入框下方，Chat 模式显示在输入框上方。
+- [x] **智能提示强化**: 列表包含命令分类 (Category)、用法 (Usage)，并支持实时字符匹配高亮。
+- [x] **交互回退**: 按下 `Esc` 可隐藏提示列表，继续打字自动恢复显示。
+- [x] **响应式设计**: 自动处理终端 Resize 事件，自适应布局宽度。
 
-## 4. 当前界面行为
+## 4. 欢迎页设计
 
-- [x] `/model`、`/provider` 使用居中弹框选择（`↑/↓`、`Enter`、`Esc`）。
-- [x] 输入区域为 Slate 极简风：暗背景、低饱和边框、更窄宽度（welcome 64%，chat 72%）。
-- [x] 输入框同组件内显示模型行：`Model: provider/model`，并在切换后即时同步。
-- [x] 输入框支持 placeholder：空输入显示、输入后隐藏、清空后回显。
-- [x] **Smart Slash Hint**: 输入 `/` 自动弹出命令建议列表，支持 `↑/↓` 选择，`Enter/Tab` 补全。
-- [x] Slash 执行上下文统一走 Blessed `ui`，不再直写 stdout。
-- [x] Controller 会话期 UIAdapter 固定，不再在请求中 `setUIAdapter` 切换。
+- **视觉**: 青色 (Cyan) 高亮 ASCII Logo。
+- **信息卡片**: 使用边框封装版本号、Provider 和 Workspace 路径。
+- **居中输入**: 输入框作为 `WelcomePage` 的子组件，随内容整体垂直水平居中。
 
-## 5. 欢迎页信息（当前）
+## 5. 相关文件
 
-- 显示：ASCII Logo、`版本号: <version>`、`执行/授权路径: <cwd>`。
-- 不再显示：Provider 列表、快捷键说明。
-- 版本号读取失败时回退为 `unknown`。
-
-## 6. 兼容策略
-
-- Blessed 不可用时直接退出并提示，不隐含 REPL fallback。
-- `repl.ts` 与 `blessed_welcome.ts` 已从主工程移除，不再参与构建与运行。
-
-## 7. 相关文件
-
-- `src/apps/cli/index.ts`
-- `src/apps/cli/components/input_manager.ts`
-- `src/apps/cli/components/slash_popup.ts`
-- `src/apps/cli/components/slash_commands.ts`
-- (removed) `src/apps/cli/components/repl.ts`
-- (removed) `src/apps/cli/components/blessed_welcome.ts`
+- `src/apps/cli/index.ts` (Entry point)
+- `src/apps/cli/ink/app.tsx` (Main UI Logic)
+- `src/apps/cli/ink/components/ui_blocks.tsx` (UI Components)
+- `src/apps/cli/ink/ink_ui_adapter.ts` (Bridge)
+- `src/core/session/service.ts` (Session persistence)
+- (removed) `src/apps/cli/components/input_manager.ts` (Old Blessed impl)
+- (removed) `src/apps/cli/components/slash_popup.ts` (Old Blessed impl)

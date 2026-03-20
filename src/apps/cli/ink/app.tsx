@@ -10,7 +10,7 @@ import { SlashCommandDef, dispatchSlash, getBestMatch, parseSlash } from '../com
 import { InkUIAdapter } from './ink_ui_adapter';
 import { SessionCoordinator } from './session_coordinator';
 import { PageState, RecentSessionItem } from './types';
-import { ChatHeader, ChatPage, HistoryPicker, InputBar, PromptBox, SlashPalette, WelcomePage } from './components/ui_blocks';
+import { ChatHeader, ChatPage, HistoryPicker, InputArea, InputBar, PromptBox, SlashPalette, WelcomePage } from './components/ui_blocks';
 
 type ChatLine = { id: string; text: string };
 
@@ -77,6 +77,7 @@ export function InkApp(props: InkAppProps) {
   const [historySelected, setHistorySelected] = useState(0);
 
   const [slashSelected, setSlashSelected] = useState(0);
+  const [slashDismissed, setSlashDismissed] = useState(false);
   const [promptState, setPromptState] = useState<PromptState>({ kind: 'none' });
   const [termSize, setTermSize] = useState({
     rows: process.stdout.rows || 40,
@@ -85,13 +86,18 @@ export function InkApp(props: InkAppProps) {
 
   const cmdChoices = useMemo(() => {
     const v = inputValue.trim();
-    if (!v.startsWith('/') || v.includes(' ')) return [];
+    if (slashDismissed || !v.startsWith('/') || v.includes(' ')) return [];
     const parsed = parseSlash(v);
     const prefix = parsed?.name || '/';
     return props.commands
       .filter((c) => c.name.startsWith(prefix))
-      .map((c) => ({ name: c.name, description: c.description }));
-  }, [inputValue, props.commands]);
+      .map((c) => ({ 
+        name: c.name, 
+        description: c.description,
+        category: c.category,
+        usage: c.usage
+      }));
+  }, [inputValue, props.commands, slashDismissed]);
 
   const slashVisible = cmdChoices.length > 0;
 
@@ -449,7 +455,16 @@ export function InkApp(props: InkAppProps) {
     }
 
     if (key.escape) {
-      setHistoryOpen(false);
+      if (historyOpen) {
+        setHistoryOpen(false);
+        return;
+      } 
+      
+      if (slashVisible) {
+        setSlashDismissed(true);
+        return;
+      }
+
       setSlashSelected(0);
       return;
     }
@@ -472,12 +487,20 @@ export function InkApp(props: InkAppProps) {
     }
 
     if (key.backspace || key.delete) {
-      setInputValue((prev) => prev.slice(0, -1));
+      setInputValue((prev) => {
+        const next = prev.slice(0, -1);
+        setSlashDismissed(false);
+        return next;
+      });
       return;
     }
 
     if (input) {
-      setInputValue((prev) => `${prev}${input}`);
+      setInputValue((prev) => {
+        const next = `${prev}${input}`;
+        setSlashDismissed(false);
+        return next;
+      });
     }
   });
 
@@ -486,20 +509,36 @@ export function InkApp(props: InkAppProps) {
   const chatHeaderRows = pageState === 'chat' ? 2 : 0;
   const viewportRows = Math.max(12, termSize.rows - inputReservedRows - chatHeaderRows);
 
+  const sharedInputProps = {
+    value: inputValue,
+    page: pageState,
+    slashVisible: slashVisible && !historyOpen,
+    slashItems: cmdChoices,
+    slashSelected: slashSelected,
+    historyVisible: historyOpen,
+    historyItems: recentSessions,
+    historySelected: historySelected,
+  };
+
   return (
     <Box flexDirection="column" minHeight={termSize.rows}>
       {pageState === 'chat' ? <ChatHeader title={currentSessionTitle} shortSessionId={shortSessionId} /> : null}
 
       <Box flexDirection="column" minHeight={viewportRows} height={viewportRows}>
         {pageState === 'welcome' ? (
-          <WelcomePage version={getCliVersion()} cwd={process.cwd()} logs={welcomeLogs} rows={viewportRows} cols={termSize.cols} />
+          <WelcomePage 
+            version={getCliVersion()} 
+            cwd={process.cwd()} 
+            provider={props.controller.getProviderName()}
+            logs={welcomeLogs} 
+            rows={viewportRows} 
+            cols={termSize.cols} 
+          >
+            <InputArea {...sharedInputProps} />
+          </WelcomePage>
         ) : (
           <ChatPage lines={chatLines} />
         )}
-
-        <HistoryPicker visible={historyOpen} items={recentSessions} selectedIndex={historySelected} />
-
-        <SlashPalette visible={slashVisible && !historyOpen} items={cmdChoices} selectedIndex={slashSelected} />
 
         {promptState.kind === 'ask' ? (
           <PromptBox title="Input" body={promptState.message} input={promptState.value} footer="Enter 提交，Esc 取消" />
@@ -527,8 +566,8 @@ export function InkApp(props: InkAppProps) {
         ) : null}
       </Box>
 
-      <InputBar value={inputValue} page={pageState} />
-      {processing ? <Text dimColor>处理中...</Text> : null}
+      {pageState === 'chat' && <InputArea {...sharedInputProps} />}
+      {processing ? <Box paddingX={1}><Text dimColor>处理中...</Text></Box> : null}
     </Box>
   );
 }

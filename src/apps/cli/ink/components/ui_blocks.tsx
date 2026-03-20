@@ -6,9 +6,11 @@ type ChatLine = { id: string; text: string };
 type WelcomeProps = {
   version: string;
   cwd: string;
+  provider?: string;
   logs: string[];
   rows: number;
   cols: number;
+  children?: React.ReactNode;
 };
 
 type ChatHeaderProps = {
@@ -27,8 +29,9 @@ type InputBarProps = {
 
 type SlashPaletteProps = {
   visible: boolean;
-  items: Array<{ name: string; description: string }>;
+  items: Array<{ name: string; description: string; category: string; usage: string }>;
   selectedIndex: number;
+  query: string;
 };
 
 type HistoryPickerProps = {
@@ -56,27 +59,54 @@ export function WelcomePage(props: WelcomeProps) {
   const rows = Math.max(12, props.rows);
   const cols = Math.max(40, props.cols - 2);
 
-  const contentBlock = [
-    ...ASCII_LOGO,
-    '',
-    `version: ${props.version}`,
-    `cwd: ${props.cwd}`,
-    '',
-    '输入消息回车新建会话，或输入 /history 继续历史会话',
-  ];
-
-  const visibleLogs = props.logs.slice(-4);
-  const lines = [
-    ...contentBlock,
-    ...(visibleLogs.length > 0 ? [''] : []),
-    ...visibleLogs,
-  ].map((line) => centerLine(line, cols));
-
   return (
-    <Box flexDirection="column" height={rows} width={cols + 2} justifyContent="center">
-      {lines.map((line, idx) => (
-        <Text key={`w-${idx}`}>{line}</Text>
-      ))}
+    <Box flexDirection="column" height={rows} width={cols + 2} justifyContent="center" alignItems="center">
+      <Box flexDirection="column" alignItems="center" marginBottom={1}>
+        {ASCII_LOGO.map((line, idx) => (
+          <Text key={idx} color="cyan">{line}</Text>
+        ))}
+      </Box>
+
+      <Box borderStyle="round" borderColor="gray" paddingX={2} flexDirection="column" alignItems="center">
+        <Box marginBottom={1}>
+          <Text bold>CodeAgent </Text>
+          <Text dimColor>v{props.version}</Text>
+        </Box>
+        
+        <Box flexDirection="column">
+          <Box>
+            <Text color="gray">Provider: </Text>
+            <Text color="green">{props.provider || 'unknown'}</Text>
+          </Box>
+          <Box>
+            <Text color="gray">Workspace: </Text>
+            <Text dimColor>{props.cwd}</Text>
+          </Box>
+        </Box>
+      </Box>
+
+      <Box marginTop={1} flexDirection="column" alignItems="center">
+        <Text>
+          Type a message to <Text color="cyan" bold>Start Chat</Text>
+        </Text>
+        <Text dimColor>
+          or use <Text color="yellow">/history</Text> to resume a session
+        </Text>
+      </Box>
+
+      {props.children && (
+        <Box width={Math.min(cols - 4, 80)} marginTop={1}>
+          {props.children}
+        </Box>
+      )}
+
+      {props.logs.length > 0 && (
+        <Box marginTop={1} flexDirection="column" alignItems="center">
+          {props.logs.slice(-2).map((log, idx) => (
+            <Text key={idx} dimColor italic>· {log}</Text>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }
@@ -103,20 +133,33 @@ export function ChatPage(props: ChatPageProps) {
 }
 
 export function InputBar(props: InputBarProps) {
-  const hint = props.page === 'welcome'
-    ? 'welcome: 输入文本新建会话，/history 选历史'
-    : 'chat: 输入消息继续对话，/new 回欢迎页';
+  const isWelcome = props.page === 'welcome';
+  const borderColor = isWelcome ? 'cyan' : 'gray';
 
   return (
-    <Box flexDirection="column" borderStyle="single" paddingX={1}>
-      <Text>❯ {props.value}</Text>
-      <Text dimColor>{hint}</Text>
+    <Box flexDirection="column" borderStyle="single" borderColor={borderColor} paddingX={1}>
+      <Box>
+        <Text color="cyan" bold>❯ </Text>
+        <Text>{props.value}</Text>
+      </Box>
+      <Box marginTop={0}>
+        <Text dimColor italic>
+          {isWelcome 
+            ? 'Enter to start new session • /history for recent • /help for commands' 
+            : 'Type message to chat • /new for welcome • /clear to reset'}
+        </Text>
+      </Box>
     </Box>
   );
 }
 
-export function SlashPalette(props: SlashPaletteProps) {
+export function SlashPalette(props: SlashPaletteProps & { isWelcome: boolean }) {
   if (!props.visible || props.items.length === 0) return null;
+
+  const positionProps = props.isWelcome 
+    ? { top: 1 } // Display below in welcome mode
+    : { bottom: 1 }; // Display above in chat mode (at bottom of screen)
+
   return (
     <Box
       {...({
@@ -124,27 +167,58 @@ export function SlashPalette(props: SlashPaletteProps) {
         borderStyle: "round",
         paddingX: 1,
         position: "absolute",
-        bottom: 4,
-        left: 2,
-        borderColor: "cyan"
+        left: 0,
+        width: "100%",
+        borderColor: "cyan",
+        backgroundColor: "#1e1e1e",
+        ...positionProps
       } as any)}
     >
-      <Text bold color="cyan">Command Suggestions</Text>
-      {props.items.slice(0, 10).map((item, idx) => (
-        <Box key={item.name}>
-          <Text {...(idx === props.selectedIndex ? { color: 'cyan' as const, bold: true } : {})}>
-            {idx === props.selectedIndex ? '› ' : '  '}
-            {item.name.padEnd(12)}
-          </Text>
-          <Text dimColor> {item.description}</Text>
-        </Box>
-      ))}
+      {props.items.slice(0, 8).map((item, idx) => {
+        const isSelected = idx === props.selectedIndex;
+        const matchIndex = item.name.toLowerCase().indexOf(props.query.toLowerCase());
+        const hasMatch = matchIndex !== -1 && props.query.length > 0;
+
+        return (
+          <Box key={item.name} flexDirection="column">
+            <Box>
+              <Text {...(isSelected ? { color: 'cyan', bold: true } : {})}>
+                {isSelected ? '● ' : '  '}
+              </Text>
+              
+              {/* Highlight matching part with higher contrast */}
+              {hasMatch ? (
+                <>
+                  <Text {...(isSelected ? { color: 'white' } : {})}>{item.name.slice(0, matchIndex)}</Text>
+                  <Text color="cyan" bold underline={isSelected}>{item.name.slice(matchIndex, matchIndex + props.query.length)}</Text>
+                  <Text {...(isSelected ? { color: 'white' } : {})}>{item.name.slice(matchIndex + props.query.length)}</Text>
+                </>
+              ) : (
+                <Text {...(isSelected ? { color: 'white' } : {})}>{item.name}</Text>
+              )}
+
+              <Text dimColor>  {item.description}</Text>
+              <Text color="gray" dimColor> [{item.category}]</Text>
+            </Box>
+            {isSelected && (
+              <Box paddingLeft={4}>
+                <Text dimColor italic>Usage: {item.usage}</Text>
+              </Box>
+            )}
+          </Box>
+        );
+      })}
     </Box>
   );
 }
 
-export function HistoryPicker(props: HistoryPickerProps) {
+export function HistoryPicker(props: HistoryPickerProps & { isWelcome: boolean }) {
   if (!props.visible) return null;
+
+  const positionProps = props.isWelcome 
+    ? { top: 1 } 
+    : { bottom: 1 };
+
   return (
     <Box
       {...({
@@ -152,19 +226,77 @@ export function HistoryPicker(props: HistoryPickerProps) {
         borderStyle: "double",
         paddingX: 1,
         position: "absolute",
-        bottom: 4,
-        left: 2,
-        borderColor: "green"
+        left: 0,
+        width: "100%",
+        borderColor: "green",
+        backgroundColor: "#1e1e1e",
+        ...positionProps
       } as any)}
     >
-      <Text bold color="green">Select History Session (↑/↓ + Enter)</Text>
-      {props.items.length === 0 ? <Text dimColor>No history sessions found</Text> : null}
+      {props.items.length === 0 ? <Box paddingX={3}><Text dimColor>No history sessions found</Text></Box> : null}
       {props.items.slice(0, 10).map((s, idx) => (
         <Text key={s.id} {...(idx === props.selectedIndex ? { color: 'green' as const, bold: true } : {})}>
-          {idx === props.selectedIndex ? '› ' : '  '}
+          {idx === props.selectedIndex ? '● ' : '  '}
           {s.title} ({s.id.slice(0, 8)})
         </Text>
       ))}
+    </Box>
+  );
+}
+
+export function InputArea(props: {
+  value: string;
+  page: 'welcome' | 'chat';
+  slashVisible: boolean;
+  slashItems: Array<{ name: string; description: string; category: string; usage: string }>;
+  slashSelected: number;
+  historyVisible: boolean;
+  historyItems: Array<{ id: string; title: string }>;
+  historySelected: number;
+}) {
+  const isWelcome = props.page === 'welcome';
+
+  return (
+    <Box flexDirection="column" width="100%">
+      {/* Above anchor for chat mode */}
+      {!isWelcome && (
+        <Box height={0} position="relative" width="100%">
+          <SlashPalette 
+            visible={props.slashVisible} 
+            items={props.slashItems} 
+            selectedIndex={props.slashSelected} 
+            query={props.value}
+            isWelcome={false}
+          />
+          <HistoryPicker 
+            visible={props.historyVisible} 
+            items={props.historyItems} 
+            selectedIndex={props.historySelected} 
+            isWelcome={false}
+          />
+        </Box>
+      )}
+
+      <InputBar value={props.value} page={props.page} />
+
+      {/* Below anchor for welcome mode */}
+      {isWelcome && (
+        <Box height={0} position="relative" width="100%">
+          <SlashPalette 
+            visible={props.slashVisible} 
+            items={props.slashItems} 
+            selectedIndex={props.slashSelected} 
+            query={props.value}
+            isWelcome={true}
+          />
+          <HistoryPicker 
+            visible={props.historyVisible} 
+            items={props.historyItems} 
+            selectedIndex={props.historySelected} 
+            isWelcome={true}
+          />
+        </Box>
+      )}
     </Box>
   );
 }
