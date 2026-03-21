@@ -10,7 +10,7 @@ import { SlashCommandDef, dispatchSlash, getBestMatch, parseSlash } from '../com
 import { InkUIAdapter } from './ink_ui_adapter';
 import { SessionCoordinator } from './session_coordinator';
 import { PageState, RecentSessionItem } from './types';
-import { ChatHeader, ChatPage, HistoryPicker, InputArea, InputBar, PromptBox, SlashPalette, WelcomePage } from './components/ui_blocks';
+import { ChatHeader, ChatPage, InputArea, InputBar, PromptBox, SelectList, SelectManyList, WelcomePage } from './components/ui_blocks';
 
 type ChatLine = { id: string; text: string };
 
@@ -190,9 +190,30 @@ export function InkApp(props: InkAppProps) {
     const selectedHint = selectedItem?.name || null;
     const bestName = getBestMatch(line, props.commands, selectedHint);
 
-    if (pageRef.current === 'welcome' && bestName === '/history') {
+    if (bestName === '/history') {
       reloadRecent();
       setHistoryOpen(true);
+      return;
+    }
+
+    if (bestName === '/resume') {
+      const parsedResume = parseSlash(line);
+      const args = parsedResume?.args ?? [];
+      if (args.length > 0) {
+        appendLine('Usage: /resume');
+        return;
+      }
+
+      const recent = coordinatorRef.current.listRecent(1);
+      if (!recent.length || !recent[0]?.id) {
+        appendLine('暂无历史会话。');
+        return;
+      }
+
+      // Resume 时如果历史浮层打开，先关闭以避免遮挡
+      setHistoryOpen(false);
+      setHistorySelected(0);
+      resumeSession(recent[0].id, recent[0].title);
       return;
     }
 
@@ -253,6 +274,7 @@ export function InkApp(props: InkAppProps) {
 
     try {
       if (line.startsWith('/')) {
+        setInputValue(''); // Clear immediately so slash list disappears during interactive prompts
         await handleSlash(line);
       } else {
         if (pageRef.current === 'welcome') {
@@ -263,7 +285,6 @@ export function InkApp(props: InkAppProps) {
       }
     } finally {
       setProcessing(false);
-      setInputValue('');
       setSlashSelected(0);
     }
   };
@@ -504,11 +525,6 @@ export function InkApp(props: InkAppProps) {
     }
   });
 
-  const shortSessionId = currentSessionId ? currentSessionId.slice(0, 8) : 'new';
-  const inputReservedRows = processing ? 5 : 4;
-  const chatHeaderRows = pageState === 'chat' ? 2 : 0;
-  const viewportRows = Math.max(12, termSize.rows - inputReservedRows - chatHeaderRows);
-
   const sharedInputProps = {
     value: inputValue,
     page: pageState,
@@ -518,13 +534,17 @@ export function InkApp(props: InkAppProps) {
     historyVisible: historyOpen,
     historyItems: recentSessions,
     historySelected: historySelected,
+    prompt: promptState,
   };
 
+  const shortSessionId = currentSessionId ? currentSessionId.slice(0, 8) : 'new';
+  const viewportRows = Math.max(12, termSize.rows - (processing ? 5 : 4) - (pageState === 'chat' ? 2 : 0));
+
   return (
-    <Box flexDirection="column" minHeight={termSize.rows}>
+    <Box flexDirection="column" height={termSize.rows} overflow="hidden">
       {pageState === 'chat' ? <ChatHeader title={currentSessionTitle} shortSessionId={shortSessionId} /> : null}
 
-      <Box flexDirection="column" minHeight={viewportRows} height={viewportRows}>
+      <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">
         {pageState === 'welcome' ? (
           <WelcomePage 
             version={getCliVersion()} 
@@ -539,31 +559,6 @@ export function InkApp(props: InkAppProps) {
         ) : (
           <ChatPage lines={chatLines} />
         )}
-
-        {promptState.kind === 'ask' ? (
-          <PromptBox title="Input" body={promptState.message} input={promptState.value} footer="Enter 提交，Esc 取消" />
-        ) : null}
-        {promptState.kind === 'confirm' ? (
-          <PromptBox title="Confirm" body={promptState.message} footer="Y/Enter 确认，N/Esc 取消" />
-        ) : null}
-        {promptState.kind === 'selectOne' ? (
-          <PromptBox
-            title="Select One"
-            body={`${promptState.message}\n${promptState.choices
-              .map((c, idx) => `${idx === promptState.selected ? '›' : ' '} ${c}`)
-              .join('\n')}`}
-            footer="↑/↓ 选择，Enter 确认"
-          />
-        ) : null}
-        {promptState.kind === 'selectMany' ? (
-          <PromptBox
-            title="Select Many"
-            body={`${promptState.message}\n${promptState.choices
-              .map((c, idx) => `${idx === promptState.selected ? '›' : ' '} [${promptState.picked.has(idx) ? 'x' : ' '}] ${c}`)
-              .join('\n')}`}
-            footer="↑/↓ 移动，Space 勾选，Enter 确认"
-          />
-        ) : null}
       </Box>
 
       {pageState === 'chat' && <InputArea {...sharedInputProps} />}

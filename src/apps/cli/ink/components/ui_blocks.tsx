@@ -42,9 +42,9 @@ type HistoryPickerProps = {
 
 const ASCII_LOGO = [
   '  ___            _        _                    _  ',
-  ' / __|___  __| | ___   /_\\  __ _ ___ _ _  __| |_ ',
-  "| (__/ _ \\/ _` |/ -_) / _ \\/ _` / -_) ' \\/ _`  _|",
-  ' \\___\\___/\\__,_|\\___|/_/ \\_\\__, \\___|_||_\\__,_\\__|',
+  ' / __|___  __| | ___   /_\\\\  __ _ ___ _ _  __| |_ ',
+  "| (__/ _ \\\\/ _` |/ -_) / _ \\\\/ _` / -_) ' \\\\/ _`  _|",
+  ' \\\\___\\\\___/\\\\__,_|\\\\___|/_/ \\\\_\\\\__, \\\\___|_||_\\\\__,_\\\\__|',
   '                           |___/                  ',
 ];
 
@@ -90,7 +90,7 @@ export function WelcomePage(props: WelcomeProps) {
           Type a message to <Text color="cyan" bold>Start Chat</Text>
         </Text>
         <Text dimColor>
-          or use <Text color="yellow">/history</Text> to resume a session
+          or use <Text color="yellow">/resume</Text> to continue last session • <Text color="yellow">/history</Text> to pick
         </Text>
       </Box>
 
@@ -121,9 +121,9 @@ export function ChatHeader(props: ChatHeaderProps) {
 }
 
 export function ChatPage(props: ChatPageProps) {
-  const lines = props.lines.slice(-120);
+  const lines = props.lines.slice(-200);
   return (
-    <Box flexDirection="column" paddingX={1}>
+    <Box flexDirection="column" paddingX={1} flexGrow={1} flexShrink={1} justifyContent="flex-end">
       {lines.length === 0 ? <Text dimColor>暂无消息</Text> : null}
       {lines.map((line) => (
         <Text key={line.id}>{line.text}</Text>
@@ -145,7 +145,7 @@ export function InputBar(props: InputBarProps) {
       <Box marginTop={0}>
         <Text dimColor italic>
           {isWelcome 
-            ? 'Enter to start new session • /history for recent • /help for commands' 
+            ? 'Enter to start new session • /resume for last session • /history to pick • /help for commands' 
             : 'Type message to chat • /new for welcome • /clear to reset'}
         </Text>
       </Box>
@@ -153,29 +153,22 @@ export function InputBar(props: InputBarProps) {
   );
 }
 
-export function SlashPalette(props: SlashPaletteProps & { isWelcome: boolean }) {
+export function SlashPalette(props: SlashPaletteProps) {
   if (!props.visible || props.items.length === 0) return null;
 
-  const positionProps = props.isWelcome 
-    ? { top: 1 } // Display below in welcome mode
-    : { bottom: 1 }; // Display above in chat mode (at bottom of screen)
+  const maxVisible = 10;
+  const total = props.items.length;
+  const windowStart = Math.min(
+    Math.max(0, props.selectedIndex - (maxVisible - 1)),
+    Math.max(0, total - maxVisible),
+  );
+  const windowItems = props.items.slice(windowStart, windowStart + maxVisible);
 
   return (
-    <Box
-      {...({
-        flexDirection: "column",
-        borderStyle: "round",
-        paddingX: 1,
-        position: "absolute",
-        left: 0,
-        width: "100%",
-        borderColor: "cyan",
-        backgroundColor: "#1e1e1e",
-        ...positionProps
-      } as any)}
-    >
-      {props.items.slice(0, 8).map((item, idx) => {
-        const isSelected = idx === props.selectedIndex;
+    <Box flexDirection="column" borderStyle="round" paddingX={1} width="100%" borderColor="cyan">
+      {windowItems.map((item, idx) => {
+        const globalIndex = windowStart + idx;
+        const isSelected = globalIndex === props.selectedIndex;
         const matchIndex = item.name.toLowerCase().indexOf(props.query.toLowerCase());
         const hasMatch = matchIndex !== -1 && props.query.length > 0;
 
@@ -186,7 +179,6 @@ export function SlashPalette(props: SlashPaletteProps & { isWelcome: boolean }) 
                 {isSelected ? '● ' : '  '}
               </Text>
               
-              {/* Highlight matching part with higher contrast */}
               {hasMatch ? (
                 <>
                   <Text {...(isSelected ? { color: 'white' } : {})}>{item.name.slice(0, matchIndex)}</Text>
@@ -212,34 +204,121 @@ export function SlashPalette(props: SlashPaletteProps & { isWelcome: boolean }) 
   );
 }
 
-export function HistoryPicker(props: HistoryPickerProps & { isWelcome: boolean }) {
+export function HistoryPicker(props: HistoryPickerProps) {
   if (!props.visible) return null;
 
-  const positionProps = props.isWelcome 
-    ? { top: 1 } 
-    : { bottom: 1 };
+  const maxVisible = 10;
+  const total = props.items.length;
+  const windowStart = Math.min(
+    Math.max(0, props.selectedIndex - (maxVisible - 1)),
+    Math.max(0, total - maxVisible),
+  );
+  const windowItems = props.items.slice(windowStart, windowStart + maxVisible);
 
   return (
-    <Box
-      {...({
-        flexDirection: "column",
-        borderStyle: "double",
-        paddingX: 1,
-        position: "absolute",
-        left: 0,
-        width: "100%",
-        borderColor: "green",
-        backgroundColor: "#1e1e1e",
-        ...positionProps
-      } as any)}
-    >
+    <Box flexDirection="column" borderStyle="round" paddingX={1} width="100%" borderColor="cyan">
       {props.items.length === 0 ? <Box paddingX={3}><Text dimColor>No history sessions found</Text></Box> : null}
-      {props.items.slice(0, 10).map((s, idx) => (
-        <Text key={s.id} {...(idx === props.selectedIndex ? { color: 'green' as const, bold: true } : {})}>
-          {idx === props.selectedIndex ? '● ' : '  '}
+      {windowItems.map((s, idx) => {
+        const globalIndex = windowStart + idx;
+        const isSelected = globalIndex === props.selectedIndex;
+        return (
+          <Text
+            key={s.id}
+            {...(isSelected ? { color: 'cyan' as const, bold: true } : {})}
+          >
+          {isSelected ? '● ' : '  '}
           {s.title} ({s.id.slice(0, 8)})
-        </Text>
-      ))}
+          </Text>
+        );
+      })}
+    </Box>
+  );
+}
+
+export function SelectList(props: {
+  title: string;
+  choices: string[];
+  selected: number;
+  footer?: string;
+}) {
+  const maxVisible = 10;
+  const total = props.choices.length;
+  const windowStart = Math.min(
+    Math.max(0, props.selected - (maxVisible - 1)),
+    Math.max(0, total - maxVisible),
+  );
+  const windowItems = props.choices.slice(windowStart, windowStart + maxVisible);
+
+  return (
+    <Box flexDirection="column" borderStyle="round" paddingX={1} width="100%" borderColor="cyan">
+      <Box marginBottom={0}>
+        <Text bold color="cyan">{props.title}</Text>
+      </Box>
+      {windowItems.map((item, idx) => {
+        const globalIndex = windowStart + idx;
+        const isSelected = globalIndex === props.selected;
+        return (
+          <Text
+            key={`${globalIndex}-${item}`}
+            {...(isSelected ? { color: 'cyan', bold: true } : {})}
+          >
+            {isSelected ? '● ' : '  '}{item}
+          </Text>
+        );
+      })}
+      {props.footer && (
+        <Box marginTop={0}>
+          <Text dimColor italic>{props.footer}</Text>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+export function SelectManyList(props: {
+  title: string;
+  choices: string[];
+  selected: number;
+  picked: Set<number>;
+  footer?: string;
+}) {
+  const maxVisible = 10;
+  const total = props.choices.length;
+  const windowStart = Math.min(
+    Math.max(0, props.selected - (maxVisible - 1)),
+    Math.max(0, total - maxVisible),
+  );
+  const windowItems = props.choices.slice(windowStart, windowStart + maxVisible);
+
+  return (
+    <Box flexDirection="column" borderStyle="round" paddingX={1} width="100%" borderColor="cyan">
+      <Box marginBottom={0}>
+        <Text bold color="cyan">{props.title}</Text>
+      </Box>
+      {windowItems.map((item, idx) => {
+        const globalIndex = windowStart + idx;
+        const isSelected = globalIndex === props.selected;
+        const isPicked = props.picked.has(globalIndex);
+        const checkbox = isPicked ? '[✓]' : '[ ]';
+        return (
+          <Box key={`${globalIndex}-${item}`}>
+            <Text {...(isSelected ? { color: 'cyan', bold: true } : {})}>
+              {isSelected ? '● ' : '  '}
+            </Text>
+            <Text {...(isPicked ? { color: 'cyan' as const, bold: true } : {})}>
+              {checkbox}
+            </Text>
+            <Text {...(isSelected ? { color: 'white', bold: true } : {})}>
+              {' '}{item}
+            </Text>
+          </Box>
+        );
+      })}
+      {props.footer && (
+        <Box marginTop={0}>
+          <Text dimColor italic>{props.footer}</Text>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -253,49 +332,90 @@ export function InputArea(props: {
   historyVisible: boolean;
   historyItems: Array<{ id: string; title: string }>;
   historySelected: number;
+  prompt:
+    | { kind: 'none' }
+    | { kind: 'ask'; message: string; value: string }
+    | { kind: 'confirm'; message: string }
+    | { kind: 'selectOne'; message: string; choices: string[]; selected: number }
+    | { kind: 'selectMany'; message: string; choices: string[]; selected: number; picked: Set<number> };
 }) {
   const isWelcome = props.page === 'welcome';
+  const { prompt } = props;
 
   return (
     <Box flexDirection="column" width="100%">
-      {/* Above anchor for chat mode */}
+      {/* Chat mode: popups above InputBar */}
       {!isWelcome && (
-        <Box height={0} position="relative" width="100%">
+        <>
+          {prompt.kind === 'ask' && <PromptBox title="Input" body={prompt.message} input={prompt.value} footer="Enter 提交，Esc 取消" />}
+          {prompt.kind === 'confirm' && <PromptBox title="Confirm" body={prompt.message} footer="Y/Enter 确认，N/Esc 取消" />}
+          {prompt.kind === 'selectOne' && (
+            <SelectList
+              title={prompt.message}
+              choices={prompt.choices}
+              selected={prompt.selected}
+              footer="↑/↓ 选择，Enter 确认"
+            />
+          )}
+          {prompt.kind === 'selectMany' && (
+            <SelectManyList
+              title={prompt.message}
+              choices={prompt.choices}
+              selected={prompt.selected}
+              picked={prompt.picked}
+              footer="↑/↓ 移动，Space 勾选，Enter 确认"
+            />
+          )}
           <SlashPalette 
             visible={props.slashVisible} 
             items={props.slashItems} 
             selectedIndex={props.slashSelected} 
             query={props.value}
-            isWelcome={false}
           />
           <HistoryPicker 
             visible={props.historyVisible} 
             items={props.historyItems} 
             selectedIndex={props.historySelected} 
-            isWelcome={false}
           />
-        </Box>
+        </>
       )}
 
       <InputBar value={props.value} page={props.page} />
 
-      {/* Below anchor for welcome mode */}
+      {/* Welcome mode: popups below InputBar */}
       {isWelcome && (
-        <Box height={0} position="relative" width="100%">
+        <>
           <SlashPalette 
             visible={props.slashVisible} 
             items={props.slashItems} 
             selectedIndex={props.slashSelected} 
             query={props.value}
-            isWelcome={true}
           />
           <HistoryPicker 
             visible={props.historyVisible} 
             items={props.historyItems} 
             selectedIndex={props.historySelected} 
-            isWelcome={true}
           />
-        </Box>
+          {prompt.kind === 'ask' && <PromptBox title="Input" body={prompt.message} input={prompt.value} footer="Enter 提交，Esc 取消" />}
+          {prompt.kind === 'confirm' && <PromptBox title="Confirm" body={prompt.message} footer="Y/Enter 确认，N/Esc 取消" />}
+          {prompt.kind === 'selectOne' && (
+            <SelectList
+              title={prompt.message}
+              choices={prompt.choices}
+              selected={prompt.selected}
+              footer="↑/↓ 选择，Enter 确认"
+            />
+          )}
+          {prompt.kind === 'selectMany' && (
+            <SelectManyList
+              title={prompt.message}
+              choices={prompt.choices}
+              selected={prompt.selected}
+              picked={prompt.picked}
+              footer="↑/↓ 移动，Space 勾选，Enter 确认"
+            />
+          )}
+        </>
       )}
     </Box>
   );
@@ -303,11 +423,16 @@ export function InputArea(props: {
 
 export function PromptBox(props: { title: string; body: string; input?: string; footer?: string }) {
   return (
-    <Box flexDirection="column" borderStyle="single" paddingX={1} marginY={1}>
-      <Text>{props.title}</Text>
+    <Box flexDirection="column" borderStyle="round" paddingX={1} borderColor="cyan">
+      <Text bold color="cyan">{props.title}</Text>
       <Text>{props.body}</Text>
-      {typeof props.input === 'string' ? <Text>❯ {props.input}</Text> : null}
-      {props.footer ? <Text dimColor>{props.footer}</Text> : null}
+      {typeof props.input === 'string' ? (
+        <Box>
+          <Text color="cyan" bold>❯ </Text>
+          <Text>{props.input}</Text>
+        </Box>
+      ) : null}
+      {props.footer ? <Text dimColor italic>{props.footer}</Text> : null}
     </Box>
   );
 }

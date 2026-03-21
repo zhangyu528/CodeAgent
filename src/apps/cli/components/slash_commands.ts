@@ -54,6 +54,17 @@ export function getDefaultSlashCommands(): SlashCommandDef[] {
       },
     },
     {
+      name: '/resume',
+      usage: '/resume',
+      description: '恢复最近一次会话',
+      category: 'Session',
+      handler: async (ctx, args) => {
+        // InkApp 中会拦截并执行恢复逻辑；这里做参数兜底提示。
+        if (args.length > 0) ctx.info('Usage: /resume');
+        else ctx.info('正在恢复最近一次会话...');
+      },
+    },
+    {
       name: '/exit',
       usage: '/exit',
       description: '结束当前会话并退出',
