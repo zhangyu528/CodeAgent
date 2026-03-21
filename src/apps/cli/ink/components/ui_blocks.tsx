@@ -134,10 +134,8 @@ export function ChatPage(props: ChatPageProps) {
 
 export function InputBar(props: InputBarProps) {
   const isWelcome = props.page === 'welcome';
-  const borderColor = isWelcome ? 'cyan' : 'gray';
-
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor={borderColor} paddingX={1}>
+    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
       <Box>
         <Text color="cyan" bold>❯ </Text>
         <Text>{props.value}</Text>
