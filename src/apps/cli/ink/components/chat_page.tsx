@@ -1,0 +1,25 @@
+import React from 'react';
+import { Box, Text } from 'ink';
+import { ChatPageProps, ChatHeaderProps } from './types.js';
+
+export function ChatHeader(props: ChatHeaderProps) {
+  return (
+    <Box flexDirection="column">
+      <Text>{props.title}  (#{props.shortSessionId})</Text>
+      <Text>{'-'.repeat(72)}</Text>
+    </Box>
+  );
+}
+
+export function ChatPage(props: ChatPageProps) {
+  const { isDimmed } = props;
+  const lines = props.lines.slice(-200);
+  return (
+    <Box flexDirection="column" paddingX={1} flexGrow={1} flexShrink={1}>
+      {lines.length === 0 ? <Text dimColor>暂无消息</Text> : null}
+      {lines.map((line) => (
+        <Text key={line.id} dimColor={!!isDimmed}>{line.text}</Text>
+      ))}
+    </Box>
+  );
+}

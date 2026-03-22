@@ -111,4 +111,4 @@ src/
 - `web_search`: Real-time web search (provider-based).
 - `browse_page`: Fetch and extract main page content with summary.
 
-See `docs/功能需求/F5_浏览器增强.md` and related implementation plan for configuration and safety rules.
+See `docs/archive/legacy_functional_requirements/F5_浏览器增强.md` and related implementation plan for configuration and safety rules.

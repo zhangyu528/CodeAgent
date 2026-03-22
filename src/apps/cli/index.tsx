@@ -8,26 +8,24 @@ import { fileURLToPath } from 'url';
 dotenv.config({ quiet: true });
 
 export async function bootstrap() {
+  process.stdout.write('\u001b[?1049h');
   try {
     const agent = await createPiAgent();
-    // In this API, we don't have separate session, agent is the stateful entity.
-
     const { waitUntilExit } = render(
-      <PiInkApp agent={agent} onExit={() => process.exit(0)} />
+      <PiInkApp agent={agent} onExit={() => {}} />
     );
-
     await waitUntilExit();
   } catch (err) {
+    process.stdout.write('\u001b[?1049l');
     console.error('Bootstrap error:', err);
     process.exit(1);
+  } finally {
+    process.stdout.write('\u001b[?1049l');
+    process.exit(0);
   }
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
-
-if (isMain) {
-  bootstrap().catch(err => {
-    console.error('Fatal error during bootstrap:', err);
-    process.exit(1);
-  });
-}
+bootstrap().catch(err => {
+  console.error('Fatal error during bootstrap:', err);
+  process.exit(1);
+});
