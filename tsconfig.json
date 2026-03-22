@@ -2,7 +2,7 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
-    "module": "esnext",
+    "module": "nodenext",
     "target": "esnext",
     "types": [
       "node"
@@ -16,7 +16,7 @@
     "verbatimModuleSyntax": false,
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "moduleResolution": "bundler"
+    "moduleResolution": "nodenext"
   },
   "exclude": [
     "src/tests/**/*",
