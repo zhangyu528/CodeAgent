@@ -13,8 +13,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "dev": "node --loader ts-node/esm --experimental-specifier-resolution=node src/apps/cli/index.tsx",
-    "start": "node --loader ts-node/esm --experimental-specifier-resolution=node src/apps/cli/index.tsx"
+    "dev": "tsx src/apps/cli/index.tsx",
+    "start": "npm run build && node dist/apps/cli/index.js"
   },
   "repository": {
     "type": "git",
@@ -44,7 +44,8 @@
     "@types/marked-terminal": "^6.1.1",
     "@types/node": "^25.4.0",
     "@types/react": "^18.3.12",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0"
   },
   "type": "module"
 }

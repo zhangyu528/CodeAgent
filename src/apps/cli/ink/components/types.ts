@@ -61,4 +61,5 @@ export type InputAreaProps = {
   modelName: string;
   cwd: string;
   isDimmed?: boolean;
+  exitPromptVisible?: boolean;
 };

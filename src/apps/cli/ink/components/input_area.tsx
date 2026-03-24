@@ -18,23 +18,22 @@ function shortenPath(fullPath: string): string {
 export function InputArea(props: InputAreaProps) {
   const isWelcome = props.page === 'welcome';
   const hasValue = props.value.length > 0;
-  
   const showPopups = props.slashVisible || props.historyVisible;
-  const borderColor = props.isDimmed ? "gray" : (hasValue ? "cyan" : "gray");
+  const borderColor = props.exitPromptVisible ? "red" : (props.isDimmed ? "gray" : (hasValue ? "cyan" : "gray"));
 
   const renderPopups = () => (
     <>{props.slashVisible && props.slashItems.length > 0 && (
-      <SlashPalette 
-        visible={props.slashVisible} 
-        items={props.slashItems} 
-        selectedIndex={props.slashSelected} 
+      <SlashPalette
+        visible={props.slashVisible}
+        items={props.slashItems}
+        selectedIndex={props.slashSelected}
         query={props.value}
       />
     )}{props.historyVisible && (
-      <HistoryPicker 
-        visible={props.historyVisible} 
-        items={props.historyItems} 
-        selectedIndex={props.historySelected} 
+      <HistoryPicker
+        visible={props.historyVisible}
+        items={props.historyItems}
+        selectedIndex={props.historySelected}
       />
     )}</>
   );
@@ -46,13 +45,30 @@ export function InputArea(props: InputAreaProps) {
         <>{renderPopups()}<Box height={1} /></>
       )}
 
-      {!props.isDimmed ? (
-        <><InputBar value={props.value} page={props.page} placeholder={isWelcome ? "Ask anything to start..." : "Type your message..."} /><Box height={1} /><Box paddingX={1} marginBottom={showPopups ? 0 : 0}><Text><Text color="gray">Model: </Text><Text color="blue" bold>{props.modelName}</Text><Text color="gray">   •   </Text><Text color="gray">CWD: </Text><Text color="yellow" dimColor>{shortenPath(props.cwd)}</Text></Text></Box></>
-      ) : (
-        <Box paddingX={1} paddingY={1} justifyContent="center">
-          <Text dimColor italic>正在处理请求...</Text>
+      <Box flexDirection="column" opacity={props.isDimmed ? 0.5 : 1}>
+        <Box justifyContent="space-between">
+            <InputBar 
+                value={props.value} 
+                page={props.page} 
+                placeholder={isWelcome ? "Ask anything to start..." : "Type your message..."} 
+            />
+            {props.exitPromptVisible && (
+                <Box paddingRight={2}>
+                    <Text color="red" bold inverted> Press again to Exit </Text>
+                </Box>
+            )}
         </Box>
-      )}
+        <Box height={1} />
+        <Box paddingX={1} marginBottom={showPopups ? 0 : 0}>
+            <Text>
+                <Text color="gray">Model: </Text>
+                <Text color={props.isDimmed ? "gray" : "blue"} bold={!props.isDimmed}>{props.modelName}</Text>
+                <Text color="gray">   •   </Text>
+                <Text color="gray">CWD: </Text>
+                <Text color="yellow" dimColor>{shortenPath(props.cwd)}</Text>
+            </Text>
+        </Box>
+      </Box>
 
       {/* Welcome mode: popups below InputBar */}
       {isWelcome && showPopups && !props.isDimmed && (

@@ -5,9 +5,11 @@ export function SelectList(props: {
   title: string;
   choices: string[];
   selected: number;
+  width: number;
   footer?: string;
 }) {
-  const maxVisible = 6;
+  const { width } = props;
+  const maxVisible = 8;
   const total = props.choices.length;
   const windowStart = Math.min(
     Math.max(0, props.selected - (maxVisible - 1)),
@@ -15,30 +17,47 @@ export function SelectList(props: {
   );
   const windowItems = props.choices.slice(windowStart, windowStart + maxVisible);
 
-  return (
-    <Box flexDirection="column" paddingX={1} width="100%">
-      <Box marginBottom={0}>
-        <Text bold color="cyan">{props.title}</Text>
+  // Helper to ensure every line is exactly 'width' characters long
+  const renderLine = (content: string, color?: string, bold?: boolean, dim?: boolean) => {
+    const line = content.slice(0, width).padEnd(width, ' ');
+    return (
+      <Box width={width} {...({ backgroundColor: 'black' } as any)}>
+        <Text color={color} bold={bold} dimColor={dim}>{line}</Text>
       </Box>
+    );
+  };
+
+  return (
+    <Box flexDirection="column" width={width}>
+      {/* Top Padding Row */}
+      {renderLine('')}
+      
+      {/* Title Row */}
+      {renderLine(`  ${props.title}`, 'cyan', true)}
+      
+      {/* Gap Row */}
+      {renderLine('')}
+      
+      {/* Choice Rows */}
       {windowItems.map((item, idx) => {
         const globalIndex = windowStart + idx;
         const isSelected = globalIndex === props.selected;
+        const prefix = isSelected ? ' ┃ ' : '   ';
         return (
-          <Box key={`${globalIndex}-${item}`}>
-            <Text color={isSelected ? "cyan" : "gray"} bold={isSelected}>{isSelected ? '┃ ' : '  '}</Text><Text
-              dimColor={!isSelected}
-              bold={isSelected}
-            >
-              {item}
-            </Text>
+          <Box key={`${globalIndex}-${item}`} width={width}>
+            {renderLine(`${prefix}${item}`, isSelected ? 'cyan' : 'gray', isSelected, !isSelected)}
           </Box>
         );
       })}
-      {props.footer && (
-        <Box marginTop={0}>
-          <Text dimColor italic>{props.footer}</Text>
-        </Box>
-      )}
+      
+      {/* Gap Row */}
+      {renderLine('')}
+      
+      {/* Footer Row */}
+      {props.footer && renderLine(`  ${props.footer}`, 'gray', false, true)}
+
+      {/* Bottom Padding Row */}
+      {renderLine('')}
     </Box>
   );
 }

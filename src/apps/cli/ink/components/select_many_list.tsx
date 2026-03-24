@@ -6,9 +6,11 @@ export function SelectManyList(props: {
   choices: string[];
   selected: number;
   picked: Set<number>;
+  width: number;
   footer?: string;
 }) {
-  const maxVisible = 6;
+  const { width } = props;
+  const maxVisible = 8;
   const total = props.choices.length;
   const windowStart = Math.min(
     Math.max(0, props.selected - (maxVisible - 1)),
@@ -16,25 +18,39 @@ export function SelectManyList(props: {
   );
   const windowItems = props.choices.slice(windowStart, windowStart + maxVisible);
 
+  const pad = (str: string) => str.padEnd(width - 2, ' ');
+
   return (
-    <Box flexDirection="column" paddingX={1} width="100%">
-      <Box marginBottom={0}>
-        <Text bold color="cyan">{props.title}</Text>
+    <Box flexDirection="column" width={width}>
+      <Box width={width}>
+        <Text bold color="cyan">{pad(props.title)}</Text>
       </Box>
+      <Box height={1}><Text>{' '.repeat(width)}</Text></Box>
+      
       {windowItems.map((item, idx) => {
         const globalIndex = windowStart + idx;
         const isSelected = globalIndex === props.selected;
         const isPicked = props.picked.has(globalIndex);
-        const checkbox = isPicked ? '[✓]' : '[ ]';
+        
+        const prefix = isSelected ? '┃ ' : '  ';
+        const checkbox = isPicked ? '[✓] ' : '[ ] ';
+        const content = item.slice(0, width - 10);
+        const line = prefix + checkbox + content;
+        
         return (
-          <Box key={`${globalIndex}-${item}`}>
-            <Text color={isSelected ? "cyan" : "gray"} bold={isSelected}>{isSelected ? '┃ ' : '  '}</Text><Text color={isPicked ? "cyan" : "gray"} bold={isSelected || isPicked}>{checkbox}</Text><Text dimColor={!isSelected && !isPicked} bold={isSelected || isPicked}>{' '}{item}</Text>
+          <Box key={`${globalIndex}-${item}`} width={width}>
+            <Text color={isSelected ? "cyan" : "gray"} bold={isSelected || isPicked}>
+                {line.padEnd(width, ' ')}
+            </Text>
           </Box>
         );
       })}
+      
+      <Box height={1}><Text>{' '.repeat(width)}</Text></Box>
+      
       {props.footer && (
-        <Box marginTop={0}>
-          <Text dimColor italic>{props.footer}</Text>
+        <Box width={width}>
+          <Text dimColor italic>{pad(props.footer)}</Text>
         </Box>
       )}
     </Box>

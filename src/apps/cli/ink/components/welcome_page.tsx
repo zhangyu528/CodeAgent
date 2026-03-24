@@ -13,19 +13,6 @@ const ASCII_LOGO = [
 export function WelcomePage(props: WelcomeProps) {
   const { rows = 24, cols = 80, isDimmed } = props;
 
-  if (isDimmed) {
-    return (
-      <Box flexDirection="column" height="100%" width="100%" justifyContent="center" alignItems="center">
-        <Text dimColor italic>... 正在进行选择 ...</Text>
-        {props.children && (
-          <Box width={Math.min(cols - 4, 80)} marginTop={1}>
-            {props.children}
-          </Box>
-        )}
-      </Box>
-    );
-  }
-
   return (
     <Box flexDirection="column" height="100%" width="100%" justifyContent="center" alignItems="center">
       <Box flexDirection="column" alignItems="center" marginBottom={2}>
