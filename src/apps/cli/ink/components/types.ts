@@ -26,6 +26,7 @@ export type ChatPageProps = {
 export type InputBarProps = {
   value: string;
   page: 'welcome' | 'chat';
+  placeholder?: string;
 };
 
 export type SlashPaletteProps = {
@@ -57,5 +58,7 @@ export type InputAreaProps = {
   historyVisible: boolean;
   historyItems: Array<{ id: string; title: string }>;
   historySelected: number;
+  modelName: string;
+  cwd: string;
   isDimmed?: boolean;
 };

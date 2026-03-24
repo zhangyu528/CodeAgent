@@ -1,14 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Box, Text as InkText, useInput, useApp, useStdout } from 'ink';
+import { Box, useInput, useApp, useStdout } from 'ink';
 import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import { WelcomePage } from './components/welcome_page.js';
 import { ChatPage } from './components/chat_page.js';
 import { InputArea } from './components/input_area.js';
 import { ChoicePrompt } from './components/types.js';
-import { PromptBox, SelectList, SelectManyList } from './components/prompts.js';
-import path from 'path';
+import { PromptOverlay } from './components/prompt_overlay.js';
 import { sessionManager } from '../../../core/pi/sessions.js';
-import { AgentMessage } from '@mariozechner/pi-agent-core';
 
 export type PiInkAppProps = {
   agent: Agent;
@@ -19,7 +17,7 @@ const SLASH_COMMANDS = [
   { name: '/help', description: 'Show available commands', category: 'System', usage: '/help' },
   { name: '/clear', description: 'Clear current chat display', category: 'System', usage: '/clear' },
   { name: '/new', description: 'Return to welcome page', category: 'System', usage: '/new' },
-  { name: '/models', description: 'Select LLM provider and model', category: 'Config', usage: '/models' },
+  { name: '/model', description: 'Select LLM provider and model', category: 'Config', usage: '/model' },
   { name: '/history', description: 'View session history', category: 'Session', usage: '/history' },
   { name: '/resume', description: 'Continue last session', category: 'Session', usage: '/resume' },
 ];
@@ -63,6 +61,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   // Get system info
   const cwd = useMemo(() => process.cwd(), []);
   const provider = agent.state.model?.provider || 'unknown';
+  const modelId = agent.state.model?.id || 'unknown';
   const version = '1.0.0'; // Simple version fallback
 
   useEffect(() => {
@@ -144,7 +143,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       return;
     }
 
-    if (cmd === '/models') {
+    if (cmd === '/model') {
         setPrompt({
             kind: 'selectOne',
             message: 'Select Model (categorized by provider)',
@@ -235,7 +234,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
                 return;
             }
             if (key.return) {
-                // If this was from /models, handle it
+                // If this was from /model, handle it
                 const selectedIndex = (prompt as any).selected;
                 // Simple heuristic for now: if message contains "Model", it's models
                 if (prompt.message.includes('Model')) {
@@ -248,7 +247,6 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
                             api: selectedModel.api,
                             baseUrl: selectedModel.baseUrl
                         } as any);
-                        setLines(prev => [...prev, { id: `sys-${Date.now()}`, text: `[System] Switched to model: ${selectedModel.label}` }]);
                     }
                 }
 
@@ -356,69 +354,8 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     }
   });
 
-  const renderPromptOverlay = () => {
-    if (prompt.kind === 'none') return null;
-
-    const popupWidth = Math.min(columns - 10, 80);
-    
-    return (
-      <Box 
-        position="absolute" 
-        width={columns} 
-        height={rows} 
-        alignItems="center" 
-        justifyContent="center"
-      >
-        {/* Shadow Layer */}
-        <Box 
-            position="absolute"
-            width={popupWidth}
-            height={14}
-            marginLeft={2}
-            marginTop={1}
-        >
-            <InkText dimColor>{' '.repeat(popupWidth * 14)}</InkText>
-        </Box>
-
-        {/* Main Content Layer */}
-        <Box 
-            position="absolute"
-            flexDirection="column" 
-            width={popupWidth} 
-            paddingX={0} 
-            paddingY={0}
-            borderStyle="round"
-            borderColor="cyan"
-            {...({ backgroundColor: 'black' } as any)}
-        >
-            {prompt.kind === 'ask' && <PromptBox title="Input" body={prompt.message} input={prompt.value} footer="Enter 提交，Esc 取消" />}
-            {prompt.kind === 'confirm' && <PromptBox title="Confirm" body={prompt.message} footer="Y/Enter 确认，N/Esc 取消" />}
-            {prompt.kind === 'selectOne' && (
-            <SelectList
-                title={prompt.message}
-                choices={prompt.choices}
-                selected={prompt.selected}
-                footer="↑/↓ 选择，Enter 确认"
-            />
-            )}
-            {prompt.kind === 'selectMany' && (
-            <SelectManyList
-                title={prompt.message}
-                choices={prompt.choices}
-                selected={prompt.selected}
-                picked={prompt.picked}
-                footer="↑/↓ 移动，Space 勾选，Enter 确认"
-            />
-            )}
-        </Box>
-      </Box>
-    );
-  };
-
   return (
-    <Box flexDirection="column" height={rows} width={columns}>
-      <Box flexGrow={1} flexDirection="column">
-        {page === 'welcome' ? (
+    <Box flexDirection="column" height={rows} width={columns}><Box flexGrow={1} flexDirection="column">{page === 'welcome' ? (
           <WelcomePage
             version={version}
             cwd={cwd}
@@ -426,8 +363,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
             logs={[]}
             rows={rows}
             cols={columns}
-          >
-            <InputArea
+          ><InputArea
               value={inputValue}
               page={page}
               slashVisible={isSlashVisible}
@@ -436,19 +372,14 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
               historyVisible={historyVisible}
               historyItems={historyItems}
               historySelected={historySelected}
+              modelName={modelId}
+              cwd={cwd}
               isDimmed={prompt.kind !== 'none'}
-            />
-          </WelcomePage>
+            /></WelcomePage>
         ) : (
           <ChatPage lines={lines} isDimmed={prompt.kind !== 'none'} />
-        )}
-      </Box>
-
-      {renderPromptOverlay()}
-
-      {page === 'chat' && (
-        <Box flexShrink={0}>
-          <InputArea
+        )}</Box>{page === 'chat' && (
+        <Box flexShrink={0}><InputArea
             value={inputValue}
             page={page}
             slashVisible={isSlashVisible}
@@ -457,11 +388,10 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
             historyVisible={historyVisible}
             historyItems={historyItems}
             historySelected={historySelected}
+            modelName={modelId}
+            cwd={cwd}
             isDimmed={prompt.kind !== 'none'}
-          />
-        </Box>
-      )}
-    </Box>
+          /></Box>
+      )}<PromptOverlay prompt={prompt} columns={columns} rows={rows} /></Box>
   );
 }
-

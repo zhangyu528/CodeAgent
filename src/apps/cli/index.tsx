@@ -8,19 +8,20 @@ import { fileURLToPath } from 'url';
 dotenv.config({ quiet: true });
 
 export async function bootstrap() {
-  process.stdout.write('\u001b[?1049h');
+  // process.stdout.write('\u001b[?1049h'); // Disable alternate screen buffer for debugging
   try {
     const agent = await createPiAgent();
-    const { waitUntilExit } = render(
-      <PiInkApp agent={agent} onExit={() => {}} />
-    );
-    await waitUntilExit();
+    console.log('PiAgent created successfully. Ink rendering bypassed for testing.');
+    // const { waitUntilExit } = render(
+    //   <PiInkApp agent={agent} onExit={() => {}} />
+    // );
+    // await waitUntilExit();
   } catch (err) {
-    process.stdout.write('\u001b[?1049l');
+    // process.stdout.write('\u001b[?1049l'); // Disable alternate screen buffer for debugging
     console.error('Bootstrap error:', err);
     process.exit(1);
   } finally {
-    process.stdout.write('\u001b[?1049l');
+    // process.stdout.write('\u001b[?1049l'); // Disable alternate screen buffer for debugging
     process.exit(0);
   }
 }
