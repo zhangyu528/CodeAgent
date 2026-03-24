@@ -30,22 +30,16 @@
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.61.1",
     "@mariozechner/pi-ai": "^0.61.1",
-    "chalk": "^4.1.2",
     "dotenv": "^17.3.1",
     "ink": "^5.2.1",
-    "marked": "^15.0.12",
-    "marked-terminal": "^7.3.0",
     "react": "^18.3.1",
-    "typescript": "^5.9.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/chalk": "^0.4.31",
-    "@types/marked-terminal": "^6.1.1",
     "@types/node": "^25.4.0",
     "@types/react": "^18.3.12",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   },
   "type": "module"
 }
