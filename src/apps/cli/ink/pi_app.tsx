@@ -7,6 +7,7 @@ import { InputArea } from './components/input_area.js';
 import { ChoicePrompt } from './components/types.js';
 import { PromptOverlay } from './components/prompt_overlay.js';
 import { sessionManager } from '../../../core/pi/sessions.js';
+import { getModels, getProviders } from '@mariozechner/pi-ai';
 
 export type PiInkAppProps = {
   agent: Agent;
@@ -22,14 +23,17 @@ const SLASH_COMMANDS = [
   { name: '/resume', description: 'Continue last session', category: 'Session', usage: '/resume' },
 ];
 
-const SUPPORTED_MODELS = [
-  { label: '[GLM] glm-4-flash', id: 'glm-4-flash', provider: 'glm', api: 'openai-responses', baseUrl: 'https://open.bigmodel.cn/api/paas/v4/' },
-  { label: '[GLM] glm-4', id: 'glm-4', provider: 'glm', api: 'openai-responses', baseUrl: 'https://open.bigmodel.cn/api/paas/v4/' },
-  { label: '[Minimax] abab6.5-chat', id: 'abab6.5-chat', provider: 'minimax', api: 'openai-responses', baseUrl: 'https://api.minimax.chat/v1/' },
-  { label: '[OpenAI] gpt-4o', id: 'gpt-4o', provider: 'openai', api: 'openai-responses' },
-  { label: '[OpenAI] gpt-4o-mini', id: 'gpt-4o-mini', provider: 'openai', api: 'openai-responses' },
-  { label: '[Anthropic] claude-3-5-sonnet', id: 'claude-3-5-sonnet-20240620', provider: 'anthropic', api: 'anthropic-messages' },
-];
+// Group models by provider for two-step selection
+const PROVIDERS = getProviders();
+const MODELS_BY_PROVIDER: Record<string, ReturnType<typeof getModels>> = {};
+for (const p of PROVIDERS) {
+  MODELS_BY_PROVIDER[p] = getModels(p);
+}
+
+// Provider overrides for correct baseUrl/api
+const PROVIDER_OVERRIDES: Record<string, { baseUrl?: string; api?: string }> = {
+  minimax: { baseUrl: 'https://api.minimaxi.com/v1', api: 'openai-completions' },
+};
 
 export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const { exit } = useApp();
@@ -42,9 +46,10 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const { columns, rows } = dimensions;
   const [page, setPage] = useState<'welcome' | 'chat'>('welcome');
   const [inputValue, setInputValue] = useState('');
-  const [lines, setLines] = useState<Array<{ id: string; text: string }>>([]);
+  const [lines, setLines] = useState<Array<{ id: string; text: string; isAssistant?: boolean }>>([]);
   const [thinking, setThinking] = useState(false);
   const [prompt, setPrompt] = useState<ChoicePrompt>({ kind: 'none' });
+  const [usage, setUsage] = useState<{ input: number; output: number; cost: number } | null>(null);
   
   // UI state
   const [slashSelected, setSlashSelected] = useState(0);
@@ -52,6 +57,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const [historyVisible, setHistoryVisible] = useState(false);
   const [historySelected, setHistorySelected] = useState(0);
   const [exitPromptVisible, setExitPromptVisible] = useState(false);
+  const [modelSelectProvider, setModelSelectProvider] = useState<string | null>(null);
   
   const historyItems = useMemo(() => sessionManager.getHistory(), [historyVisible, page]);
   const filteredCommands = useMemo(() => {
@@ -73,30 +79,55 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   useEffect(() => {
     const unsubscribe = agent.subscribe((event: AgentEvent) => {
       switch (event.type) {
-        case 'agent_start': setThinking(true); break;
+        case 'agent_start': 
+          setThinking(true); 
+          setUsage(null);
+          break;
         case 'agent_end':
           setThinking(false);
           if (agent.sessionId) sessionManager.saveSession(agent.sessionId, agent.state.messages);
           break;
-        case 'message_update':
+        case 'message_update': {
           const assistantEvent = event.assistantMessageEvent;
           if (assistantEvent.type === 'text_delta') {
             setThinking(false);
             const delta = assistantEvent.delta;
             setLines(prev => {
-              if (prev.length === 0) return [{ id: '0', text: delta }];
+              if (prev.length === 0) return [{ id: 'ai-response', text: delta, isAssistant: true }];
               const last = prev[prev.length - 1];
-              if (!last) return [{ id: '0', text: delta }];
-              return [...prev.slice(0, -1), { id: last.id, text: last.text + delta }];
+              if (last && last.isAssistant) {
+                  return [...prev.slice(0, -1), { ...last, text: last.text + delta }];
+              }
+              return [...prev, { id: `ai-${Date.now()}`, text: delta, isAssistant: true }];
+            });
+          } else if (assistantEvent.type === 'thinking_delta') {
+            setThinking(true);
+            const delta = assistantEvent.delta;
+            setLines(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.id.startsWith('thinking-')) {
+                return [...prev.slice(0, -1), { id: last.id, text: last.text + delta }];
+              }
+              return [...prev, { id: `thinking-${Date.now()}`, text: `[Thinking] ${delta}` }];
             });
           }
           break;
-        case 'tool_execution_start':
-          setLines(prev => [...prev, { id: Date.now().toString(), text: `[Tool: ${event.toolName}] ${JSON.stringify(event.args)}` }]);
+        }
+        case 'message_end': {
+          const msg = event.message as any;
+          // Check for error in message
+          if (msg.stopReason === 'error' && msg.errorMessage) {
+            setLines(prev => [...prev, { id: `error-${Date.now()}`, text: `[Error] ${msg.errorMessage}`, isAssistant: true }]);
+          }
+          if (msg.usage) {
+            setUsage({
+              input: msg.usage.inputTokens || msg.usage.input || 0,
+              output: msg.usage.outputTokens || msg.usage.output || 0,
+              cost: msg.usage.cost?.total || 0,
+            });
+          }
           break;
-        case 'tool_execution_end':
-          setLines(prev => [...prev, { id: Date.now().toString(), text: `[Result: ${event.toolName}] ${event.isError ? 'Failed' : 'Success'}` }]);
-          break;
+        }
       }
     });
     return () => unsubscribe();
@@ -113,7 +144,8 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       return;
     }
     if (cmd === '/model') {
-        setPrompt({ kind: 'selectOne', message: 'Select Model', choices: SUPPORTED_MODELS.map(m => m.label), selected: 0 });
+        setModelSelectProvider(null);
+        setPrompt({ kind: 'selectOne', message: 'Select Provider', choices: PROVIDERS.map(p => p.toUpperCase()), selected: 0 });
         setInputValue('');
         return;
     }
@@ -127,7 +159,8 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
                 agent.replaceMessages(session.messages);
                 setLines(session.messages.map((m: any, i: number) => ({
                     id: m.id || `restored-${i}`,
-                    text: m.role === 'user' ? `❯ ${m.content}` : m.content
+                    text: m.role === 'user' ? `❯ ${m.content}` : m.content,
+                    isAssistant: m.role === 'assistant'
                 })));
                 setPage('chat'); setInputValue(''); return;
             }
@@ -175,11 +208,32 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
             if (key.downArrow) { setPrompt(prev => prev.kind === 'selectOne' ? { ...prev, selected: Math.min(prev.choices.length - 1, prev.selected + 1) } : prev); return; }
             if (key.return) {
                 const selectedIndex = (prompt as any).selected;
+                if (prompt.message.includes('Provider')) {
+                    // First step: selected provider, now show models
+                    const selectedProvider = PROVIDERS[selectedIndex];
+                    if (!selectedProvider) { setPrompt({ kind: 'none' }); return; }
+                    const providerModels = MODELS_BY_PROVIDER[selectedProvider];
+                    if (!providerModels) { setPrompt({ kind: 'none' }); return; }
+                    setModelSelectProvider(selectedProvider);
+                    setPrompt({ kind: 'selectOne', message: `Select Model (${selectedProvider.toUpperCase()})`, choices: providerModels.map((m: any) => m.id), selected: 0 });
+                    return;
+                }
                 if (prompt.message.includes('Model')) {
-                    const selectedModel = SUPPORTED_MODELS[selectedIndex];
+                    // Second step: selected model, apply it
+                    const provider = modelSelectProvider!;
+                    const models = MODELS_BY_PROVIDER[provider];
+                    if (!models) { setPrompt({ kind: 'none' }); return; }
+                    const selectedModel = models[selectedIndex];
                     if (selectedModel) {
-                        agent.setModel({ id: selectedModel.id, name: selectedModel.id, provider: selectedModel.provider, api: selectedModel.api, baseUrl: selectedModel.baseUrl } as any);
+                        agent.setModel({
+                            id: selectedModel.id,
+                            name: selectedModel.id,
+                            provider: selectedModel.provider,
+                            api: selectedModel.api as any,
+                            baseUrl: selectedModel.baseUrl
+                        } as any);
                     }
+                    setModelSelectProvider(null);
                 }
                 if (prompt.message.includes('Sessions')) {
                     const sessionInfo = sessionManager.getHistory()[selectedIndex];
@@ -188,7 +242,11 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
                         if (session) {
                             agent.sessionId = session.id;
                             agent.replaceMessages(session.messages);
-                            setLines(session.messages.map((m: any, i: number) => ({ id: m.id || `restored-${i}`, text: m.role === 'user' ? `❯ ${m.content}` : m.content })));
+                            setLines(session.messages.map((m: any, i: number) => ({ 
+                                id: m.id || `restored-${i}`, 
+                                text: m.role === 'user' ? `❯ ${m.content}` : m.content,
+                                isAssistant: m.role === 'assistant'
+                            })));
                             setPage('chat');
                         }
                     }
@@ -211,7 +269,11 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
                 if (session) {
                     agent.sessionId = session.id;
                     agent.replaceMessages(session.messages);
-                    setLines(session.messages.map((m: any, i: number) => ({ id: m.id || `restored-${i}`, text: m.role === 'user' ? `❯ ${m.content}` : m.content })));
+                    setLines(session.messages.map((m: any, i: number) => ({ 
+                        id: m.id || `restored-${i}`, 
+                        text: m.role === 'user' ? `❯ ${m.content}` : m.content,
+                        isAssistant: m.role === 'assistant'
+                    })));
                     setPage('chat');
                 }
             }

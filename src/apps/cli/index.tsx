@@ -19,12 +19,16 @@ export async function bootstrap() {
     
     await waitUntilExit();
   } catch (err: any) {
+    // Return to main buffer before showing error
+    process.stdout.write('\u001b[?1049l');
     console.error('Bootstrap error:', err);
     if (err?.stack) {
         console.error(err.stack);
     }
     process.exit(1);
   } finally {
+    // Clear screen and Return to main buffer
+    process.stdout.write('\u001b[2J\u001b[H'); // Clear and Reset cursor
     process.stdout.write('\u001b[?1049l');
     process.exit(0);
   }

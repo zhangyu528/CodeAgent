@@ -25,7 +25,7 @@ export function PromptBox(props: { title: string; body: string; input?: string; 
     
     return (
       <Box width={width} {...({ backgroundColor: 'black' } as any)}>
-        <Text color={color} bold={bold} dimColor={dim}>{line}</Text>
+        <Text color={color || 'white'} bold={bold || false} dimColor={dim || false}>{line}</Text>
       </Box>
     );
   };

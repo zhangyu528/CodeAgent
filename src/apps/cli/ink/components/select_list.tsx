@@ -22,7 +22,7 @@ export function SelectList(props: {
     const line = content.slice(0, width).padEnd(width, ' ');
     return (
       <Box width={width} {...({ backgroundColor: 'black' } as any)}>
-        <Text color={color} bold={bold} dimColor={dim}>{line}</Text>
+        <Text color={color || 'white'} bold={bold || false} dimColor={dim || false}>{line}</Text>
       </Box>
     );
   };

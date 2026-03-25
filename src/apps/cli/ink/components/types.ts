@@ -62,4 +62,6 @@ export type InputAreaProps = {
   cwd: string;
   isDimmed?: boolean;
   exitPromptVisible?: boolean;
+  thinking?: boolean;
+  usage?: { input: number; output: number; cost: number } | null;
 };

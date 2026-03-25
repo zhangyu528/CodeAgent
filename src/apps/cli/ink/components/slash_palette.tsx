@@ -30,11 +30,6 @@ export function SlashPalette(props: SlashPaletteProps) {
                 <Text dimColor={!isSelected} bold={isSelected}>{item.name}</Text>
               )}<Text color="gray" dimColor={!isSelected}>  {item.description}</Text><Text color="blue" dimColor={!isSelected}> [{item.category}]</Text>
             </Box>
-            {isSelected && (
-              <Box paddingLeft={4}>
-                <Text color="gray" italic>Usage: {item.usage}</Text>
-              </Box>
-            )}
           </Box>
         );
       })}

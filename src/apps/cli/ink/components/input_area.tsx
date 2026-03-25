@@ -45,7 +45,7 @@ export function InputArea(props: InputAreaProps) {
         <>{renderPopups()}<Box height={1} /></>
       )}
 
-      <Box flexDirection="column" opacity={props.isDimmed ? 0.5 : 1}>
+      <Box flexDirection="column" borderDimColor={props.isDimmed}>
         <Box justifyContent="space-between">
             <InputBar 
                 value={props.value} 
@@ -54,7 +54,7 @@ export function InputArea(props: InputAreaProps) {
             />
             {props.exitPromptVisible && (
                 <Box paddingRight={2}>
-                    <Text color="red" bold inverted> Press again to Exit </Text>
+                    <Text color="red" bold inverse> Press again to Exit </Text>
                 </Box>
             )}
         </Box>
@@ -63,6 +63,27 @@ export function InputArea(props: InputAreaProps) {
             <Text>
                 <Text color="gray">Model: </Text>
                 <Text color={props.isDimmed ? "gray" : "blue"} bold={!props.isDimmed}>{props.modelName}</Text>
+                {props.thinking && (
+                    <>
+                        <Text color="gray">   •   </Text>
+                        <Text color="magenta">thinking...</Text>
+                    </>
+                )}
+                {props.usage && !props.thinking && (
+                    <>
+                        <Text color="gray">   •   </Text>
+                        <Text color="gray">In: </Text>
+                        <Text color="green">{props.usage.input}</Text>
+                        <Text color="gray"> Out: </Text>
+                        <Text color="cyan">{props.usage.output}</Text>
+                        {props.usage.cost > 0 && (
+                            <>
+                                <Text color="gray"> Cost: </Text>
+                                <Text color="yellow">${props.usage.cost.toFixed(4)}</Text>
+                            </>
+                        )}
+                    </>
+                )}
                 <Text color="gray">   •   </Text>
                 <Text color="gray">CWD: </Text>
                 <Text color="yellow" dimColor>{shortenPath(props.cwd)}</Text>
