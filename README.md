@@ -11,7 +11,7 @@ CodeAgent is an AI-powered coding assistant that can plan and execute complex de
 - **Memory Management**: Token-aware sliding window memory (~4000 tokens) ensuring context stability.
 - **Session Persistence (SQLite)**: Runtime-owned sessions with resume support across restarts (CLI only renders and routes).
 - **Observability**: Real-time token usage display and detailed turn-by-turn action logging.
-- **Multi-Provider LLM**: Register OpenAI/Anthropic/DeepSeek/Ollama (and legacy GLM) via `.env`, switch at runtime with `/model` and `/provider`.
+- **Multi-Provider LLM**: Register OpenAI/Anthropic/Zhipu (zai)/Minimax via `.env`, switch at runtime with `/model`.
 - **Blessed CLI UX**: Full-screen Blessed TUI with welcome mode + chat mode, slash popup, and keyboard shortcuts.
 
 ## Prerequisites

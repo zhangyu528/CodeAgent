@@ -28,8 +28,9 @@ CodeAgent 现已迁移至基于 `@mariozechner/pi-agent-core` 的新内核，并
 - `run_command`: 执行本地 Shell 命令。
 
 ### 5. 多模型支持
-- 内置支持 GLM、Minimax、OpenAI、Anthropic 等主流 Provider。
-- 支持运行时通过 `/models` 命令交互式切换模型。
+- 内置支持 Zhipu (zai)、Minimax、OpenAI、Anthropic 等主流 Provider。
+- 支持通过环境变量 `{PROVIDER}_BASE_URL` 动态配置 API 端点。
+- 支持运行时通过 `/model` 命令交互式切换模型。
 
 ## 下一步计划
 - [ ] 实现代码 Diff 可视化渲染。

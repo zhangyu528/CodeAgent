@@ -1,6 +1,11 @@
-import { registerBuiltInApiProviders } from '@mariozechner/pi-ai';
+import { registerBuiltInApiProviders, getModel } from '@mariozechner/pi-ai';
 import { Agent, AgentTool } from '@mariozechner/pi-agent-core';
 import { allTools } from './tools/index.js';
+
+// Provider overrides (all config via env: {PROVIDER}_API, {PROVIDER}_BASE_URL)
+const PROVIDER_OVERRIDES: Record<string, { baseUrl?: string; api?: string }> = {
+  minimax: {},
+};
 
 let initialized = false;
 
@@ -18,41 +23,24 @@ export async function createPiAgent(): Promise<Agent> {
   });
 
   agent.setTools(allTools as unknown as AgentTool<any, any>[]);
-  
-  // Default model configuration from .env
-  const provider = process.env.DEFAULT_PROVIDER || 'glm';
+
+  // Default model from pi-ai registry (uses DEFAULT_PROVIDER and *_MODEL env vars)
+  const provider = process.env.DEFAULT_PROVIDER || 'minimax';
   const envModelKey = `${provider.toUpperCase().replace(/-/g, '_')}_MODEL`;
-  const modelId = process.env[envModelKey] || (provider === 'glm' ? 'glm-4-flash' : 'gpt-4o');
-  
-  let api = 'openai-responses';
-  let baseUrl: string | undefined = undefined;
+  const modelId = process.env[envModelKey] || provider;
+  const model = getModel(provider as any, modelId as any);
 
-  switch (provider) {
-    case 'openai':
-      api = 'openai-responses';
-      break;
-    case 'anthropic':
-      api = 'anthropic-messages';
-      break;
-    case 'glm':
-      api = 'openai-responses';
-      baseUrl = process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/';
-      break;
-    case 'minimax':
-      api = 'openai-responses';
-      baseUrl = process.env.MINIMAX_BASE_URL || 'https://api.minimax.chat/v1/';
-      break;
-    default:
-      api = 'openai-responses';
-  }
-
-  agent.setModel({
-    id: modelId,
-    name: modelId,
-    provider: provider,
-    api: api,
-    baseUrl: baseUrl,
-  } as any);
+  // Apply provider overrides if needed
+  const override = PROVIDER_OVERRIDES[provider];
+  const providerUpper = provider.toUpperCase().replace(/-/g, '_');
+  const baseUrlFromEnv = `${providerUpper}_BASE_URL`;
+  const apiFromEnv = `${providerUpper}_API`;
+  const envBaseUrl = process.env[baseUrlFromEnv];
+  const envApi = process.env[apiFromEnv];
+  const finalModel = override
+    ? { ...model, api: envApi || override.api || model.api, baseUrl: envBaseUrl || model.baseUrl }
+    : { ...model, api: envApi || model.api, baseUrl: envBaseUrl || model.baseUrl };
+  agent.setModel(finalModel as any);
 
   return agent;
 }
