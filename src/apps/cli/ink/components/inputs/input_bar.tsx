@@ -6,7 +6,7 @@ export function InputBar(props: InputBarProps) {
   const hasValue = props.value.length > 0;
 
   return (
-    <Box flexDirection="column" paddingX={1}>
+    <Box flexDirection="column" paddingX={1} flexGrow={1}>
       <Box>
         <Text color="cyan" bold>{'❯ '}</Text>
         {hasValue ? (
@@ -24,3 +24,4 @@ export function InputBar(props: InputBarProps) {
     </Box>
   );
 }
+

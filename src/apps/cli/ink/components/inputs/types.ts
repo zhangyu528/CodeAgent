@@ -11,6 +11,7 @@ export type SlashPaletteProps = {
   query: string;
 };
 
+
 export type HistoryPickerProps = {
   visible: boolean;
   items: Array<{ id: string; title: string; updatedAt?: number; status?: string; messageCount?: number }>;
@@ -23,9 +24,6 @@ export type InputAreaProps = {
   slashVisible: boolean;
   slashItems: Array<{ name: string; description: string; category: string; usage: string }>;
   slashSelected: number;
-  historyVisible: boolean;
-  historyItems: Array<{ id: string; title: string; updatedAt?: number; status?: string; messageCount?: number }>;
-  historySelected: number;
   modelName: string;
   cwd: string;
   isDimmed?: boolean;

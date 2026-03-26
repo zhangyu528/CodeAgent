@@ -18,7 +18,6 @@ export type PiInkAppProps = {
 
 const SLASH_COMMANDS = [
   { name: '/help', description: 'Show available commands', category: 'System', usage: '/help' },
-  { name: '/clear', description: 'Clear current chat display', category: 'System', usage: '/clear' },
   { name: '/new', description: 'Create and switch to new session', category: 'Session', usage: '/new' },
   { name: '/model', description: 'Select LLM provider and model', category: 'Config', usage: '/model' },
   { name: '/history', description: 'View session history', category: 'Session', usage: '/history' },
@@ -231,8 +230,22 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       dispatch({ type: 'INPUT_KEY', op: 'clear_value' });
     },
     '/history': () => {
-      dispatch({ type: 'COMMAND_EXEC', op: 'show_history' });
-      void refreshHistory();
+      void (async () => {
+        const history = await sessionManager.getHistory(50);
+        setHistoryItems(history);
+        dispatch({
+          type: 'COMMAND_EXEC',
+          op: 'show_prompt',
+          prompt: {
+            kind: 'selectOne',
+            message: 'Sessions',
+            choices: history.length > 0
+              ? history.map(session => `${session.title} (${session.id.slice(0, 8)}) · ${session.status} · ${session.messageCount} msgs`)
+              : ['No history sessions found'],
+            selected: 0,
+          },
+        });
+      })();
     },
     '/resume': () => {
       void (async () => {
@@ -280,13 +293,6 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   useEffect(() => {
     void refreshHistory();
   }, [refreshHistory]);
-
-  useEffect(() => {
-    if (state.historyVisible) {
-      void refreshHistory();
-    }
-  }, [state.historyVisible, refreshHistory]);
-
   useEffect(() => {
     const handleResize = () => {
       dispatch({
@@ -444,11 +450,6 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       return true;
     }
 
-    if (state.historyVisible) {
-      dispatch({ type: 'COMMAND_EXEC', op: 'hide_history' });
-      return true;
-    }
-
     return false;
   };
 
@@ -518,35 +519,6 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
 
     return false;
   };
-
-  const handleHistoryInput = (key: any): boolean => {
-    if (!state.historyVisible) return false;
-
-    if (key.upArrow) {
-      dispatch({ type: 'INPUT_KEY', op: 'history_up' });
-      return true;
-    }
-
-    if (key.downArrow) {
-      dispatch({ type: 'INPUT_KEY', op: 'history_down', max: historyItems.length - 1 });
-      return true;
-    }
-
-    if (key.return) {
-      const selected = historyItems[state.historySelected];
-      if (selected) {
-        void (async () => {
-          const session = await sessionManager.loadSession(selected.id);
-          restoreSessionToUI(session);
-        })();
-      }
-      dispatch({ type: 'COMMAND_EXEC', op: 'hide_history' });
-      return true;
-    }
-
-    return false;
-  };
-
   const handleSlashInput = (key: any): boolean => {
     if (!isSlashVisible) return false;
 
@@ -605,7 +577,6 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
 
     if (modelConfig.isActive && handleModelConfigInput(input, key)) return;
     if (state.prompt.kind !== 'none' && handlePromptInput(key)) return;
-    if (state.historyVisible && handleHistoryInput(key)) return;
 
     if (handleSlashInput(key)) return;
     handleRegularInput(input, key);
@@ -624,9 +595,6 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
               slashVisible={isSlashVisible}
               slashItems={filteredCommands}
               slashSelected={state.slashSelected}
-              historyVisible={state.historyVisible}
-              historyItems={historyItems}
-              historySelected={state.historySelected}
               modelName={modelId}
               cwd={cwd}
               isDimmed={isDimmed}
@@ -647,9 +615,6 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
             slashVisible={isSlashVisible}
             slashItems={filteredCommands}
             slashSelected={state.slashSelected}
-            historyVisible={state.historyVisible}
-            historyItems={historyItems}
-            historySelected={state.historySelected}
             modelName={modelId}
             cwd={cwd}
             isDimmed={isDimmed}
@@ -663,6 +628,10 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     </Box>
   );
 }
+
+
+
+
 
 
 
