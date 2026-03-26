@@ -11,7 +11,7 @@
 | **High** | N3 | **会话生命周期与持久化基线** | 统一 session 生命周期、异步化与原子写入，明确 `/new`、`/history`、`/resume` 语义。 | 🚧 进行中 | [详情](新架构功能需求/N3_会话生命周期与持久化基线.md) |
 | **High** | N4 | **会话存储抽象与兼容迁移** | 引入 `SessionRepository` 抽象、schema version 与 migration，支持 JSON/SQLite 双实现路径。 | 📅 待启动 | [详情](新架构功能需求/N4_会话存储抽象与兼容迁移.md) |
 | **Med** | N5 | **会话治理与检索增强** | 增加归档/删除/导入导出/TTL、history 检索和 session 级 token/cost 聚合。 | 📅 待启动 | [详情](新架构功能需求/N5_会话治理与检索增强.md) |
-| **Med** | N6 | **恢复 Session 后的 Chat 显示一致性** | 统一 `/resume` 与 history 恢复后的 chat UI 状态恢复，确保消息、header 与输入区一致。 | 📅 待启动 | [详情](新架构功能需求/N6_恢复Session后的Chat显示一致性.md) |
+| **Med** | N6 | **恢复 Session 后的 Chat 显示一致性** | 统一 `/resume` 与 history 恢复后的 chat UI 状态恢复，确保消息、header 与输入区一致。 | 🚧 进行中 | [详情](新架构功能需求/N6_恢复Session后的Chat显示一致性.md) |
 
 ---
 

@@ -158,8 +158,12 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
         page: 'chat',
         lines: action.lines,
         inputValue: '',
+        thinking: false,
+        usage: null,
         historyVisible: false,
         prompt: { kind: 'none' },
+        exitPromptVisible: false,
+        pendingCommandAfterConfig: null,
       };
     case 'AGENT_EVENT': {
       switch (action.op) {

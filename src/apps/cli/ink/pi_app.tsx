@@ -25,9 +25,34 @@ const SLASH_COMMANDS = [
 ];
 
 function toSessionLines(messages: any[]): LineItem[] {
+  const toDisplayText = (content: unknown): string => {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content
+        .map((item: any) => {
+          if (typeof item === 'string') return item;
+          if (item && typeof item.text === 'string') return item.text;
+          if (item && typeof item.content === 'string') return item.content;
+          if (item && typeof item.input_text === 'string') return item.input_text;
+          if (item && typeof item.thinking === 'string') return item.thinking;
+          return '';
+        })
+        .filter(Boolean)
+        .join(' ');
+    }
+    if (content && typeof content === 'object') {
+      const item = content as any;
+      if (typeof item.text === 'string') return item.text;
+      if (typeof item.content === 'string') return item.content;
+      if (typeof item.input_text === 'string') return item.input_text;
+      if (typeof item.thinking === 'string') return item.thinking;
+    }
+    return '';
+  };
+
   return messages.map((m: any, i: number) => ({
     id: m.id || `restored-${i}`,
-    text: m.role === 'user' ? `❯ ${m.content}` : m.content,
+    text: m.role === 'user' ? `❯ ${toDisplayText(m.content)}` : toDisplayText(m.content),
     isAssistant: m.role === 'assistant',
   }));
 }
@@ -158,6 +183,24 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     return true;
   };
 
+  const showRestoreFailurePrompt = useCallback((message: string) => {
+    dispatch({
+      type: 'COMMAND_EXEC',
+      op: 'show_prompt',
+      prompt: { kind: 'ask', message, value: '' },
+    });
+  }, []);
+
+  const restoreSessionById = useCallback(async (sessionId: string): Promise<boolean> => {
+    const session = await sessionManager.loadSession(sessionId);
+    if (!session) {
+      showRestoreFailurePrompt('Failed to restore session. The selected session could not be loaded.');
+      return false;
+    }
+
+    return restoreSessionToUI(session);
+  }, [showRestoreFailurePrompt]);
+
   const ensureSessionForPrompt = (userInput: string): string => {
     const stableSessionId = activeSessionIdRef.current;
     if (stableSessionId) {
@@ -251,21 +294,16 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       void (async () => {
         const latestId = await sessionManager.getLatestSessionId();
         if (latestId) {
-          const session = await sessionManager.loadSession(latestId);
-          if (restoreSessionToUI(session)) {
+          if (await restoreSessionById(latestId)) {
             dispatch({ type: 'INPUT_KEY', op: 'clear_value' });
             return;
           }
         }
 
-        dispatch({
-          type: 'COMMAND_EXEC',
-          op: 'show_prompt',
-          prompt: { kind: 'ask', message: 'No previous sessions found.', value: '' },
-        });
+        showRestoreFailurePrompt('No previous sessions found.');
       })();
     },
-  }), [modelConfig, refreshHistory, persistCurrentSession, agent, setStableSessionId]);
+  }), [modelConfig, refreshHistory, persistCurrentSession, agent, setStableSessionId, restoreSessionById, showRestoreFailurePrompt]);
 
   const executeCommand = (cmdName: string) => {
     const cmd = cmdName.trim();
@@ -502,9 +540,10 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
           const sessionInfo = historyItems[state.prompt.selected];
           if (sessionInfo) {
             void (async () => {
-              const session = await sessionManager.loadSession(sessionInfo.id);
-              restoreSessionToUI(session);
+              await restoreSessionById(sessionInfo.id);
             })();
+          } else {
+            showRestoreFailurePrompt('Failed to restore session. The selected session is no longer available.');
           }
         }
         dispatch({ type: 'COMMAND_EXEC', op: 'hide_prompt' });
@@ -628,6 +667,9 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     </Box>
   );
 }
+
+
+
 
 
 
