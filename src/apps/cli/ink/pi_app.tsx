@@ -1,11 +1,9 @@
 import React, { useEffect, useMemo, useReducer, useRef } from 'react';
 import { Box, useInput, useApp, useStdout } from 'ink';
 import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
-import { WelcomePage } from './components/welcome_page.js';
-import { ChatPage } from './components/chat_page.js';
-import { InputArea } from './components/input_area.js';
-import { ChoicePrompt } from './components/types.js';
-import { PromptOverlay } from './components/prompt_overlay.js';
+import { WelcomePage, ChatPage } from './components/pages/index.js';
+import { InputArea } from './components/inputs/index.js';
+import { ModalOverlay } from './components/overlays/index.js';
 import { sessionManager } from '../../../core/pi/sessions.js';
 import { useModelConfig } from './hooks/useModelConfig.js';
 import { createInitialState, LineItem, piAppReducer } from './state/pi_app_reducer.js';
@@ -480,9 +478,11 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
           />
         </Box>
       )}
-      <PromptOverlay prompt={state.prompt} columns={columns} rows={rows} />
+      <ModalOverlay prompt={state.prompt} columns={columns} rows={rows} />
     </Box>
   );
 }
+
+
 
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { InputBarProps, InputAreaProps } from './types.js';
+import { InputAreaProps } from './types.js';
 import { InputBar } from './input_bar.js';
 import { SlashPalette } from './slash_palette.js';
 import { HistoryPicker } from './history_picker.js';
@@ -102,3 +102,4 @@ export function InputArea(props: InputAreaProps) {
     </Box>
   );
 }
+

@@ -1,28 +1,3 @@
-import React from 'react';
-
-export type ChatLine = { id: string; text: string };
-
-export type WelcomeProps = {
-  version: string;
-  cwd: string;
-  provider?: string;
-  logs: string[];
-  rows: number;
-  cols: number;
-  isDimmed?: boolean;
-  children?: React.ReactNode;
-};
-
-export type ChatHeaderProps = {
-  title: string;
-  shortSessionId: string;
-};
-
-export type ChatPageProps = {
-  lines: ChatLine[];
-  isDimmed?: boolean;
-};
-
 export type InputBarProps = {
   value: string;
   page: 'welcome' | 'chat';
@@ -41,13 +16,6 @@ export type HistoryPickerProps = {
   items: Array<{ id: string; title: string }>;
   selectedIndex: number;
 };
-
-export type ChoicePrompt =
-  | { kind: 'none' }
-  | { kind: 'ask'; message: string; value: string }
-  | { kind: 'confirm'; message: string }
-  | { kind: 'selectOne'; message: string; choices: string[]; selected: number }
-  | { kind: 'selectMany'; message: string; choices: string[]; selected: number; picked: Set<number> };
 
 export type InputAreaProps = {
   value: string;

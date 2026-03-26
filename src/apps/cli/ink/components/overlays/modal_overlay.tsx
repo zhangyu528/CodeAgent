@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box } from 'ink';
-import { ChoicePrompt } from './types.js';
+import { ModalOverlayProps, ChoicePrompt } from './types.js';
 import { PromptBox } from './prompt_box.js';
 import { SelectList } from './select_list.js';
 import { SelectManyList } from './select_many_list.js';
@@ -25,7 +25,7 @@ function isApiKeyAskPrompt(prompt: ChoicePrompt): boolean {
   return prompt.kind === 'ask' && prompt.message.startsWith('API Key for ');
 }
 
-export function PromptOverlay({ prompt, columns, rows, apiKeyInput = '' }: { prompt: ChoicePrompt; columns: number; rows: number; apiKeyInput?: string }) {
+export function ModalOverlay({ prompt, columns, rows, apiKeyInput = '' }: ModalOverlayProps) {
   if (prompt.kind === 'none') return null;
 
   const apiKeyMode = isApiKeyAskPrompt(prompt);
@@ -119,3 +119,6 @@ export function PromptOverlay({ prompt, columns, rows, apiKeyInput = '' }: { pro
     </Box>
   );
 }
+
+// Backward-compatible export while call sites are migrated.
+export const PromptOverlay = ModalOverlay;

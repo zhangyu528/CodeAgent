@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { Agent } from '@mariozechner/pi-agent-core';
 import { getModels, getProviders } from '@mariozechner/pi-ai';
 import { checkApiKeyConfigured, saveApiKey, saveModelConfig } from '../../../../core/pi/factory.js';
-import { ChoicePrompt } from '../components/types.js';
+import { ChoicePrompt } from '../components/overlays/types.js';
 
 const ALLOWED_PROVIDERS = ['zai', 'minimax-cn'];
 const PROVIDERS = getProviders().filter(p => ALLOWED_PROVIDERS.includes(p));
@@ -199,3 +199,4 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
     onApiKeySubmit,
   };
 }
+

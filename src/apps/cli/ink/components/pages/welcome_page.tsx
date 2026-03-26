@@ -42,3 +42,4 @@ export function WelcomePage(props: WelcomeProps) {
     </Box>
   );
 }
+

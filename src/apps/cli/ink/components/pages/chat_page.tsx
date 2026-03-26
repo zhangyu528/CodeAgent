@@ -1,7 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { ChatPageProps } from './types.js';
-import { ChatHeader } from './chat_header.js';
 
 export function ChatPage(props: ChatPageProps) {
   const { isDimmed } = props;
@@ -16,3 +15,4 @@ export function ChatPage(props: ChatPageProps) {
     </Box>
   );
 }
+

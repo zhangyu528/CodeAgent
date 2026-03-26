@@ -1,4 +1,4 @@
-import { ChoicePrompt } from '../components/types.js';
+import { ChoicePrompt } from '../components/overlays/types.js';
 
 export type LineItem = { id: string; text: string; isAssistant?: boolean };
 
@@ -219,4 +219,5 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
       return state;
   }
 }
+
 
