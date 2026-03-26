@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useReducer, useRef } from 'react';
-import { Box, useInput, useApp, useStdout } from 'ink';
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { randomUUID } from 'crypto';
+import { Box, useInput, useApp, useStdout, useStdin } from 'ink';
 import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import { WelcomePage, ChatPage } from './components/pages/index.js';
+import { ChatSessionInfo } from './components/pages/types.js';
 import { InputArea } from './components/inputs/index.js';
 import { ModalOverlay } from './components/overlays/index.js';
-import { sessionManager } from '../../../core/pi/sessions.js';
+import { sessionManager, SessionInfo, SessionRecord, SessionStatus } from '../../../core/pi/sessions.js';
 import { useModelConfig } from './hooks/useModelConfig.js';
 import { createInitialState, LineItem, piAppReducer } from './state/pi_app_reducer.js';
 
@@ -13,16 +15,15 @@ export type PiInkAppProps = {
   onExit: () => void;
 };
 
+
 const SLASH_COMMANDS = [
   { name: '/help', description: 'Show available commands', category: 'System', usage: '/help' },
   { name: '/clear', description: 'Clear current chat display', category: 'System', usage: '/clear' },
-  { name: '/new', description: 'Return to welcome page', category: 'System', usage: '/new' },
+  { name: '/new', description: 'Create and switch to new session', category: 'Session', usage: '/new' },
   { name: '/model', description: 'Select LLM provider and model', category: 'Config', usage: '/model' },
   { name: '/history', description: 'View session history', category: 'Session', usage: '/history' },
   { name: '/resume', description: 'Continue last session', category: 'Session', usage: '/resume' },
 ];
-
-type SessionLike = { id: string; messages: any[] };
 
 function toSessionLines(messages: any[]): LineItem[] {
   return messages.map((m: any, i: number) => ({
@@ -32,22 +33,53 @@ function toSessionLines(messages: any[]): LineItem[] {
   }));
 }
 
+function extractSessionTitle(text: string): string {
+  const normalized = (text || '').trim();
+  if (!normalized) return 'New Session';
+  return normalized.length > 40 ? `${normalized.slice(0, 40)}...` : normalized;
+}
+
+function extractSessionTitleFromMessages(messages: any[]): string {
+  const firstUser = messages.find((m: any) => m.role === 'user' && typeof m.content === 'string');
+  return extractSessionTitle(firstUser?.content || '');
+}
+
+function createSessionId(): string {
+  try {
+    return randomUUID();
+  } catch {
+    return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
+function toSessionView(session: SessionRecord): ChatSessionInfo {
+  return {
+    id: session.meta.id,
+    title: session.meta.title,
+    status: session.meta.status,
+    updatedAt: session.meta.updatedAt,
+    messageCount: session.meta.messageCount,
+  };
+}
+
 export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const { exit } = useApp();
   const { stdout } = useStdout();
+  const { isRawModeSupported, setRawMode } = useStdin();
   const [state, dispatch] = useReducer(
     piAppReducer,
     createInitialState(stdout.columns || 80, stdout.rows || 24)
   );
+  const [historyItems, setHistoryItems] = useState<SessionInfo[]>([]);
+  const [currentSession, setCurrentSession] = useState<ChatSessionInfo | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
   const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTurnStatusRef = useRef<SessionStatus>('completed');
+  const persistCurrentSessionRef = useRef<(status?: SessionStatus) => void>(() => {});
 
   const { columns, rows } = state.dimensions;
   const modelConfig = useModelConfig(agent);
-
-  const historyItems = useMemo(
-    () => sessionManager.getHistory(),
-    [state.historyVisible, state.page]
-  );
 
   const isSlashVisible = state.inputValue.startsWith('/') && !state.inputValue.includes(' ');
   const filteredCommands = useMemo(() => {
@@ -62,24 +94,130 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const isModelConfigured = !!(model && model.id);
   const version = '1.0.0';
 
-  const restoreSessionToUI = (session: SessionLike | null): boolean => {
+
+  useEffect(() => {
+    if (!isRawModeSupported) return;
+    setRawMode(true);
+    return () => {
+      setRawMode(false);
+    };
+  }, [isRawModeSupported, setRawMode]);
+
+
+  const setStableSessionId = useCallback((id: string | null) => {
+    activeSessionIdRef.current = id;
+    setActiveSessionId(id);
+  }, []);
+
+  const refreshHistory = useCallback(async () => {
+    const history = await sessionManager.getHistory(50);
+    setHistoryItems(history);
+  }, []);
+
+  const persistCurrentSession = useCallback((status: SessionStatus = 'completed') => {
+    const stableSessionId = activeSessionIdRef.current;
+    if (!stableSessionId) return;
+    agent.sessionId = stableSessionId;
+
+    const title = currentSession?.id === stableSessionId ? currentSession.title : null;
+    const updatedAt = Date.now();
+    const messageCount = agent.state.messages.length;
+
+    setCurrentSession(prev => {
+      if (!prev || prev.id !== stableSessionId) return prev;
+      return {
+        ...prev,
+        status,
+        updatedAt,
+        messageCount,
+        title: prev.title || extractSessionTitleFromMessages(agent.state.messages),
+      };
+    });
+
+    void sessionManager
+      .saveSession(stableSessionId, agent.state.messages, {
+        status,
+        model: agent.state.model?.id,
+        provider: agent.state.model?.provider,
+        ...(title ? { title } : {}),
+      })
+      .then(() => refreshHistory())
+      .catch(() => {});
+  }, [agent, refreshHistory, currentSession]);
+
+  useEffect(() => {
+    persistCurrentSessionRef.current = persistCurrentSession;
+  }, [persistCurrentSession]);
+
+  const restoreSessionToUI = (session: SessionRecord | null): boolean => {
     if (!session) return false;
+    setStableSessionId(session.id);
     agent.sessionId = session.id;
     agent.replaceMessages(session.messages);
+    setCurrentSession(toSessionView(session));
     dispatch({ type: 'SESSION_RESTORED', lines: toSessionLines(session.messages) });
     return true;
   };
 
+  const ensureSessionForPrompt = (userInput: string): string => {
+    const stableSessionId = activeSessionIdRef.current;
+    if (stableSessionId) {
+      agent.sessionId = stableSessionId;
+      if (!currentSession) {
+        setCurrentSession({
+          id: stableSessionId,
+          title: extractSessionTitle(userInput),
+          status: 'active',
+          updatedAt: Date.now(),
+          messageCount: Math.max(1, agent.state.messages.length),
+        });
+      }
+      return stableSessionId;
+    }
+
+    const newSessionId = createSessionId();
+    setStableSessionId(newSessionId);
+    agent.sessionId = newSessionId;
+    setCurrentSession({
+      id: newSessionId,
+      title: extractSessionTitle(userInput),
+      status: 'active',
+      updatedAt: Date.now(),
+      messageCount: 1,
+    });
+    return newSessionId;
+  };
+
   const runPrompt = (cmd: string) => {
     dispatch({ type: 'COMMAND_EXEC', op: 'append_user_line', text: `❯ ${cmd}` });
+    setCurrentSession(prev => prev ? {
+      ...prev,
+      status: 'active',
+      updatedAt: Date.now(),
+      messageCount: prev.messageCount + 1,
+    } : prev);
+
     agent.prompt(cmd).catch(err => {
+      lastTurnStatusRef.current = 'error';
+      dispatch({ type: 'AGENT_EVENT', op: 'agent_end' });
+      dispatch({ type: 'AGENT_EVENT', op: 'error', message: err.message || 'Request failed' });
       dispatch({ type: 'COMMAND_EXEC', op: 'append_system_line', text: `Error: ${err.message}` });
+      persistCurrentSessionRef.current('error');
     });
   };
 
   const commandHandlers: Record<string, () => void> = useMemo(() => ({
     '/clear': () => dispatch({ type: 'COMMAND_EXEC', op: 'clear' }),
-    '/new': () => dispatch({ type: 'COMMAND_EXEC', op: 'goto_welcome' }),
+    '/new': () => {
+      persistCurrentSession('completed');
+      setStableSessionId(null);
+      agent.sessionId = undefined as any;
+      agent.replaceMessages([]);
+      setCurrentSession(null);
+      dispatch({ type: 'COMMAND_EXEC', op: 'clear' });
+      dispatch({ type: 'COMMAND_EXEC', op: 'goto_welcome' });
+      void refreshHistory();
+    },
     '/help': () => {
       const helpText = SLASH_COMMANDS.map(c => `${c.name.padEnd(12)} - ${c.description}`).join('\n');
       dispatch({
@@ -92,20 +230,29 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       modelConfig.startConfig();
       dispatch({ type: 'INPUT_KEY', op: 'clear_value' });
     },
-    '/history': () => dispatch({ type: 'COMMAND_EXEC', op: 'show_history' }),
-    '/resume': () => {
-      const latestId = sessionManager.getLatestSessionId();
-      if (latestId && restoreSessionToUI(sessionManager.loadSession(latestId) as SessionLike | null)) {
-        dispatch({ type: 'INPUT_KEY', op: 'clear_value' });
-        return;
-      }
-      dispatch({
-        type: 'COMMAND_EXEC',
-        op: 'show_prompt',
-        prompt: { kind: 'ask', message: 'No previous sessions found.', value: '' },
-      });
+    '/history': () => {
+      dispatch({ type: 'COMMAND_EXEC', op: 'show_history' });
+      void refreshHistory();
     },
-  }), [modelConfig]);
+    '/resume': () => {
+      void (async () => {
+        const latestId = await sessionManager.getLatestSessionId();
+        if (latestId) {
+          const session = await sessionManager.loadSession(latestId);
+          if (restoreSessionToUI(session)) {
+            dispatch({ type: 'INPUT_KEY', op: 'clear_value' });
+            return;
+          }
+        }
+
+        dispatch({
+          type: 'COMMAND_EXEC',
+          op: 'show_prompt',
+          prompt: { kind: 'ask', message: 'No previous sessions found.', value: '' },
+        });
+      })();
+    },
+  }), [modelConfig, refreshHistory, persistCurrentSession, agent, setStableSessionId]);
 
   const executeCommand = (cmdName: string) => {
     const cmd = cmdName.trim();
@@ -120,17 +267,25 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       dispatch({ type: 'COMMAND_EXEC', op: 'append_system_line', text: `Unknown command: ${cmd}` });
       return;
     }
-
-    if (state.thinking) return;
-
     if (!isModelConfigured) {
       modelConfig.startConfig(cmd);
       dispatch({ type: 'INPUT_KEY', op: 'clear_value' });
       return;
     }
 
+    ensureSessionForPrompt(cmd);
     runPrompt(cmd);
   };
+
+  useEffect(() => {
+    void refreshHistory();
+  }, [refreshHistory]);
+
+  useEffect(() => {
+    if (state.historyVisible) {
+      void refreshHistory();
+    }
+  }, [state.historyVisible, refreshHistory]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -151,12 +306,23 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     const unsubscribe = agent.subscribe((event: AgentEvent) => {
       switch (event.type) {
         case 'agent_start':
+          lastTurnStatusRef.current = 'active';
+          setCurrentSession(prev => prev ? { ...prev, status: 'active', updatedAt: Date.now() } : prev);
           dispatch({ type: 'AGENT_EVENT', op: 'agent_start' });
           break;
-        case 'agent_end':
+        case 'agent_end': {
+          if (isRawModeSupported) setRawMode(true);
+          const finalStatus = lastTurnStatusRef.current === 'error' ? 'error' : 'completed';
           dispatch({ type: 'AGENT_EVENT', op: 'agent_end' });
-          if (agent.sessionId) sessionManager.saveSession(agent.sessionId, agent.state.messages);
+          setCurrentSession(prev => prev ? {
+            ...prev,
+            status: finalStatus,
+            updatedAt: Date.now(),
+            messageCount: agent.state.messages.length,
+          } : prev);
+          persistCurrentSessionRef.current(finalStatus);
           break;
+        }
         case 'message_update': {
           const assistantEvent = event.assistantMessageEvent;
           if (assistantEvent.type === 'text_delta') {
@@ -167,9 +333,14 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
           break;
         }
         case 'message_end': {
+          if (isRawModeSupported) setRawMode(true);
           const msg = event.message as any;
           if (msg.stopReason === 'error' && msg.errorMessage) {
+            lastTurnStatusRef.current = 'error';
+            setCurrentSession(prev => prev ? { ...prev, status: 'error', updatedAt: Date.now() } : prev);
             dispatch({ type: 'AGENT_EVENT', op: 'error', message: msg.errorMessage });
+          } else {
+            lastTurnStatusRef.current = 'completed';
           }
           if (msg.usage) {
             dispatch({
@@ -188,7 +359,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     });
 
     return () => unsubscribe();
-  }, [agent]);
+  }, [agent, isRawModeSupported, setRawMode]);
 
   useEffect(() => {
     dispatch({ type: 'MODEL_CONFIG_EVENT', op: 'sync_prompt', prompt: modelConfig.pendingPrompt });
@@ -202,6 +373,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     ) {
       const cmd = modelConfig.pendingCommand;
       dispatch({ type: 'MODEL_CONFIG_EVENT', op: 'remember_pending_command', command: cmd });
+      ensureSessionForPrompt(cmd);
       runPrompt(cmd);
     }
   }, [modelConfig.isActive, modelConfig.pendingCommand, state.pendingCommandAfterConfig]);
@@ -277,7 +449,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       return true;
     }
 
-    return true;
+    return false;
   };
 
   const handleModelConfigInput = (input: string, key: any): boolean => {
@@ -307,7 +479,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       return true;
     }
 
-    return true;
+    return false;
   };
 
   const handlePromptInput = (key: any): boolean => {
@@ -325,10 +497,13 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       }
 
       if (key.return) {
-        if (state.prompt.message.includes('Sessions')) {
-          const sessionInfo = sessionManager.getHistory()[state.prompt.selected];
+        if ((state.prompt.message || '').includes('Sessions')) {
+          const sessionInfo = historyItems[state.prompt.selected];
           if (sessionInfo) {
-            restoreSessionToUI(sessionManager.loadSession(sessionInfo.id) as SessionLike | null);
+            void (async () => {
+              const session = await sessionManager.loadSession(sessionInfo.id);
+              restoreSessionToUI(session);
+            })();
           }
         }
         dispatch({ type: 'COMMAND_EXEC', op: 'hide_prompt' });
@@ -341,7 +516,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       return true;
     }
 
-    return true;
+    return false;
   };
 
   const handleHistoryInput = (key: any): boolean => {
@@ -360,13 +535,16 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     if (key.return) {
       const selected = historyItems[state.historySelected];
       if (selected) {
-        restoreSessionToUI(sessionManager.loadSession(selected.id) as SessionLike | null);
+        void (async () => {
+          const session = await sessionManager.loadSession(selected.id);
+          restoreSessionToUI(session);
+        })();
       }
       dispatch({ type: 'COMMAND_EXEC', op: 'hide_history' });
       return true;
     }
 
-    return true;
+    return false;
   };
 
   const handleSlashInput = (key: any): boolean => {
@@ -417,15 +595,18 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
 
   useInput((input, key) => {
     if (handleExitKey(input, key)) return;
-    if (handleEscapeKey(key)) return;
 
     if (state.exitPromptVisible) {
-      hideExitPrompt();
+      if (key.escape) hideExitPrompt();
+      return;
     }
 
-    if (handleModelConfigInput(input, key)) return;
-    if (handlePromptInput(key)) return;
-    if (handleHistoryInput(key)) return;
+    if (handleEscapeKey(key)) return;
+
+    if (modelConfig.isActive && handleModelConfigInput(input, key)) return;
+    if (state.prompt.kind !== 'none' && handlePromptInput(key)) return;
+    if (state.historyVisible && handleHistoryInput(key)) return;
+
     if (handleSlashInput(key)) return;
     handleRegularInput(input, key);
   });
@@ -455,7 +636,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
             />
           </WelcomePage>
         ) : (
-          <ChatPage lines={state.lines} isDimmed={isDimmed} />
+          <ChatPage lines={state.lines} isDimmed={isDimmed} session={currentSession} />
         )}
       </Box>
       {state.page === 'chat' && (
@@ -482,6 +663,16 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     </Box>
   );
 }
+
+
+
+
+
+
+
+
+
+
 
 
 

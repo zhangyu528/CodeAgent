@@ -2,6 +2,15 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { HistoryPickerProps } from './types.js';
 
+function formatUpdatedAt(updatedAt?: number): string {
+  if (!updatedAt) return 'unknown time';
+  try {
+    return new Date(updatedAt).toLocaleString();
+  } catch {
+    return 'unknown time';
+  }
+}
+
 export function HistoryPicker(props: HistoryPickerProps) {
   if (!props.visible) return null;
 
@@ -19,14 +28,21 @@ export function HistoryPicker(props: HistoryPickerProps) {
       {windowItems.map((s, idx) => {
         const globalIndex = windowStart + idx;
         const isSelected = globalIndex === props.selectedIndex;
+        const status = s.status || 'completed';
+        const count = typeof s.messageCount === 'number' ? s.messageCount : 0;
         return (
-          <Box key={s.id}>
-            <Text color={isSelected ? "cyan" : "gray"} bold={isSelected}>{isSelected ? '┃ ' : '  '}</Text><Text
-              dimColor={!isSelected}
-              bold={isSelected}
-            >
-              {s.title} <Text color="gray" dimColor>({s.id.slice(0, 8)})</Text>
-            </Text>
+          <Box key={s.id} flexDirection="column">
+            <Box>
+              <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>{isSelected ? '┃ ' : '  '}</Text>
+              <Text dimColor={!isSelected} bold={isSelected}>
+                {s.title} <Text color="gray" dimColor>({s.id.slice(0, 8)})</Text>
+              </Text>
+            </Box>
+            <Box marginLeft={2}>
+              <Text color="gray" dimColor>
+                {status} • {count} msgs • {formatUpdatedAt(s.updatedAt)}
+              </Text>
+            </Box>
           </Box>
         );
       })}

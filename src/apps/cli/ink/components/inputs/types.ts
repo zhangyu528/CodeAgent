@@ -13,7 +13,7 @@ export type SlashPaletteProps = {
 
 export type HistoryPickerProps = {
   visible: boolean;
-  items: Array<{ id: string; title: string }>;
+  items: Array<{ id: string; title: string; updatedAt?: number; status?: string; messageCount?: number }>;
   selectedIndex: number;
 };
 
@@ -24,7 +24,7 @@ export type InputAreaProps = {
   slashItems: Array<{ name: string; description: string; category: string; usage: string }>;
   slashSelected: number;
   historyVisible: boolean;
-  historyItems: Array<{ id: string; title: string }>;
+  historyItems: Array<{ id: string; title: string; updatedAt?: number; status?: string; messageCount?: number }>;
   historySelected: number;
   modelName: string;
   cwd: string;

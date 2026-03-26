@@ -2,6 +2,14 @@ import React from 'react';
 
 export type ChatLine = { id: string; text: string };
 
+export type ChatSessionInfo = {
+  id: string;
+  title: string;
+  status: string;
+  updatedAt: number;
+  messageCount: number;
+};
+
 export type WelcomeProps = {
   version: string;
   cwd: string;
@@ -16,4 +24,5 @@ export type WelcomeProps = {
 export type ChatPageProps = {
   lines: ChatLine[];
   isDimmed?: boolean;
+  session?: ChatSessionInfo | null;
 };

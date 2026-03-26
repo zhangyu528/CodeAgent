@@ -22,7 +22,7 @@ function getVisualWidth(str: string): number {
 }
 
 function isApiKeyAskPrompt(prompt: ChoicePrompt): boolean {
-  return prompt.kind === 'ask' && prompt.message.startsWith('API Key for ');
+  return prompt.kind === 'ask' && (prompt.message || '').startsWith('API Key for ');
 }
 
 export function ModalOverlay({ prompt, columns, rows, apiKeyInput = '' }: ModalOverlayProps) {
@@ -122,3 +122,4 @@ export function ModalOverlay({ prompt, columns, rows, apiKeyInput = '' }: ModalO
 
 // Backward-compatible export while call sites are migrated.
 export const PromptOverlay = ModalOverlay;
+
