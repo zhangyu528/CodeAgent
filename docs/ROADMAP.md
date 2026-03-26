@@ -8,9 +8,9 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **High** | N1 | **新内核与 Ink 集成** | 迁移至 Pi-Agent 内核，并使用 Ink 构建全功能 TUI。 | ✅ 已完成 | [详情](新架构功能需求/N1_新内核与Ink集成.md) |
 | **High** | N2 | **多 Provider 支持与 Env 配置** | 支持通过环境变量动态配置 Provider baseUrl，替代硬编码。 | ✅ 已完成 | [详情](新架构功能需求/N2_多Provider支持与Env配置.md) |
-| **High** | N3 | **Git 全自动化** | 自动 commit, 自动分支管理, 生成高质量 PR 说明。 | 📅 待启动 | [详情](archive/legacy_functional_requirements/F2_Git全自动化.md) |
-| **Med** | N4 | **Web 工具增强** | 移植 `web_search` 与 `browse_page` 到新内核。 | 📅 待启动 | [详情](archive/legacy_functional_requirements/F5_浏览器增强.md) |
-| **Med** | N5 | **代码 Diff 可视化** | 在 Ink TUI 中实现优雅的代码 Diff 预览。 | 📅 待启动 | - |
+| **High** | N3 | **会话生命周期与持久化基线** | 统一 session 生命周期、异步化与原子写入，明确 `/new`、`/history`、`/resume` 语义。 | 📅 待启动 | [详情](新架构功能需求/N3_会话生命周期与持久化基线.md) |
+| **High** | N4 | **会话存储抽象与兼容迁移** | 引入 `SessionRepository` 抽象、schema version 与 migration，支持 JSON/SQLite 双实现路径。 | 📅 待启动 | [详情](新架构功能需求/N4_会话存储抽象与兼容迁移.md) |
+| **Med** | N5 | **会话治理与检索增强** | 增加归档/删除/导入导出/TTL、history 检索和 session 级 token/cost 聚合。 | 📅 待启动 | [详情](新架构功能需求/N5_会话治理与检索增强.md) |
 
 ---
 
@@ -40,5 +40,7 @@
 新内核与 Ink TUI 已成功集成 (N1)，多 Provider 配置机制已完善 (N2)。目前已具备基础的文件操作、命令执行与会话管理能力，并支持多 Provider 动态配置。
 
 下一步建议：
-1. **N4：Web 工具增强**，将原有的 Web 搜索能力移植到新内核。
-2. **N3：Git 全自动化**，实现代码管理闭环。
+1. **N3：会话生命周期与持久化基线**，先补齐会话正确性与稳定性基座。
+2. **N4：会话存储抽象与兼容迁移**，为后续 SQLite 与治理能力做接口解耦。
+
+
