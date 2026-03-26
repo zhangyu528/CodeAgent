@@ -62,7 +62,11 @@ export function InputArea(props: InputAreaProps) {
         <Box paddingX={1} marginBottom={showPopups ? 0 : 0}>
             <Text>
                 <Text color="gray">Model: </Text>
-                <Text color={props.isDimmed ? "gray" : "blue"} bold={!props.isDimmed}>{props.modelName}</Text>
+                {props.modelName ? (
+                    <Text color={props.isDimmed ? "gray" : "blue"} bold={!props.isDimmed}>{props.modelName}</Text>
+                ) : (
+                    <Text color="red" italic>not configured</Text>
+                )}
                 {props.thinking && (
                     <>
                         <Text color="gray">   •   </Text>

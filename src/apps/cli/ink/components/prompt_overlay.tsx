@@ -21,8 +21,14 @@ function getVisualWidth(str: string): number {
   return width;
 }
 
-export function PromptOverlay({ prompt, columns, rows }: { prompt: ChoicePrompt; columns: number; rows: number }) {
+function isApiKeyAskPrompt(prompt: ChoicePrompt): boolean {
+  return prompt.kind === 'ask' && prompt.message.startsWith('API Key for ');
+}
+
+export function PromptOverlay({ prompt, columns, rows, apiKeyInput = '' }: { prompt: ChoicePrompt; columns: number; rows: number; apiKeyInput?: string }) {
   if (prompt.kind === 'none') return null;
+
+  const apiKeyMode = isApiKeyAskPrompt(prompt);
 
   // Calculate the content width dynamically
   const calculateContentWidth = () => {
@@ -41,11 +47,11 @@ export function PromptOverlay({ prompt, columns, rows }: { prompt: ChoicePrompt;
 
     // 3. Footer width
     let footerText = '';
-    switch(prompt.kind) {
-        case 'ask': footerText = "Esc to Close"; break;
-        case 'confirm': footerText = "Enter Confirm • Esc Cancel"; break;
-        case 'selectOne': footerText = "↑/↓ Navigate • Enter Select • Esc Cancel"; break;
-        case 'selectMany': footerText = "↑/↓ Move • Space Toggle • Enter Confirm • Esc Cancel"; break;
+    switch (prompt.kind) {
+      case 'ask': footerText = apiKeyMode ? 'Enter to Save • Esc to Cancel' : 'Enter to Close • Esc to Cancel'; break;
+      case 'confirm': footerText = 'Enter Confirm • Esc Cancel'; break;
+      case 'selectOne': footerText = '↑/↓ Navigate • Enter Select • Esc Cancel'; break;
+      case 'selectMany': footerText = '↑/↓ Move • Space Toggle • Enter Confirm • Esc Cancel'; break;
     }
     max = Math.max(max, getVisualWidth(footerText) + 10);
 
@@ -55,58 +61,59 @@ export function PromptOverlay({ prompt, columns, rows }: { prompt: ChoicePrompt;
   const contentWidth = calculateContentWidth();
 
   return (
-    <Box 
-      position="absolute" 
-      width={columns} 
-      height={rows} 
-      alignItems="center" 
+    <Box
+      position="absolute"
+      width={columns}
+      height={rows}
+      alignItems="center"
       justifyContent="center"
     >
-      <Box 
-        flexDirection="column" 
-        width={contentWidth} 
-        padding={0} 
+      <Box
+        flexDirection="column"
+        width={contentWidth}
+        padding={0}
         borderStyle="round"
         borderColor="cyan"
         {...({ backgroundColor: 'black' } as any)}
       >
         <Box width="100%" flexDirection="column" {...({ backgroundColor: 'black' } as any)}>
-            {prompt.kind === 'ask' && (
-                <PromptBox 
-                    title="Available Commands" 
-                    body={prompt.message.replace('Available Commands:\n\n', '')} 
-                    input={prompt.value} 
-                    footer="Esc to Close" 
-                    width={contentWidth - 2}
-                />
-            )}
-            {prompt.kind === 'confirm' && (
-                <PromptBox 
-                    title="Confirm Action" 
-                    body={prompt.message} 
-                    footer="Enter Confirm • Esc Cancel" 
-                    width={contentWidth - 2}
-                />
-            )}
-            {prompt.kind === 'selectOne' && (
-                <SelectList
-                    title={prompt.message}
-                    choices={prompt.choices}
-                    selected={prompt.selected}
-                    footer="↑/↓ Navigate • Enter Select • Esc Cancel"
-                    width={contentWidth - 2}
-                />
-            )}
-            {prompt.kind === 'selectMany' && (
-                <SelectManyList
-                    title={prompt.message}
-                    choices={prompt.choices}
-                    selected={prompt.selected}
-                    picked={prompt.picked}
-                    footer="↑/↓ Move • Space Toggle • Enter Confirm • Esc Cancel"
-                    width={contentWidth - 2}
-                />
-            )}
+          {prompt.kind === 'ask' && (
+            <PromptBox
+              title={apiKeyMode ? 'Enter API Key' : 'Notice'}
+              body={prompt.message}
+              input={apiKeyMode ? (apiKeyInput || prompt.value) : ''}
+              footer={apiKeyMode ? 'Enter to Save • Esc to Cancel' : 'Enter to Close • Esc to Cancel'}
+              width={contentWidth - 2}
+              showInput={apiKeyMode}
+            />
+          )}
+          {prompt.kind === 'confirm' && (
+            <PromptBox
+              title="Confirm Action"
+              body={prompt.message}
+              footer="Enter Confirm • Esc Cancel"
+              width={contentWidth - 2}
+            />
+          )}
+          {prompt.kind === 'selectOne' && (
+            <SelectList
+              title={prompt.message}
+              choices={prompt.choices}
+              selected={prompt.selected}
+              footer="↑/↓ Navigate • Enter Select • Esc Cancel"
+              width={contentWidth - 2}
+            />
+          )}
+          {prompt.kind === 'selectMany' && (
+            <SelectManyList
+              title={prompt.message}
+              choices={prompt.choices}
+              selected={prompt.selected}
+              picked={prompt.picked}
+              footer="↑/↓ Move • Space Toggle • Enter Confirm • Esc Cancel"
+              width={contentWidth - 2}
+            />
+          )}
         </Box>
       </Box>
     </Box>

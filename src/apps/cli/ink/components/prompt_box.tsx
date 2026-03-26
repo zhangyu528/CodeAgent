@@ -13,7 +13,7 @@ function getVisualWidth(str: string): number {
   return width;
 }
 
-export function PromptBox(props: { title: string; body: string; input?: string; footer?: string; width: number }) {
+export function PromptBox(props: { title: string; body: string; input?: string; footer?: string; width: number; showInput?: boolean }) {
   const { width } = props;
 
   // Helper to ensure every line is exactly 'width' characters long
@@ -22,7 +22,7 @@ export function PromptBox(props: { title: string; body: string; input?: string; 
     const currentWidth = getVisualWidth(content);
     const paddingCount = Math.max(0, width - currentWidth);
     const line = content + ' '.repeat(paddingCount);
-    
+
     return (
       <Box width={width} {...({ backgroundColor: 'black' } as any)}>
         <Text color={color || 'white'} bold={bold || false} dimColor={dim || false}>{line}</Text>
@@ -36,34 +36,34 @@ export function PromptBox(props: { title: string; body: string; input?: string; 
     <Box flexDirection="column" width={width}>
       {/* Top padding */}
       {renderLine('')}
-      
+
       {/* Title */}
       {renderLine(`  ${props.title}`, 'cyan', true)}
-      
+
       {/* Gap */}
       {renderLine('')}
-      
+
       {/* Body lines */}
       {bodyLines.map((line, idx) => (
         <Box key={idx} width={width}>
           {renderLine(`  ${line}`)}
         </Box>
       ))}
-      
-      {/* Input section - only show if there's actual input text */}
-      {props.input ? (
+
+      {/* Optional input section */}
+      {props.showInput && (
         <>
           {renderLine('')}
-          {renderLine(`  ❯ ${props.input}`, 'white', true)}
+          {renderLine(`  ❯ ${props.input || ''}`, 'white', true)}
         </>
-      ) : null}
+      )}
 
       {/* Gap */}
       {renderLine('')}
-      
+
       {/* Footer */}
       {props.footer && renderLine(`  ${props.footer}`, 'gray', false, true)}
-      
+
       {/* Bottom padding */}
       {renderLine('')}
     </Box>
