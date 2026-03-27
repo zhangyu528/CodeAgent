@@ -15,7 +15,6 @@ export type PiInkAppProps = {
   onExit: () => void;
 };
 
-
 const SLASH_COMMANDS = [
   { name: '/help', description: 'Show available commands', category: 'System', usage: '/help' },
   { name: '/new', description: 'Create and switch to new session', category: 'Session', usage: '/new' },
@@ -23,6 +22,8 @@ const SLASH_COMMANDS = [
   { name: '/history', description: 'View session history', category: 'Session', usage: '/history' },
   { name: '/resume', description: 'Continue last session', category: 'Session', usage: '/resume' },
 ];
+
+type FocusOwner = 'exitConfirm' | 'modelConfig' | 'modal' | 'slash' | 'mainInput';
 
 function toSessionLines(messages: any[]): LineItem[] {
   const toDisplayText = (content: unknown): string => {
@@ -111,13 +112,23 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     return SLASH_COMMANDS.filter(c => c.name.startsWith(state.inputValue));
   }, [state.inputValue, isSlashVisible]);
 
+  const hasModal = state.modal.kind !== 'none';
+  const focusOwner: FocusOwner = state.exitPromptVisible
+    ? 'exitConfirm'
+    : modelConfig.isActive
+      ? 'modelConfig'
+      : hasModal
+        ? 'modal'
+        : isSlashVisible
+          ? 'slash'
+          : 'mainInput';
+
   const cwd = useMemo(() => process.cwd(), []);
   const model = agent.state.model;
   const provider = model?.provider || '';
   const modelId = model?.id || '';
   const isModelConfigured = !!(model && model.id);
   const version = '1.0.0';
-
 
   useEffect(() => {
     if (!isRawModeSupported) return;
@@ -126,7 +137,6 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       setRawMode(false);
     };
   }, [isRawModeSupported, setRawMode]);
-
 
   const setStableSessionId = useCallback((id: string | null) => {
     activeSessionIdRef.current = id;
@@ -183,23 +193,23 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     return true;
   };
 
-  const showRestoreFailurePrompt = useCallback((message: string) => {
+  const showRestoreFailureModal = useCallback((message: string) => {
     dispatch({
       type: 'COMMAND_EXEC',
-      op: 'show_prompt',
-      prompt: { kind: 'ask', message, value: '' },
+      op: 'show_modal',
+      modal: { kind: 'ask', message, value: '' },
     });
   }, []);
 
   const restoreSessionById = useCallback(async (sessionId: string): Promise<boolean> => {
     const session = await sessionManager.loadSession(sessionId);
     if (!session) {
-      showRestoreFailurePrompt('Failed to restore session. The selected session could not be loaded.');
+      showRestoreFailureModal('Failed to restore session. The selected session could not be loaded.');
       return false;
     }
 
     return restoreSessionToUI(session);
-  }, [showRestoreFailurePrompt]);
+  }, [showRestoreFailureModal]);
 
   const ensureSessionForPrompt = (userInput: string): string => {
     const stableSessionId = activeSessionIdRef.current;
@@ -264,8 +274,8 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       const helpText = SLASH_COMMANDS.map(c => `${c.name.padEnd(12)} - ${c.description}`).join('\n');
       dispatch({
         type: 'COMMAND_EXEC',
-        op: 'show_prompt',
-        prompt: { kind: 'ask', message: `Available Commands:\n\n${helpText}`, value: '' },
+        op: 'show_modal',
+        modal: { kind: 'ask', message: `Available Commands:\n\n${helpText}`, value: '' },
       });
     },
     '/model': () => {
@@ -278,8 +288,8 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
         setHistoryItems(history);
         dispatch({
           type: 'COMMAND_EXEC',
-          op: 'show_prompt',
-          prompt: {
+          op: 'show_modal',
+          modal: {
             kind: 'selectOne',
             message: 'Sessions',
             choices: history.length > 0
@@ -300,10 +310,10 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
           }
         }
 
-        showRestoreFailurePrompt('No previous sessions found.');
+        showRestoreFailureModal('No previous sessions found.');
       })();
     },
-  }), [modelConfig, refreshHistory, persistCurrentSession, agent, setStableSessionId, restoreSessionById, showRestoreFailurePrompt]);
+  }), [modelConfig, refreshHistory, persistCurrentSession, agent, setStableSessionId, restoreSessionById, showRestoreFailureModal]);
 
   const executeCommand = (cmdName: string) => {
     const cmd = cmdName.trim();
@@ -331,6 +341,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   useEffect(() => {
     void refreshHistory();
   }, [refreshHistory]);
+
   useEffect(() => {
     const handleResize = () => {
       dispatch({
@@ -406,8 +417,8 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   }, [agent, isRawModeSupported, setRawMode]);
 
   useEffect(() => {
-    dispatch({ type: 'MODEL_CONFIG_EVENT', op: 'sync_prompt', prompt: modelConfig.pendingPrompt });
-  }, [modelConfig.pendingPrompt]);
+    dispatch({ type: 'MODEL_CONFIG_EVENT', op: 'sync_modal', modal: modelConfig.pendingModal });
+  }, [modelConfig.pendingModal]);
 
   useEffect(() => {
     if (
@@ -442,12 +453,12 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     }, 3000);
   };
 
-  const updatePromptSelection = (nextSelected: number) => {
-    if (state.prompt.kind !== 'selectOne') return;
+  const updateModalSelection = (nextSelected: number) => {
+    if (state.modal.kind !== 'selectOne') return;
     dispatch({
       type: 'COMMAND_EXEC',
-      op: 'show_prompt',
-      prompt: { ...state.prompt, selected: nextSelected },
+      op: 'show_modal',
+      modal: { ...state.modal, selected: nextSelected },
     });
   };
 
@@ -472,19 +483,19 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const handleEscapeKey = (key: { escape?: boolean }): boolean => {
     if (!key.escape) return false;
 
-    if (state.exitPromptVisible) {
+    if (focusOwner === 'exitConfirm') {
       hideExitPrompt();
       return true;
     }
 
-    if (modelConfig.isActive) {
+    if (focusOwner === 'modelConfig') {
       modelConfig.cancelConfig();
-      dispatch({ type: 'COMMAND_EXEC', op: 'hide_prompt' });
+      dispatch({ type: 'COMMAND_EXEC', op: 'hide_modal' });
       return true;
     }
 
-    if (state.prompt.kind !== 'none') {
-      dispatch({ type: 'COMMAND_EXEC', op: 'hide_prompt' });
+    if (focusOwner === 'modal') {
+      dispatch({ type: 'COMMAND_EXEC', op: 'hide_modal' });
       return true;
     }
 
@@ -518,46 +529,47 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       return true;
     }
 
-    return false;
+    return true;
   };
 
-  const handlePromptInput = (key: any): boolean => {
-    if (state.prompt.kind === 'none') return false;
+  const handleModalInput = (key: any): boolean => {
+    if (state.modal.kind === 'none') return false;
 
-    if (state.prompt.kind === 'selectOne') {
+    if (state.modal.kind === 'selectOne') {
       if (key.upArrow) {
-        updatePromptSelection(Math.max(0, state.prompt.selected - 1));
+        updateModalSelection(Math.max(0, state.modal.selected - 1));
         return true;
       }
 
       if (key.downArrow) {
-        updatePromptSelection(Math.min(state.prompt.choices.length - 1, state.prompt.selected + 1));
+        updateModalSelection(Math.min(state.modal.choices.length - 1, state.modal.selected + 1));
         return true;
       }
 
       if (key.return) {
-        if ((state.prompt.message || '').includes('Sessions')) {
-          const sessionInfo = historyItems[state.prompt.selected];
+        if ((state.modal.message || '').includes('Sessions')) {
+          const sessionInfo = historyItems[state.modal.selected];
           if (sessionInfo) {
             void (async () => {
               await restoreSessionById(sessionInfo.id);
             })();
           } else {
-            showRestoreFailurePrompt('Failed to restore session. The selected session is no longer available.');
+            showRestoreFailureModal('Failed to restore session. The selected session is no longer available.');
           }
         }
-        dispatch({ type: 'COMMAND_EXEC', op: 'hide_prompt' });
+        dispatch({ type: 'COMMAND_EXEC', op: 'hide_modal' });
         return true;
       }
     }
 
-    if ((state.prompt.kind === 'ask' || state.prompt.kind === 'confirm') && key.return) {
-      dispatch({ type: 'COMMAND_EXEC', op: 'hide_prompt' });
+    if ((state.modal.kind === 'ask' || state.modal.kind === 'confirm') && key.return) {
+      dispatch({ type: 'COMMAND_EXEC', op: 'hide_modal' });
       return true;
     }
 
-    return false;
+    return true;
   };
+
   const handleSlashInput = (key: any): boolean => {
     if (!isSlashVisible) return false;
 
@@ -606,22 +618,28 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
 
   useInput((input, key) => {
     if (handleExitKey(input, key)) return;
-
-    if (state.exitPromptVisible) {
-      if (key.escape) hideExitPrompt();
-      return;
-    }
-
     if (handleEscapeKey(key)) return;
 
-    if (modelConfig.isActive && handleModelConfigInput(input, key)) return;
-    if (state.prompt.kind !== 'none' && handlePromptInput(key)) return;
-
-    if (handleSlashInput(key)) return;
-    handleRegularInput(input, key);
+    switch (focusOwner) {
+      case 'exitConfirm':
+        return;
+      case 'modelConfig':
+        handleModelConfigInput(input, key);
+        return;
+      case 'modal':
+        handleModalInput(key);
+        return;
+      case 'slash':
+        if (handleSlashInput(key)) return;
+        handleRegularInput(input, key);
+        return;
+      case 'mainInput':
+        handleRegularInput(input, key);
+        return;
+    }
   });
 
-  const isDimmed = state.prompt.kind !== 'none' || modelConfig.isActive;
+  const isDimmed = hasModal || modelConfig.isActive;
 
   return (
     <Box flexDirection="column" height={rows} width={columns}>
@@ -663,28 +681,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
           />
         </Box>
       )}
-      <ModalOverlay prompt={state.prompt} columns={columns} rows={rows} />
+      <ModalOverlay modal={state.modal} columns={columns} rows={rows} />
     </Box>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

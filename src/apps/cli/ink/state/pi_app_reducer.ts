@@ -1,4 +1,4 @@
-import { ChoicePrompt } from '../components/overlays/types.js';
+import { ModalState } from '../components/overlays/types.js';
 
 export type LineItem = { id: string; text: string; isAssistant?: boolean };
 
@@ -10,7 +10,7 @@ export interface PiAppState {
   inputValue: string;
   lines: LineItem[];
   thinking: boolean;
-  prompt: ChoicePrompt;
+  modal: ModalState;
   usage: { input: number; output: number; cost: number } | null;
   slashSelected: number;
   historyVisible: boolean;
@@ -33,8 +33,8 @@ type CommandExecAction =
   | { type: 'COMMAND_EXEC'; op: 'clear' }
   | { type: 'COMMAND_EXEC'; op: 'goto_welcome' }
   | { type: 'COMMAND_EXEC'; op: 'goto_chat' }
-  | { type: 'COMMAND_EXEC'; op: 'show_prompt'; prompt: ChoicePrompt }
-  | { type: 'COMMAND_EXEC'; op: 'hide_prompt' }
+  | { type: 'COMMAND_EXEC'; op: 'show_modal'; modal: ModalState }
+  | { type: 'COMMAND_EXEC'; op: 'hide_modal' }
   | { type: 'COMMAND_EXEC'; op: 'show_history' }
   | { type: 'COMMAND_EXEC'; op: 'hide_history' }
   | { type: 'COMMAND_EXEC'; op: 'append_user_line'; text: string }
@@ -54,7 +54,7 @@ type AgentEventAction =
   | { type: 'AGENT_EVENT'; op: 'usage'; usage: { input: number; output: number; cost: number } };
 
 type ModelConfigEventAction =
-  | { type: 'MODEL_CONFIG_EVENT'; op: 'sync_prompt'; prompt: ChoicePrompt }
+  | { type: 'MODEL_CONFIG_EVENT'; op: 'sync_modal'; modal: ModalState }
   | { type: 'MODEL_CONFIG_EVENT'; op: 'remember_pending_command'; command: string };
 
 type ExitConfirmEventAction =
@@ -79,7 +79,7 @@ export function createInitialState(columns: number, rows: number): PiAppState {
     inputValue: '',
     lines: [],
     thinking: false,
-    prompt: { kind: 'none' },
+    modal: { kind: 'none' },
     usage: null,
     slashSelected: 0,
     historyVisible: false,
@@ -126,10 +126,10 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
           return { ...state, page: 'welcome', inputValue: '' };
         case 'goto_chat':
           return { ...state, page: 'chat' };
-        case 'show_prompt':
-          return { ...state, prompt: action.prompt, inputValue: '' };
-        case 'hide_prompt':
-          return { ...state, prompt: { kind: 'none' } };
+        case 'show_modal':
+          return { ...state, modal: action.modal, inputValue: '' };
+        case 'hide_modal':
+          return { ...state, modal: { kind: 'none' } };
         case 'show_history':
           return { ...state, historyVisible: true, historySelected: 0, inputValue: '' };
         case 'hide_history':
@@ -161,7 +161,7 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
         thinking: false,
         usage: null,
         historyVisible: false,
-        prompt: { kind: 'none' },
+        modal: { kind: 'none' },
         exitPromptVisible: false,
         pendingCommandAfterConfig: null,
       };
@@ -213,8 +213,8 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
       }
     }
     case 'MODEL_CONFIG_EVENT':
-      if (action.op === 'sync_prompt') {
-        return { ...state, prompt: action.prompt };
+      if (action.op === 'sync_modal') {
+        return { ...state, modal: action.modal };
       }
       return { ...state, pendingCommandAfterConfig: action.command };
     case 'EXIT_CONFIRM_EVENT':
@@ -223,7 +223,3 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
       return state;
   }
 }
-
-
-
-

@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { Agent } from '@mariozechner/pi-agent-core';
 import { getModels, getProviders } from '@mariozechner/pi-ai';
 import { checkApiKeyConfigured, saveApiKey, saveModelConfig } from '../../../../core/pi/factory.js';
-import { ChoicePrompt } from '../components/overlays/types.js';
+import { ModalState } from '../components/overlays/types.js';
 
 const ALLOWED_PROVIDERS = ['zai', 'minimax-cn'];
 const PROVIDERS = getProviders().filter(p => ALLOWED_PROVIDERS.includes(p));
@@ -17,7 +17,7 @@ export type ConfigStep = 'idle' | 'selecting_provider' | 'entering_api_key' | 's
 export interface UseModelConfigResult {
   step: ConfigStep;
   isActive: boolean;
-  pendingPrompt: ChoicePrompt;
+  pendingModal: ModalState;
   pendingCommand: string | null;
   startConfig: (pendingCommand?: string) => void;
   cancelConfig: () => void;
@@ -51,12 +51,11 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
     setConfigTriggered(false);
   }, []);
 
-  // Generate prompt for current step (used by PromptOverlay)
-  const pendingPrompt = useMemo((): ChoicePrompt => {
+  const pendingModal = useMemo((): ModalState => {
     if (step === 'idle' || !configTriggered) {
       return { kind: 'none' };
     }
-    
+
     if (step === 'selecting_provider') {
       return {
         kind: 'selectOne',
@@ -69,7 +68,7 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
         selected: selectedModelIndex,
       };
     }
-    
+
     if (step === 'entering_api_key') {
       return {
         kind: 'ask',
@@ -77,7 +76,7 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
         value: apiKeyInput,
       };
     }
-    
+
     if (step === 'selecting_model') {
       const models = MODELS_BY_PROVIDER[selectedProvider!] || [];
       return {
@@ -87,7 +86,7 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
         selected: selectedModelIndex,
       };
     }
-    
+
     return { kind: 'none' };
   }, [step, selectedProvider, selectedModelIndex, apiKeyInput, configTriggered]);
 
@@ -95,10 +94,9 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
     if (step === 'selecting_provider') {
       setSelectedModelIndex(prev => Math.max(0, prev - 1));
     } else if (step === 'selecting_model') {
-      const models = MODELS_BY_PROVIDER[selectedProvider!] || [];
       setSelectedModelIndex(prev => Math.max(0, prev - 1));
     }
-  }, [step, selectedProvider]);
+  }, [step]);
 
   const onKeyDown = useCallback(() => {
     if (step === 'selecting_provider') {
@@ -113,9 +111,9 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
     if (step === 'selecting_provider') {
       const provider = PROVIDERS[selectedModelIndex];
       if (!provider) return;
-      
+
       setSelectedProvider(provider);
-      
+
       if (!checkApiKeyConfigured(provider)) {
         setApiKeyInput('');
         setStep('entering_api_key');
@@ -125,39 +123,31 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
           setSelectedModelIndex(0);
           setStep('selecting_model');
         } else {
-          // No models, configuration complete
           cancelConfig();
         }
       }
       return;
     }
-    
+
     if (step === 'selecting_model') {
       const provider = selectedProvider;
       if (!provider) return;
-      
+
       const models = MODELS_BY_PROVIDER[provider];
       if (!models) return;
-      
+
       const selectedModel = models[selectedModelIndex];
       if (selectedModel) {
-        // Apply the full model descriptor from pi-ai.
-        // Downstream runtime expects fields like input/compat/cost/contextWindow.
         agent.setModel(selectedModel as any);
-        
-        // Save to .env for persistence
         saveModelConfig(selectedModel.provider, selectedModel.id);
-        
-        // Execute pending command if any
+
         const cmd = pendingCommand;
         cancelConfig();
-        
+
         if (cmd) {
-          // Return the pending command so pi_app can execute it
           setPendingCommand(cmd);
         }
       }
-      return;
     }
   }, [step, selectedProvider, selectedModelIndex, agent, pendingCommand, cancelConfig]);
 
@@ -179,7 +169,6 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
         setSelectedModelIndex(0);
         setStep('selecting_model');
       } else {
-        // No models available, configuration complete
         cancelConfig();
       }
     }
@@ -188,7 +177,7 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
   return {
     step,
     isActive: step !== 'idle',
-    pendingPrompt,
+    pendingModal,
     pendingCommand,
     startConfig,
     cancelConfig,
@@ -199,4 +188,3 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
     onApiKeySubmit,
   };
 }
-

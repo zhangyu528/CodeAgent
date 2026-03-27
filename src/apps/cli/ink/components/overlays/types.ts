@@ -1,4 +1,4 @@
-export type ChoicePrompt =
+export type ModalState =
   | { kind: 'none' }
   | { kind: 'ask'; message: string; value: string }
   | { kind: 'confirm'; message: string }
@@ -6,7 +6,7 @@ export type ChoicePrompt =
   | { kind: 'selectMany'; message: string; choices: string[]; selected: number; picked: Set<number> };
 
 export type ModalOverlayProps = {
-  prompt: ChoicePrompt;
+  modal: ModalState;
   columns: number;
   rows: number;
   apiKeyInput?: string;

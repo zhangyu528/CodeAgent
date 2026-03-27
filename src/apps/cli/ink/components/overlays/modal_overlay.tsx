@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box } from 'ink';
-import { ModalOverlayProps, ChoicePrompt } from './types.js';
+import { ModalOverlayProps, ModalState } from './types.js';
 import { PromptBox } from './prompt_box.js';
 import { SelectList } from './select_list.js';
 import { SelectManyList } from './select_many_list.js';
@@ -21,33 +21,29 @@ function getVisualWidth(str: string): number {
   return width;
 }
 
-function isApiKeyAskPrompt(prompt: ChoicePrompt): boolean {
-  return prompt.kind === 'ask' && (prompt.message || '').startsWith('API Key for ');
+function isApiKeyAskModal(modal: ModalState): boolean {
+  return modal.kind === 'ask' && (modal.message || '').startsWith('API Key for ');
 }
 
-export function ModalOverlay({ prompt, columns, rows, apiKeyInput = '' }: ModalOverlayProps) {
-  if (prompt.kind === 'none') return null;
+export function ModalOverlay({ modal, columns, rows, apiKeyInput = '' }: ModalOverlayProps) {
+  if (modal.kind === 'none') return null;
 
-  const apiKeyMode = isApiKeyAskPrompt(prompt);
+  const apiKeyMode = isApiKeyAskModal(modal);
 
-  // Calculate the content width dynamically
   const calculateContentWidth = () => {
-    let max = 40; // Base minimum width
+    let max = 40;
 
-    // 1. Message width
-    if (prompt.message) {
-      const lines = prompt.message.split('\n');
+    if (modal.message) {
+      const lines = modal.message.split('\n');
       lines.forEach(l => { max = Math.max(max, getVisualWidth(l) + 6); });
     }
 
-    // 2. Choices width
-    if ('choices' in prompt && prompt.choices) {
-      prompt.choices.forEach(c => { max = Math.max(max, getVisualWidth(c) + 10); });
+    if ('choices' in modal && modal.choices) {
+      modal.choices.forEach(c => { max = Math.max(max, getVisualWidth(c) + 10); });
     }
 
-    // 3. Footer width
     let footerText = '';
-    switch (prompt.kind) {
+    switch (modal.kind) {
       case 'ask': footerText = apiKeyMode ? 'Enter to Save • Esc to Cancel' : 'Enter to Close • Esc to Cancel'; break;
       case 'confirm': footerText = 'Enter Confirm • Esc Cancel'; break;
       case 'selectOne': footerText = '↑/↓ Navigate • Enter Select • Esc Cancel'; break;
@@ -77,39 +73,39 @@ export function ModalOverlay({ prompt, columns, rows, apiKeyInput = '' }: ModalO
         {...({ backgroundColor: 'black' } as any)}
       >
         <Box width="100%" flexDirection="column" {...({ backgroundColor: 'black' } as any)}>
-          {prompt.kind === 'ask' && (
+          {modal.kind === 'ask' && (
             <PromptBox
               title={apiKeyMode ? 'Enter API Key' : 'Notice'}
-              body={prompt.message}
-              input={apiKeyMode ? (apiKeyInput || prompt.value) : ''}
+              body={modal.message}
+              input={apiKeyMode ? (apiKeyInput || modal.value) : ''}
               footer={apiKeyMode ? 'Enter to Save • Esc to Cancel' : 'Enter to Close • Esc to Cancel'}
               width={contentWidth - 2}
               showInput={apiKeyMode}
             />
           )}
-          {prompt.kind === 'confirm' && (
+          {modal.kind === 'confirm' && (
             <PromptBox
               title="Confirm Action"
-              body={prompt.message}
+              body={modal.message}
               footer="Enter Confirm • Esc Cancel"
               width={contentWidth - 2}
             />
           )}
-          {prompt.kind === 'selectOne' && (
+          {modal.kind === 'selectOne' && (
             <SelectList
-              title={prompt.message}
-              choices={prompt.choices}
-              selected={prompt.selected}
+              title={modal.message}
+              choices={modal.choices}
+              selected={modal.selected}
               footer="↑/↓ Navigate • Enter Select • Esc Cancel"
               width={contentWidth - 2}
             />
           )}
-          {prompt.kind === 'selectMany' && (
+          {modal.kind === 'selectMany' && (
             <SelectManyList
-              title={prompt.message}
-              choices={prompt.choices}
-              selected={prompt.selected}
-              picked={prompt.picked}
+              title={modal.message}
+              choices={modal.choices}
+              selected={modal.selected}
+              picked={modal.picked}
               footer="↑/↓ Move • Space Toggle • Enter Confirm • Esc Cancel"
               width={contentWidth - 2}
             />
@@ -120,6 +116,4 @@ export function ModalOverlay({ prompt, columns, rows, apiKeyInput = '' }: ModalO
   );
 }
 
-// Backward-compatible export while call sites are migrated.
 export const PromptOverlay = ModalOverlay;
-
