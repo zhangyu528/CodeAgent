@@ -12,13 +12,14 @@ CodeAgent is an AI-powered coding assistant that can plan and execute complex de
 - **Session Persistence (SQLite)**: Runtime-owned sessions with resume support across restarts (CLI only renders and routes).
 - **Observability**: Real-time token usage display and detailed turn-by-turn action logging.
 - **Multi-Provider LLM**: Register OpenAI/Anthropic/Zhipu (zai)/Minimax via `.env`, switch at runtime with `/model`.
-- **Blessed CLI UX**: Full-screen Blessed TUI with welcome mode + chat mode, slash popup, and keyboard shortcuts.
+- **Ink CLI UX**: Full-screen Ink TUI with welcome mode + chat mode, modal overlays, slash popup, and keyboard shortcuts.
+- **Structured Chat Timeline**: Chat page renders user, assistant, system, and error messages as message blocks instead of a flat log stream; reasoning is separated from the final answer.
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v16+)
 - [npm](https://www.npmjs.com/)
-- A terminal that supports Blessed (`TERM` must not be `dumb`, or set `FORCE_BLESSED=1`).
+- A terminal that supports Ink/TTY interactive rendering.
 - At least one configured LLM provider in `.env` (see `.env.example`).
 
 ## Setup
@@ -36,7 +37,7 @@ CodeAgent is an AI-powered coding assistant that can plan and execute complex de
 
 ## Usage
 
-### Interactive Mode (Blessed CLI)
+### Interactive Mode (Ink CLI)
 Run the agent in a continuous interactive session:
 ```bash
 npm start
@@ -49,16 +50,14 @@ codeagent
 ### Slash Commands
 - `/help`: Show commands, config hints, and keybindings.
 - `/model`: Interactively switch model under current provider.
-- `/provider`: Interactively switch provider.
-- `/clear`: Create and switch to a new session (old sessions remain resumable).
+- `/new`: Create and switch to a new session (old sessions remain resumable).
 - `/history`: Show recent sessions.
-- `/exit` or `/quit`: End current session and exit.
+- `/resume`: Continue the latest saved session.
 
 ### Keybindings
 - `Ctrl+C`: Interrupt current task; press again to exit when idle.
 - `Ctrl+D`: Exit.
-- `Ctrl+L`: Clear output area.
-- `q`: Exit.
+- `Esc`: Close modal overlays or cancel the current modal flow.
 - `Tab` / `Up` / `Down` / `Esc` / `Enter`: Slash popup selection and completion.
 
 ## Testing
@@ -86,7 +85,7 @@ src/
 │   └── session/             # Session service + repository + sqlite storage
 │
 ├── apps/                    # Application entry points
-│   ├── cli/                 # Blessed interactive interface
+│   ├── cli/                 # Ink interactive interface
 │   └── kernel/              # JSON-RPC kernel (for desktop app integration)
 │
 ├── tests/                   # Integration and unit tests
@@ -102,9 +101,10 @@ src/
 ## CLI Runtime Notes
 
 - Entry: `src/apps/cli/index.ts`
-- UI single source of truth: `src/apps/cli/components/input_manager.ts`
+- UI runtime entry: `src/apps/cli/ink/pi_app.tsx`
+- Chat page now uses a structured message model instead of flat line-based rendering.
 - UI adapter is fixed for session lifecycle (no runtime adapter swapping).
-- Legacy files `repl.ts` and `blessed_welcome.ts` have been removed from the CLI codebase.
+- Legacy Blessed-era files such as `repl.ts` and `blessed_welcome.ts` have been removed from the CLI codebase.
 
 ## Web Tools (F5)
 

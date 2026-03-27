@@ -1,6 +1,5 @@
 import { ModalState } from '../components/overlays/types.js';
-
-export type LineItem = { id: string; text: string; isAssistant?: boolean };
+import { ChatMessage } from '../components/pages/types.js';
 
 export type PiPage = 'welcome' | 'chat';
 
@@ -8,7 +7,7 @@ export interface PiAppState {
   dimensions: { columns: number; rows: number };
   page: PiPage;
   inputValue: string;
-  lines: LineItem[];
+  messages: ChatMessage[];
   thinking: boolean;
   modal: ModalState;
   usage: { input: number; output: number; cost: number } | null;
@@ -37,12 +36,13 @@ type CommandExecAction =
   | { type: 'COMMAND_EXEC'; op: 'hide_modal' }
   | { type: 'COMMAND_EXEC'; op: 'show_history' }
   | { type: 'COMMAND_EXEC'; op: 'hide_history' }
-  | { type: 'COMMAND_EXEC'; op: 'append_user_line'; text: string }
-  | { type: 'COMMAND_EXEC'; op: 'append_system_line'; text: string };
+  | { type: 'COMMAND_EXEC'; op: 'append_user_message'; text: string }
+  | { type: 'COMMAND_EXEC'; op: 'append_system_message'; text: string }
+  | { type: 'COMMAND_EXEC'; op: 'append_error_message'; text: string };
 
 type SessionRestoredAction = {
   type: 'SESSION_RESTORED';
-  lines: LineItem[];
+  messages: ChatMessage[];
 };
 
 type AgentEventAction =
@@ -77,7 +77,7 @@ export function createInitialState(columns: number, rows: number): PiAppState {
     dimensions: { columns, rows },
     page: 'welcome',
     inputValue: '',
-    lines: [],
+    messages: [],
     thinking: false,
     modal: { kind: 'none' },
     usage: null,
@@ -121,7 +121,7 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
     case 'COMMAND_EXEC': {
       switch (action.op) {
         case 'clear':
-          return { ...state, lines: [], inputValue: '' };
+          return { ...state, messages: [], inputValue: '' };
         case 'goto_welcome':
           return { ...state, page: 'welcome', inputValue: '' };
         case 'goto_chat':
@@ -134,18 +134,55 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
           return { ...state, historyVisible: true, historySelected: 0, inputValue: '' };
         case 'hide_history':
           return { ...state, historyVisible: false };
-        case 'append_user_line':
+        case 'append_user_message':
           return {
             ...state,
             page: 'chat',
-            lines: [...state.lines, { id: `u-${Date.now()}`, text: action.text }],
+            messages: [
+              ...state.messages,
+              {
+                id: `u-${Date.now()}`,
+                role: 'user',
+                title: 'You',
+                createdAt: Date.now(),
+                status: 'completed',
+                blocks: [{ kind: 'text', text: action.text }],
+              },
+            ],
             inputValue: '',
           };
-        case 'append_system_line':
+        case 'append_system_message':
           return {
             ...state,
             page: 'chat',
-            lines: [...state.lines, { id: `sys-${Date.now()}`, text: action.text }],
+            messages: [
+              ...state.messages,
+              {
+                id: `sys-${Date.now()}`,
+                role: 'system',
+                title: 'System',
+                createdAt: Date.now(),
+                status: 'completed',
+                blocks: [{ kind: 'text', text: action.text }],
+              },
+            ],
+            inputValue: '',
+          };
+        case 'append_error_message':
+          return {
+            ...state,
+            page: 'chat',
+            messages: [
+              ...state.messages,
+              {
+                id: `error-${Date.now()}`,
+                role: 'error',
+                title: 'Error',
+                createdAt: Date.now(),
+                status: 'error',
+                blocks: [{ kind: 'text', text: action.text }],
+              },
+            ],
             inputValue: '',
           };
         default:
@@ -156,7 +193,7 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
       return {
         ...state,
         page: 'chat',
-        lines: action.lines,
+        messages: action.messages,
         inputValue: '',
         thinking: false,
         usage: null,
@@ -169,42 +206,150 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
       switch (action.op) {
         case 'agent_start':
           return { ...state, thinking: true, usage: null };
-        case 'agent_end':
-          return { ...state, thinking: false };
-        case 'text_delta': {
-          const last = state.lines[state.lines.length - 1];
-          if (last && last.isAssistant) {
+        case 'agent_end': {
+          const last = state.messages[state.messages.length - 1];
+          if (last && last.role === 'assistant') {
             return {
               ...state,
               thinking: false,
-              lines: [...state.lines.slice(0, -1), { ...last, text: last.text + action.delta }],
+              messages: [
+                ...state.messages.slice(0, -1),
+                { ...last, status: 'completed' },
+              ],
+            };
+          }
+          return { ...state, thinking: false };
+        }
+        case 'text_delta': {
+          const last = state.messages[state.messages.length - 1];
+          if (last && last.role === 'assistant') {
+            const blockIndex = last.blocks.findIndex(block => block.kind === 'text');
+            if (blockIndex >= 0) {
+            const nextBlocks = [...last.blocks];
+            const textBlock = nextBlocks[blockIndex];
+            if (!textBlock || textBlock.kind !== 'text') {
+              return {
+                ...state,
+                thinking: false,
+                messages: [
+                  ...state.messages.slice(0, -1),
+                  { ...last, status: 'streaming', blocks: [...last.blocks, { kind: 'text', text: action.delta }] },
+                ],
+              };
+            }
+            nextBlocks[blockIndex] = { kind: 'text', text: textBlock.text + action.delta };
+              return {
+                ...state,
+                thinking: false,
+                messages: [
+                  ...state.messages.slice(0, -1),
+                  { ...last, status: 'streaming', blocks: nextBlocks },
+                ],
+              };
+            }
+            return {
+              ...state,
+              thinking: false,
+              messages: [
+                ...state.messages.slice(0, -1),
+                { ...last, status: 'streaming', blocks: [...last.blocks, { kind: 'text', text: action.delta }] },
+              ],
             };
           }
           return {
             ...state,
             thinking: false,
-            lines: [...state.lines, { id: `ai-${Date.now()}`, text: action.delta, isAssistant: true }],
+            messages: [
+              ...state.messages,
+              {
+                id: `ai-${Date.now()}`,
+                role: 'assistant',
+                title: 'Assistant',
+                createdAt: Date.now(),
+                status: 'streaming',
+                blocks: [{ kind: 'text', text: action.delta }],
+              },
+            ],
           };
         }
         case 'thinking_delta': {
-          const last = state.lines[state.lines.length - 1];
-          if (last && last.id.startsWith('thinking-')) {
+          const last = state.messages[state.messages.length - 1];
+          if (last && last.role === 'assistant') {
+            const blockIndex = last.blocks.findIndex(block => block.kind === 'thinking');
+            if (blockIndex >= 0) {
+            const nextBlocks = [...last.blocks];
+            const thinkingBlock = nextBlocks[blockIndex];
+            if (!thinkingBlock || thinkingBlock.kind !== 'thinking') {
+              return {
+                ...state,
+                thinking: true,
+                messages: [
+                  ...state.messages.slice(0, -1),
+                  {
+                    ...last,
+                    status: 'streaming',
+                    blocks: [{ kind: 'thinking', text: action.delta, collapsed: true }, ...last.blocks],
+                  },
+                ],
+              };
+            }
+            nextBlocks[blockIndex] = {
+              kind: 'thinking',
+                text: thinkingBlock.text + action.delta,
+                collapsed: true,
+              };
+              return {
+                ...state,
+                thinking: true,
+                messages: [
+                  ...state.messages.slice(0, -1),
+                  { ...last, status: 'streaming', blocks: nextBlocks },
+                ],
+              };
+            }
             return {
               ...state,
               thinking: true,
-              lines: [...state.lines.slice(0, -1), { ...last, text: last.text + action.delta }],
+              messages: [
+                ...state.messages.slice(0, -1),
+                {
+                  ...last,
+                  status: 'streaming',
+                  blocks: [{ kind: 'thinking', text: action.delta, collapsed: true }, ...last.blocks],
+                },
+              ],
             };
           }
           return {
             ...state,
             thinking: true,
-            lines: [...state.lines, { id: `thinking-${Date.now()}`, text: `[Thinking] ${action.delta}` }],
+            messages: [
+              ...state.messages,
+              {
+                id: `ai-${Date.now()}`,
+                role: 'assistant',
+                title: 'Assistant',
+                createdAt: Date.now(),
+                status: 'streaming',
+                blocks: [{ kind: 'thinking', text: action.delta, collapsed: true }],
+              },
+            ],
           };
         }
         case 'error':
           return {
             ...state,
-            lines: [...state.lines, { id: `error-${Date.now()}`, text: `[Error] ${action.message}`, isAssistant: true }],
+            messages: [
+              ...state.messages,
+              {
+                id: `error-${Date.now()}`,
+                role: 'error',
+                title: 'Error',
+                createdAt: Date.now(),
+                status: 'error',
+                blocks: [{ kind: 'text', text: action.message }],
+              },
+            ],
           };
         case 'usage':
           return { ...state, usage: action.usage };

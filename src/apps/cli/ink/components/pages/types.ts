@@ -1,6 +1,20 @@
 import React from 'react';
 
-export type ChatLine = { id: string; text: string };
+export type ChatMessageRole = 'user' | 'assistant' | 'system' | 'error';
+
+export type ChatMessageBlock =
+  | { kind: 'text'; text: string }
+  | { kind: 'thinking'; text: string; collapsed?: boolean }
+  | { kind: 'toolSummary'; text: string; collapsed?: boolean };
+
+export type ChatMessage = {
+  id: string;
+  role: ChatMessageRole;
+  title: string;
+  createdAt: number;
+  status?: 'streaming' | 'completed' | 'error';
+  blocks: ChatMessageBlock[];
+};
 
 export type ChatSessionInfo = {
   id: string;
@@ -22,7 +36,7 @@ export type WelcomeProps = {
 };
 
 export type ChatPageProps = {
-  lines: ChatLine[];
+  messages: ChatMessage[];
   isDimmed?: boolean;
   session?: ChatSessionInfo | null;
 };

@@ -3,12 +3,12 @@ import { randomUUID } from 'crypto';
 import { Box, useInput, useApp, useStdout, useStdin } from 'ink';
 import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import { WelcomePage, ChatPage } from './components/pages/index.js';
-import { ChatSessionInfo } from './components/pages/types.js';
+import { ChatMessage, ChatSessionInfo } from './components/pages/types.js';
 import { InputArea } from './components/inputs/index.js';
 import { ModalOverlay } from './components/overlays/index.js';
 import { sessionManager, SessionInfo, SessionRecord, SessionStatus } from '../../../core/pi/sessions.js';
 import { useModelConfig } from './hooks/useModelConfig.js';
-import { createInitialState, LineItem, piAppReducer } from './state/pi_app_reducer.js';
+import { createInitialState, piAppReducer } from './state/pi_app_reducer.js';
 
 export type PiInkAppProps = {
   agent: Agent;
@@ -25,7 +25,7 @@ const SLASH_COMMANDS = [
 
 type FocusOwner = 'exitConfirm' | 'modelConfig' | 'modal' | 'slash' | 'mainInput';
 
-function toSessionLines(messages: any[]): LineItem[] {
+function toSessionMessages(messages: any[]): ChatMessage[] {
   const toDisplayText = (content: unknown): string => {
     if (typeof content === 'string') return content;
     if (Array.isArray(content)) {
@@ -51,11 +51,28 @@ function toSessionLines(messages: any[]): LineItem[] {
     return '';
   };
 
-  return messages.map((m: any, i: number) => ({
-    id: m.id || `restored-${i}`,
-    text: m.role === 'user' ? `❯ ${toDisplayText(m.content)}` : toDisplayText(m.content),
-    isAssistant: m.role === 'assistant',
-  }));
+  return messages.map((m: any, i: number) => {
+    const createdAt = Date.now() + i;
+    if (m.role === 'user') {
+      return {
+        id: m.id || `restored-user-${i}`,
+        role: 'user' as const,
+        title: 'You',
+        createdAt,
+        status: 'completed' as const,
+        blocks: [{ kind: 'text' as const, text: toDisplayText(m.content) }],
+      };
+    }
+
+    return {
+      id: m.id || `restored-assistant-${i}`,
+      role: 'assistant' as const,
+      title: 'Assistant',
+      createdAt,
+      status: 'completed' as const,
+      blocks: [{ kind: 'text' as const, text: toDisplayText(m.content) }],
+    };
+  });
 }
 
 function extractSessionTitle(text: string): string {
@@ -189,7 +206,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     agent.sessionId = session.id;
     agent.replaceMessages(session.messages);
     setCurrentSession(toSessionView(session));
-    dispatch({ type: 'SESSION_RESTORED', lines: toSessionLines(session.messages) });
+    dispatch({ type: 'SESSION_RESTORED', messages: toSessionMessages(session.messages) });
     return true;
   };
 
@@ -241,7 +258,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   };
 
   const runPrompt = (cmd: string) => {
-    dispatch({ type: 'COMMAND_EXEC', op: 'append_user_line', text: `❯ ${cmd}` });
+    dispatch({ type: 'COMMAND_EXEC', op: 'append_user_message', text: cmd });
     setCurrentSession(prev => prev ? {
       ...prev,
       status: 'active',
@@ -253,7 +270,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
       lastTurnStatusRef.current = 'error';
       dispatch({ type: 'AGENT_EVENT', op: 'agent_end' });
       dispatch({ type: 'AGENT_EVENT', op: 'error', message: err.message || 'Request failed' });
-      dispatch({ type: 'COMMAND_EXEC', op: 'append_system_line', text: `Error: ${err.message}` });
+      dispatch({ type: 'COMMAND_EXEC', op: 'append_error_message', text: err.message });
       persistCurrentSessionRef.current('error');
     });
   };
@@ -325,7 +342,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     }
 
     if (cmd.startsWith('/')) {
-      dispatch({ type: 'COMMAND_EXEC', op: 'append_system_line', text: `Unknown command: ${cmd}` });
+      dispatch({ type: 'COMMAND_EXEC', op: 'append_system_message', text: `Unknown command: ${cmd}` });
       return;
     }
     if (!isModelConfigured) {
@@ -661,7 +678,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
             />
           </WelcomePage>
         ) : (
-          <ChatPage lines={state.lines} isDimmed={isDimmed} session={currentSession} />
+          <ChatPage messages={state.messages} isDimmed={isDimmed} session={currentSession} />
         )}
       </Box>
       {state.page === 'chat' && (

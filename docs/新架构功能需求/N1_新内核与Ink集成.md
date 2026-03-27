@@ -15,6 +15,7 @@ CodeAgent 现已迁移至基于 `@mariozechner/pi-agent-core` 的新内核，并
 - **交互式 Overlay**: 支持居中的弹出层，用于模型选择、确认对话框等。
 - **响应式布局**: 自动监听终端尺寸变化并重新渲染。
 - **Slash Commands**: 输入 `/` 触发命令菜单，支持分类显示与实时预览。
+- **结构化 Chat 视图**: chat 页面已从平铺文本流演进为消息块视图，用户、助手、系统与错误消息分开显示，`thinking` 从最终回答正文中剥离。
 
 ### 3. 会话管理 (Session Management)
 - **持久化**: 会话以 JSON 格式存储在 `~/.codeagent/sessions/`。
@@ -36,3 +37,4 @@ CodeAgent 现已迁移至基于 `@mariozechner/pi-agent-core` 的新内核，并
 - [ ] 实现代码 Diff 可视化渲染。
 - [ ] 增强 `run_command` 的实时输出捕获。
 - [ ] 集成 `web_search` 与 `browse_page` 工具到新内核。
+- [ ] 为结构化 Chat 视图补充工具摘要块与更完整的交互能力。
