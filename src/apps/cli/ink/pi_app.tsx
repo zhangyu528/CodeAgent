@@ -146,6 +146,9 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const modelId = model?.id || '';
   const isModelConfigured = !!(model && model.id);
   const version = '1.0.0';
+  const reservedInputRows = state.page === 'chat' ? 8 : 0;
+  const chatAvailableRows = Math.max(3, rows - reservedInputRows);
+  const chatScrollEnabled = state.page === 'chat' && focusOwner === 'mainInput';
 
   useEffect(() => {
     if (!isRawModeSupported) return;
@@ -678,11 +681,17 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
             />
           </WelcomePage>
         ) : (
-          <ChatPage messages={state.messages} isDimmed={isDimmed} session={currentSession} />
+          <ChatPage
+            messages={state.messages}
+            availableRows={chatAvailableRows}
+            scrollEnabled={chatScrollEnabled}
+            isDimmed={isDimmed}
+            session={currentSession}
+          />
         )}
       </Box>
       {state.page === 'chat' && (
-        <Box flexShrink={0}>
+        <Box flexShrink={0} minHeight={reservedInputRows}>
           <InputArea
             value={state.inputValue}
             page={state.page}
