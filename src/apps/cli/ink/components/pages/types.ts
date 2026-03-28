@@ -42,4 +42,14 @@ export type ChatPageProps = {
   scrollEnabled?: boolean;
   isDimmed?: boolean;
   session?: ChatSessionInfo | null;
+  // InputArea props
+  inputValue: string;
+  slashVisible: boolean;
+  slashItems: any[];
+  slashSelected: number;
+  modelName: string;
+  cwd: string;
+  exitPromptVisible: boolean;
+  thinking: boolean;
+  usage: { input: number; output: number; cost: number } | null;
 };

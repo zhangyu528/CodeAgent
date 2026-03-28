@@ -62,6 +62,10 @@ export class SessionManager {
     }
   }
   async saveSession(id: string, messages: AgentMessage[], options: SaveSessionOptions = {}): Promise<void> {
+    // Ensure sessions directory exists before writing
+    if (!fs.existsSync(SESSIONS_DIR)) {
+      fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+    }
     await this.cleanupTempFiles();
     const filePath = this.getSessionPath(id);
     const title = options.title || this.extractTitle(messages) || 'New Session';

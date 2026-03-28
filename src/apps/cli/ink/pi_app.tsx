@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { Box, useInput, useApp, useStdout, useStdin } from 'ink';
 import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import { WelcomePage, ChatPage } from './components/pages/index.js';
+import { DebugPanel } from './components/DebugPanel.js';
 import { ChatMessage, ChatSessionInfo } from './components/pages/types.js';
 import { InputArea } from './components/inputs/index.js';
 import { ModalOverlay } from './components/overlays/index.js';
@@ -76,6 +77,30 @@ function toSessionMessages(messages: any[]): ChatMessage[] {
   });
 }
 
+function fromChatMessagesToAgentMessages(chatMessages: ChatMessage[]): any[] {
+  if (!Array.isArray(chatMessages)) {
+    setDebugMessages(prev => [...prev, `[${new Date().toLocaleTimeString()}] ERROR: chatMessages is not an array`]);
+    return [];
+  }
+  return chatMessages.map((m) => {
+    // Convert ChatMessage.blocks to AgentMessage.content format
+    const blocks = m.blocks || [];
+    const content = blocks.map((b) => {
+      if (b.kind === 'text') {
+        return { type: 'text' as const, text: (b as any).text || '' };
+      }
+      // Pass through other block types as-is
+      return b;
+    });
+
+    return {
+      id: m.id,
+      role: m.role,
+      content,
+    };
+  });
+}
+
 function extractSessionTitle(text: string): string {
   const normalized = (text || '').trim();
   if (!normalized) return 'New Session';
@@ -116,7 +141,13 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const [historyItems, setHistoryItems] = useState<SessionInfo[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSessionInfo | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const isDev = process.env.NODE_ENV !== 'production';
+  const [debugMessages, setDebugMessages] = useState<string[]>([]);
+  const [isDebugVisible, setIsDebugVisible] = useState(false); // 默认关闭
   const activeSessionIdRef = useRef<string | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSavingRef = useRef(false);
+  const reducerMessagesRef = useRef<AgentMessage[]>([]);
   const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTurnStatusRef = useRef<SessionStatus>('completed');
   const persistCurrentSessionRef = useRef<(status?: SessionStatus) => void>(() => {});
@@ -147,8 +178,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const modelId = model?.id || '';
   const isModelConfigured = !!(model && model.id);
   const version = '1.0.0';
-  const reservedInputRows = state.page === 'chat' ? 8 : 0;
-  const chatAvailableRows = Math.max(3, rows - reservedInputRows);
+  const chatAvailableRows = rows;
   const chatScrollEnabled = state.page === 'chat' && focusOwner === 'mainInput';
 
   useEffect(() => {
@@ -169,14 +199,29 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     setHistoryItems(history);
   }, []);
 
-  const persistCurrentSession = useCallback((status: SessionStatus = 'completed') => {
+  const persistCurrentSession = useCallback((status: SessionStatus = 'completed', messagesToSave?: AgentMessage[]) => {
     const stableSessionId = activeSessionIdRef.current;
     if (!stableSessionId) return;
+
+    // Debounce: 500ms 内只保存一次
+    if (saveTimeoutRef.current) return;
+    saveTimeoutRef.current = setTimeout(() => {
+      saveTimeoutRef.current = null;
+    }, 500);
+
+    // 如果正在保存，跳过
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+
     agent.sessionId = stableSessionId;
 
     const title = currentSession?.id === stableSessionId ? currentSession.title : null;
     const updatedAt = Date.now();
-    const messageCount = agent.state.messages.length;
+    const messagesToUse = messagesToSave || reducerMessagesRef.current;
+    const messageCount = messagesToUse.length;
+
+    // Get agent messages - agent.state.messages should be complete at agent_end
+    const agentMessages = messagesToSave ? fromChatMessagesToAgentMessages(messagesToUse) : agent.state.messages;
 
     setCurrentSession(prev => {
       if (!prev || prev.id !== stableSessionId) return prev;
@@ -185,24 +230,34 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
         status,
         updatedAt,
         messageCount,
-        title: prev.title || extractSessionTitleFromMessages(agent.state.messages),
+        title: prev.title || extractSessionTitleFromMessages(messagesToUse),
       };
     });
 
     void sessionManager
-      .saveSession(stableSessionId, agent.state.messages, {
+      .saveSession(stableSessionId, agentMessages, {
         status,
         model: agent.state.model?.id,
         provider: agent.state.model?.provider,
         ...(title ? { title } : {}),
       })
-      .then(() => refreshHistory())
-      .catch(() => {});
+      .then(() => {
+        isSavingRef.current = false;
+        refreshHistory();
+      })
+      .catch((err) => {
+        isSavingRef.current = false;
+      });
   }, [agent, refreshHistory, currentSession]);
 
   useEffect(() => {
     persistCurrentSessionRef.current = persistCurrentSession;
   }, [persistCurrentSession]);
+
+  // Keep reducerMessagesRef in sync with state.messages
+  useEffect(() => {
+    reducerMessagesRef.current = state.messages;
+  }, [state.messages]);
 
   const restoreSessionToUI = (session: SessionRecord | null): boolean => {
     if (!session) return false;
@@ -242,7 +297,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
           title: extractSessionTitle(userInput),
           status: 'active',
           updatedAt: Date.now(),
-          messageCount: Math.max(1, agent.state.messages.length),
+          messageCount: Math.max(1, reducerMessagesRef.current.length),
         });
       }
       return stableSessionId;
@@ -396,7 +451,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
             ...prev,
             status: finalStatus,
             updatedAt: Date.now(),
-            messageCount: agent.state.messages.length,
+            messageCount: reducerMessagesRef.current.length,
           } : prev);
           persistCurrentSessionRef.current(finalStatus);
           break;
@@ -410,8 +465,6 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
           } else if (assistantEvent.type === 'reasoning_delta') {
             dispatch({ type: 'AGENT_EVENT', op: 'reasoning_delta', delta: assistantEvent.delta });
           }
-          // Auto-save on message update
-          persistCurrentSessionRef.current('active');
           break;
         }
         case 'message_end': {
@@ -435,6 +488,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
               },
             });
           }
+          // Don't persist here - wait for agent_end when all messages are complete
           break;
         }
       }
@@ -644,6 +698,12 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   };
 
   useInput((input, key) => {
+    // Ctrl+P toggles debug panel
+    if (key.ctrl && input === 'p') {
+      setIsDebugVisible(prev => !prev);
+      return;
+    }
+
     if (handleExitKey(input, key)) return;
     if (handleEscapeKey(key)) return;
 
@@ -694,27 +754,20 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
             scrollEnabled={chatScrollEnabled}
             isDimmed={isDimmed}
             session={currentSession}
-          />
-        )}
-      </Box>
-      {state.page === 'chat' && (
-        <Box flexShrink={0} minHeight={reservedInputRows}>
-          <InputArea
-            value={state.inputValue}
-            page={state.page}
+            inputValue={state.inputValue}
             slashVisible={isSlashVisible}
             slashItems={filteredCommands}
             slashSelected={state.slashSelected}
             modelName={modelId}
             cwd={cwd}
-            isDimmed={isDimmed}
             exitPromptVisible={state.exitPromptVisible}
             thinking={state.thinking}
             usage={state.usage}
           />
-        </Box>
-      )}
+        )}
+      </Box>
       <ModalOverlay modal={state.modal} columns={columns} rows={rows} />
+      {isDev && <DebugPanel messages={debugMessages} isVisible={isDebugVisible} />}
     </Box>
   );
 }
