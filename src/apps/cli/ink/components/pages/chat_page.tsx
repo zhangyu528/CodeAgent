@@ -20,12 +20,55 @@ function formatMessageTime(createdAt: number): string {
   }
 }
 
+function formatDateLabel(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+  const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (messageDate.getTime() === today.getTime()) {
+    return '今天';
+  } else if (messageDate.getTime() === yesterday.getTime()) {
+    return '昨天';
+  } else {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+}
+
+type DateGroup = {
+  dateLabel: string;
+  dateTimestamp: number;
+  messages: ChatMessage[];
+};
+
+function groupMessagesByDate(messages: ChatMessage[]): DateGroup[] {
+  const groups: Map<string, DateGroup> = new Map();
+
+  for (const message of messages) {
+    const date = new Date(message.createdAt);
+    const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+
+    if (!groups.has(dateKey)) {
+      groups.set(dateKey, {
+        dateLabel: formatDateLabel(message.createdAt),
+        dateTimestamp: message.createdAt,
+        messages: [],
+      });
+    }
+    groups.get(dateKey)!.messages.push(message);
+  }
+
+  // Sort groups by date (oldest first)
+  return Array.from(groups.values()).sort((a, b) => a.dateTimestamp - b.dateTimestamp);
+}
+
 function roleColor(role: ChatMessageRole): string {
   switch (role) {
     case 'user':
       return 'cyan';
     case 'assistant':
-      return 'green';
+      return 'blue';
     case 'error':
       return 'red';
     case 'system':
@@ -48,62 +91,160 @@ function roleLabel(message: ChatMessage): string {
   }
 }
 
-function blockPrefix(block: ChatMessageBlock): string {
-  switch (block.kind) {
-    case 'thinking':
-      return '[Reasoning]';
-    case 'toolSummary':
-      return '[Tools]';
-    case 'text':
-    default:
-      return '';
-  }
+function formatToolSummary(text: string): string {
+  // Parse tool summary text and format as tree structure
+  // Expected format: "tool1: args1\ntool2: args2\n..." or similar
+  const lines = text.split('\n').filter(l => l.trim());
+  if (lines.length === 0) return text;
+
+  const formatted = lines.map((line, i) => {
+    const isLast = i === lines.length - 1;
+    const prefix = isLast ? '└── ' : '├── ';
+    return `${prefix}${line}`;
+  }).join('\n');
+
+  return `[Tools]\n${formatted}`;
 }
 
 function renderBlock(message: ChatMessage, block: ChatMessageBlock, isDimmed: boolean | undefined, key: string) {
-  if (block.kind === 'thinking' && block.collapsed !== false) {
-    const hasDetail = block.text.trim().length > 0;
+  // Handle collapsed thinking
+  if (block.kind === 'thinking') {
+    const collapsed = block.collapsed !== false; // default to collapsed
+    if (collapsed) {
+      return (
+        <Box key={key}>
+          <Text color="gray" dimColor={!!isDimmed}>
+            ▸ [Thinking]
+          </Text>
+        </Box>
+      );
+    }
+    // Expanded thinking
     return (
-      <Box key={key}>
-        <Text color="gray" dimColor={!!isDimmed}>
-          [Reasoning hidden{hasDetail ? ` • ${block.text.length} chars` : ''}]
-        </Text>
+      <Box key={key} flexDirection="column" paddingLeft={2}>
+        <Text color="gray" dimColor={!!isDimmed}>▾ [Thinking]</Text>
+        <Text color="gray" dimColor={!!isDimmed}>{block.text}</Text>
       </Box>
     );
   }
 
-  const prefix = blockPrefix(block);
-  const content = prefix ? `${prefix} ${block.text}` : block.text;
-  const color = block.kind === 'thinking' ? 'gray' : roleColor(message.role);
+  // Handle reasoning block
+  if (block.kind === 'reasoning') {
+    const collapsed = block.collapsed !== false; // default to collapsed
+    if (collapsed) {
+      return (
+        <Box key={key}>
+          <Text color="gray" dimColor={!!isDimmed}>
+            ▸ [Reasoning]
+          </Text>
+        </Box>
+      );
+    }
+    // Expanded reasoning
+    return (
+      <Box key={key} flexDirection="column" paddingLeft={2}>
+        <Text color="gray" dimColor={!!isDimmed}>▾ [Reasoning]</Text>
+        <Text color="gray" dimColor={!!isDimmed}>{block.text}</Text>
+      </Box>
+    );
+  }
 
+  // Handle collapsed toolSummary
+  if (block.kind === 'toolSummary') {
+    const collapsed = block.collapsed !== false; // default to collapsed
+    if (collapsed) {
+      return (
+        <Box key={key}>
+          <Text color="gray" dimColor={!!isDimmed}>
+            ▸ [Tools]
+          </Text>
+        </Box>
+      );
+    }
+    // Expanded toolSummary - format as tree
+    const formatted = formatToolSummary(block.text);
+    return (
+      <Box key={key} flexDirection="column" paddingLeft={2}>
+        <Text color="gray" dimColor={!!isDimmed}>▾ [Tools]</Text>
+        <Text color="gray" dimColor={!!isDimmed}>{formatted}</Text>
+      </Box>
+    );
+  }
+
+  // Handle text block - use white for main content
   return (
     <Box key={key}>
-      <Text color={color} dimColor={!!isDimmed}>{content}</Text>
+      <Text color="white" dimColor={!!isDimmed}>{block.text}</Text>
     </Box>
   );
 }
 
 function MessageCard({ message, isDimmed }: { message: ChatMessage; isDimmed: boolean | undefined }) {
+  // Calculate total text length for streaming status
+  const totalTextLength = message.blocks.reduce((sum, block) => sum + block.text.length, 0);
+
+  // Check if we're still waiting for first content
+  const isWaiting = message.status === 'streaming' && totalTextLength === 0;
+
+  // Check if we have thinking/reasoning block
+  const hasThinkingBlock = message.blocks.some(block => block.kind === 'thinking' || block.kind === 'reasoning');
+
+  // Check if we have text block (text started outputting)
+  const hasTextBlock = message.blocks.some(block => block.kind === 'text' && block.text.length > 0);
+
+  // Generating state: thinking/reasoning done but text not started yet
+  const isGenerating = message.status === 'streaming' && hasThinkingBlock && !hasTextBlock;
+
+  // Streaming animation state
+  const [animFrame, setAnimFrame] = useState(0);
+  const isStreaming = message.status === 'streaming';
+
+  useEffect(() => {
+    if (!isStreaming) return;
+    const interval = setInterval(() => {
+      setAnimFrame(f => (f + 1) % 4);
+    }, 200);
+    return () => clearInterval(interval);
+  }, [isStreaming]);
+
+  const animChars = ['░', '▒', '▓', '█'];
+  const color = roleColor(message.role);
+
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="round"
-      borderColor={roleColor(message.role)}
-      paddingX={0}
-      paddingY={0}
-      marginBottom={0}
-    >
+    <Box flexDirection="column" marginBottom={1} borderStyle="bold" borderLeft={true} borderLeftColor={color} borderTop={false} borderRight={false} borderBottom={false} paddingLeft={1}>
       <Box justifyContent="space-between">
-        <Text color={roleColor(message.role)} bold dimColor={!!isDimmed}>
+        <Text color={color} bold dimColor={!!isDimmed}>
           {roleLabel(message)}
         </Text>
         <Text color="gray" dimColor>
           {formatMessageTime(message.createdAt)}
-          {message.status === 'streaming' ? ' • streaming' : ''}
+          {message.status === 'streaming' && totalTextLength > 0 && !isGenerating ? ` • streaming (${totalTextLength} chars)` : ''}
+          {isWaiting || isGenerating ? ' • thinking' : ''}
           {message.status === 'error' ? ' • error' : ''}
         </Text>
       </Box>
-      {message.blocks.map((block, index) => renderBlock(message, block, isDimmed, `${message.id}-${index}`))}
+      {(isWaiting || isGenerating) && (
+        <Box>
+          <Text color="blue" bold>{animChars[animFrame]} </Text>
+          <Text color="gray" dimColor>{isWaiting ? 'thinking...' : 'generating...'}</Text>
+        </Box>
+      )}
+      {message.blocks.map((block, index) => {
+        const prevBlock = index > 0 ? message.blocks[index - 1] : null;
+        const nextBlock = index < message.blocks.length - 1 ? message.blocks[index + 1] : null;
+        const isTextBetweenTexts = block.kind === 'text' && prevBlock?.kind === 'text' && nextBlock?.kind === 'text';
+
+        return (
+          <Box key={`${message.id}-${index}`} flexDirection="column">
+            {isTextBetweenTexts && (
+              <Box>
+                <Text color="gray" dimColor>───</Text>
+              </Box>
+            )}
+            {renderBlock(message, block, isDimmed, `${message.id}-${index}`)}
+          </Box>
+        );
+      })}
     </Box>
   );
 }
@@ -295,8 +436,15 @@ export function ChatPage(props: ChatPageProps) {
                 setContentHeight(height);
               }}
             >
-              {messages.map((message) => (
-                <MessageCard key={message.id} message={message} isDimmed={isDimmed} />
+              {groupMessagesByDate(messages).map((group, groupIndex) => (
+                <Box key={`group-${groupIndex}`} flexDirection="column">
+                  <Box paddingTop={1}>
+                    <Text color="gray" dimColor>─── {group.dateLabel} ───</Text>
+                  </Box>
+                  {group.messages.map((message) => (
+                    <MessageCard key={message.id} message={message} isDimmed={isDimmed} />
+                  ))}
+                </Box>
               ))}
             </ScrollView>
             <ScrollBar

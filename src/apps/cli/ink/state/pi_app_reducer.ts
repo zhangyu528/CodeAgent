@@ -50,6 +50,7 @@ type AgentEventAction =
   | { type: 'AGENT_EVENT'; op: 'agent_end' }
   | { type: 'AGENT_EVENT'; op: 'text_delta'; delta: string }
   | { type: 'AGENT_EVENT'; op: 'thinking_delta'; delta: string }
+  | { type: 'AGENT_EVENT'; op: 'reasoning_delta'; delta: string }
   | { type: 'AGENT_EVENT'; op: 'error'; message: string }
   | { type: 'AGENT_EVENT'; op: 'usage'; usage: { input: number; output: number; cost: number } };
 
@@ -138,6 +139,7 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
           return {
             ...state,
             page: 'chat',
+            inputValue: '',
             messages: [
               ...state.messages,
               {
@@ -148,8 +150,8 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
                 status: 'completed',
                 blocks: [{ kind: 'text', text: action.text }],
               },
+              // Assistant message will be created by agent_start
             ],
-            inputValue: '',
           };
         case 'append_system_message':
           return {
@@ -204,8 +206,23 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
       };
     case 'AGENT_EVENT': {
       switch (action.op) {
-        case 'agent_start':
-          return { ...state, thinking: true, usage: null };
+        case 'agent_start': {
+          // Create an empty assistant message to show waiting state
+          const assistantMessage: ChatMessage = {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            title: 'Assistant',
+            createdAt: Date.now(),
+            status: 'streaming',
+            blocks: [],
+          };
+          return {
+            ...state,
+            thinking: true,
+            usage: null,
+            messages: [...state.messages, assistantMessage],
+          };
+        }
         case 'agent_end': {
           const last = state.messages[state.messages.length - 1];
           if (last && last.role === 'assistant') {
@@ -225,19 +242,9 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
           if (last && last.role === 'assistant') {
             const blockIndex = last.blocks.findIndex(block => block.kind === 'text');
             if (blockIndex >= 0) {
-            const nextBlocks = [...last.blocks];
-            const textBlock = nextBlocks[blockIndex];
-            if (!textBlock || textBlock.kind !== 'text') {
-              return {
-                ...state,
-                thinking: false,
-                messages: [
-                  ...state.messages.slice(0, -1),
-                  { ...last, status: 'streaming', blocks: [...last.blocks, { kind: 'text', text: action.delta }] },
-                ],
-              };
-            }
-            nextBlocks[blockIndex] = { kind: 'text', text: textBlock.text + action.delta };
+              const nextBlocks = [...last.blocks];
+              const textBlock = nextBlocks[blockIndex];
+              nextBlocks[blockIndex] = { kind: 'text', text: textBlock.text + action.delta };
               return {
                 ...state,
                 thinking: false,
@@ -247,6 +254,7 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
                 ],
               };
             }
+            // No text block found - append to existing blocks (keep thinking if present)
             return {
               ...state,
               thinking: false,
@@ -256,6 +264,7 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
               ],
             };
           }
+          // No assistant message - create new one
           return {
             ...state,
             thinking: false,
@@ -277,24 +286,11 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
           if (last && last.role === 'assistant') {
             const blockIndex = last.blocks.findIndex(block => block.kind === 'thinking');
             if (blockIndex >= 0) {
-            const nextBlocks = [...last.blocks];
-            const thinkingBlock = nextBlocks[blockIndex];
-            if (!thinkingBlock || thinkingBlock.kind !== 'thinking') {
-              return {
-                ...state,
-                thinking: true,
-                messages: [
-                  ...state.messages.slice(0, -1),
-                  {
-                    ...last,
-                    status: 'streaming',
-                    blocks: [{ kind: 'thinking', text: action.delta, collapsed: true }, ...last.blocks],
-                  },
-                ],
-              };
-            }
-            nextBlocks[blockIndex] = {
-              kind: 'thinking',
+              // Update existing thinking block
+              const nextBlocks = [...last.blocks];
+              const thinkingBlock = nextBlocks[blockIndex];
+              nextBlocks[blockIndex] = {
+                kind: 'thinking',
                 text: thinkingBlock.text + action.delta,
                 collapsed: true,
               };
@@ -307,19 +303,17 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
                 ],
               };
             }
+            // No thinking block found - prepend thinking to existing blocks
             return {
               ...state,
               thinking: true,
               messages: [
                 ...state.messages.slice(0, -1),
-                {
-                  ...last,
-                  status: 'streaming',
-                  blocks: [{ kind: 'thinking', text: action.delta, collapsed: true }, ...last.blocks],
-                },
+                { ...last, status: 'streaming', blocks: [{ kind: 'thinking', text: action.delta, collapsed: true }, ...last.blocks] },
               ],
             };
           }
+          // No assistant message - create new one
           return {
             ...state,
             thinking: true,
@@ -332,6 +326,55 @@ export function piAppReducer(state: PiAppState, action: PiAppAction): PiAppState
                 createdAt: Date.now(),
                 status: 'streaming',
                 blocks: [{ kind: 'thinking', text: action.delta, collapsed: true }],
+              },
+            ],
+          };
+        }
+        case 'reasoning_delta': {
+          const last = state.messages[state.messages.length - 1];
+          if (last && last.role === 'assistant') {
+            const blockIndex = last.blocks.findIndex(block => block.kind === 'reasoning');
+            if (blockIndex >= 0) {
+              // Update existing reasoning block
+              const nextBlocks = [...last.blocks];
+              const reasoningBlock = nextBlocks[blockIndex];
+              nextBlocks[blockIndex] = {
+                kind: 'reasoning',
+                text: reasoningBlock.text + action.delta,
+                collapsed: true,
+              };
+              return {
+                ...state,
+                thinking: true,
+                messages: [
+                  ...state.messages.slice(0, -1),
+                  { ...last, status: 'streaming', blocks: nextBlocks },
+                ],
+              };
+            }
+            // No reasoning block found - prepend reasoning to existing blocks
+            return {
+              ...state,
+              thinking: true,
+              messages: [
+                ...state.messages.slice(0, -1),
+                { ...last, status: 'streaming', blocks: [{ kind: 'reasoning', text: action.delta, collapsed: true }, ...last.blocks] },
+              ],
+            };
+          }
+          // No assistant message - create new one
+          return {
+            ...state,
+            thinking: true,
+            messages: [
+              ...state.messages,
+              {
+                id: `ai-${Date.now()}`,
+                role: 'assistant',
+                title: 'Assistant',
+                createdAt: Date.now(),
+                status: 'streaming',
+                blocks: [{ kind: 'reasoning', text: action.delta, collapsed: true }],
               },
             ],
           };

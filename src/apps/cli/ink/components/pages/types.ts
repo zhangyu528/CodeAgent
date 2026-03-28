@@ -5,6 +5,7 @@ export type ChatMessageRole = 'user' | 'assistant' | 'system' | 'error';
 export type ChatMessageBlock =
   | { kind: 'text'; text: string }
   | { kind: 'thinking'; text: string; collapsed?: boolean }
+  | { kind: 'reasoning'; text: string; collapsed?: boolean }
   | { kind: 'toolSummary'; text: string; collapsed?: boolean };
 
 export type ChatMessage = {
@@ -37,6 +38,8 @@ export type WelcomeProps = {
 
 export type ChatPageProps = {
   messages: ChatMessage[];
+  availableRows: number;
+  scrollEnabled?: boolean;
   isDimmed?: boolean;
   session?: ChatSessionInfo | null;
 };

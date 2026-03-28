@@ -62,13 +62,7 @@ export function InputArea(props: InputAreaProps) {
             ) : (
               <Text color="red" italic>not configured</Text>
             )}
-            {props.thinking && (
-              <>
-                <Text color="gray">   •   </Text>
-                <Text color="magenta">thinking...</Text>
-              </>
-            )}
-            {props.usage && !props.thinking && (
+            {props.usage && (
               <>
                 <Text color="gray">   •   </Text>
                 <Text color="gray">In: </Text>

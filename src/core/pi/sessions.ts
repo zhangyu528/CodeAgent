@@ -142,7 +142,6 @@ export class SessionManager {
       await this.removeFileWithRetry(tmpPath);
       handle = await fsp.open(tmpPath, 'w');
       await handle.writeFile(payload, 'utf-8');
-      await handle.sync();
       await handle.close();
       handle = null;
 

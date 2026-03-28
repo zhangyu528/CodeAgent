@@ -21,6 +21,7 @@ const SLASH_COMMANDS = [
   { name: '/model', description: 'Select LLM provider and model', category: 'Config', usage: '/model' },
   { name: '/history', description: 'View session history', category: 'Session', usage: '/history' },
   { name: '/resume', description: 'Continue last session', category: 'Session', usage: '/resume' },
+  { name: '/quit', description: 'Exit the application', category: 'System', usage: '/quit' },
 ];
 
 type FocusOwner = 'exitConfirm' | 'modelConfig' | 'modal' | 'slash' | 'mainInput';
@@ -281,7 +282,6 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const commandHandlers: Record<string, () => void> = useMemo(() => ({
     '/clear': () => dispatch({ type: 'COMMAND_EXEC', op: 'clear' }),
     '/new': () => {
-      persistCurrentSession('completed');
       setStableSessionId(null);
       agent.sessionId = undefined as any;
       agent.replaceMessages([]);
@@ -333,7 +333,10 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
         showRestoreFailureModal('No previous sessions found.');
       })();
     },
-  }), [modelConfig, refreshHistory, persistCurrentSession, agent, setStableSessionId, restoreSessionById, showRestoreFailureModal]);
+    '/quit': () => {
+      onExit();
+    },
+  }), [modelConfig, refreshHistory, persistCurrentSession, agent, setStableSessionId, restoreSessionById, showRestoreFailureModal, onExit]);
 
   const executeCommand = (cmdName: string) => {
     const cmd = cmdName.trim();
@@ -404,7 +407,11 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
             dispatch({ type: 'AGENT_EVENT', op: 'text_delta', delta: assistantEvent.delta });
           } else if (assistantEvent.type === 'thinking_delta') {
             dispatch({ type: 'AGENT_EVENT', op: 'thinking_delta', delta: assistantEvent.delta });
+          } else if (assistantEvent.type === 'reasoning_delta') {
+            dispatch({ type: 'AGENT_EVENT', op: 'reasoning_delta', delta: assistantEvent.delta });
           }
+          // Auto-save on message update
+          persistCurrentSessionRef.current('active');
           break;
         }
         case 'message_end': {
