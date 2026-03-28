@@ -3,6 +3,7 @@ import { Box, Text, useInput, useStdout } from 'ink';
 import { ScrollView, ScrollViewRef } from 'ink-scroll-view';
 import { ScrollBar } from '@byteland/ink-scroll-bar';
 import { ChatMessage, ChatMessageBlock, ChatMessageRole, ChatPageProps } from './types.js';
+import { InputArea } from '../inputs/index.js';
 
 function formatUpdatedAt(updatedAt: number): string {
   try {
@@ -186,14 +187,8 @@ function MessageCard({ message, isDimmed }: { message: ChatMessage; isDimmed: bo
   // Check if we're still waiting for first content
   const isWaiting = message.status === 'streaming' && totalTextLength === 0;
 
-  // Check if we have thinking/reasoning block
-  const hasThinkingBlock = message.blocks.some(block => block.kind === 'thinking' || block.kind === 'reasoning');
-
-  // Check if we have text block (text started outputting)
-  const hasTextBlock = message.blocks.some(block => block.kind === 'text' && block.text.length > 0);
-
-  // Generating state: thinking/reasoning done but text not started yet
-  const isGenerating = message.status === 'streaming' && hasThinkingBlock && !hasTextBlock;
+  // Generating: message is streaming (has content started but not completed)
+  const isGenerating = message.status === 'streaming';
 
   // Streaming animation state
   const [animFrame, setAnimFrame] = useState(0);
@@ -210,41 +205,36 @@ function MessageCard({ message, isDimmed }: { message: ChatMessage; isDimmed: bo
   const animChars = ['░', '▒', '▓', '█'];
   const color = roleColor(message.role);
 
-  return (
-    <Box flexDirection="column" marginBottom={1} borderStyle="bold" borderLeft={true} borderLeftColor={color} borderTop={false} borderRight={false} borderBottom={false} paddingLeft={1}>
-      <Box justifyContent="space-between">
-        <Text color={color} bold dimColor={!!isDimmed}>
-          {roleLabel(message)}
-        </Text>
-        <Text color="gray" dimColor>
-          {formatMessageTime(message.createdAt)}
-          {message.status === 'streaming' && totalTextLength > 0 && !isGenerating ? ` • streaming (${totalTextLength} chars)` : ''}
-          {isWaiting || isGenerating ? ' • thinking' : ''}
-          {message.status === 'error' ? ' • error' : ''}
-        </Text>
-      </Box>
-      {(isWaiting || isGenerating) && (
-        <Box>
-          <Text color="blue" bold>{animChars[animFrame]} </Text>
-          <Text color="gray" dimColor>{isWaiting ? 'thinking...' : 'generating...'}</Text>
-        </Box>
-      )}
-      {message.blocks.map((block, index) => {
-        const prevBlock = index > 0 ? message.blocks[index - 1] : null;
-        const nextBlock = index < message.blocks.length - 1 ? message.blocks[index + 1] : null;
-        const isTextBetweenTexts = block.kind === 'text' && prevBlock?.kind === 'text' && nextBlock?.kind === 'text';
+  const isUser = message.role === 'user';
 
-        return (
-          <Box key={`${message.id}-${index}`} flexDirection="column">
-            {isTextBetweenTexts && (
-              <Box>
-                <Text color="gray" dimColor>───</Text>
+  return (
+    <Box flexDirection="column" marginBottom={1} marginRight={3} borderStyle="bold" borderLeft={true} borderLeftColor={color} borderTop={false} borderRight={false} borderBottom={false}>
+      <Box backgroundColor={isUser ? '#383838' : undefined} paddingLeft={2} paddingRight={2} paddingY={1}>
+        <Box flexDirection="column" justifyContent="center" flexGrow={1}>
+          {(isWaiting || isGenerating) && (
+            <Box>
+              <Text color="blue" bold>{animChars[animFrame]} </Text>
+              <Text color="gray" dimColor>{isWaiting ? 'thinking...' : 'generating...'}</Text>
+            </Box>
+          )}
+          {message.blocks.map((block, index) => {
+            const prevBlock = index > 0 ? message.blocks[index - 1] : null;
+            const nextBlock = index < message.blocks.length - 1 ? message.blocks[index + 1] : null;
+            const isTextBetweenTexts = block.kind === 'text' && prevBlock?.kind === 'text' && nextBlock?.kind === 'text';
+
+            return (
+              <Box key={`${message.id}-${index}`} flexDirection="column">
+                {isTextBetweenTexts && (
+                  <Box>
+                    <Text color="gray" dimColor>───</Text>
+                  </Box>
+                )}
+                {renderBlock(message, block, isDimmed, `${message.id}-${index}`)}
               </Box>
-            )}
-            {renderBlock(message, block, isDimmed, `${message.id}-${index}`)}
-          </Box>
-        );
-      })}
+            );
+          })}
+        </Box>
+      </Box>
     </Box>
   );
 }
@@ -261,7 +251,22 @@ function buildMessageSignature(messages: ChatMessage[]): string {
 }
 
 export function ChatPage(props: ChatPageProps) {
-  const { availableRows, isDimmed, messages, scrollEnabled = true, session } = props;
+  const {
+    availableRows,
+    isDimmed,
+    messages,
+    scrollEnabled = true,
+    session,
+    inputValue,
+    slashVisible,
+    slashItems,
+    slashSelected,
+    modelName,
+    cwd,
+    exitPromptVisible,
+    thinking,
+    usage,
+  } = props;
   const { stdout } = useStdout();
   const scrollRef = useRef<ScrollViewRef>(null);
 
@@ -427,7 +432,7 @@ export function ChatPage(props: ChatPageProps) {
   const viewportHeight = Math.max(1, availableRows - headerRows - unreadRows);
 
   return (
-    <Box flexDirection="column" paddingX={1} height={availableRows} flexShrink={1}>
+    <Box flexDirection="column" paddingX={2} height={availableRows} flexShrink={1}>
       {session ? (
         <Box flexShrink={0}>
           <Text color="cyan" bold>{session.title}</Text>
@@ -493,6 +498,21 @@ export function ChatPage(props: ChatPageProps) {
           <Text color="gray" dimColor>New messages below</Text>
         </Box>
       ) : null}
+      <Box flexShrink={0} minHeight={8}>
+        <InputArea
+          value={inputValue}
+          page="chat"
+          slashVisible={slashVisible}
+          slashItems={slashItems}
+          slashSelected={slashSelected}
+          modelName={modelName}
+          cwd={cwd}
+          isDimmed={isDimmed}
+          exitPromptVisible={exitPromptVisible}
+          thinking={thinking}
+          usage={usage}
+        />
+      </Box>
     </Box>
   );
 }
