@@ -303,8 +303,28 @@ export function ChatPage(props: ChatPageProps) {
     };
   }, [stdout, isPinnedToBottom]);
 
+  // Track previous message count to detect new messages
+  const prevMessagesLengthRef = useRef(messages.length);
+
   useEffect(() => {
     scrollRef.current?.remeasure();
+
+    // New message arrived - scroll to bottom regardless of pinned state
+    const isNewMessage = messages.length > prevMessagesLengthRef.current;
+    prevMessagesLengthRef.current = messages.length;
+
+    if (isNewMessage) {
+      // Always scroll for new messages, ignore isPinnedToBottom
+      if (scrollRef.current) {
+        // Use queueMicrotask to scroll after current render cycle completes
+        queueMicrotask(() => {
+          scrollRef.current?.scrollToBottom();
+        });
+      }
+      setIsPinnedToBottom(true);
+      setHasUnreadBelow(false);
+      return;
+    }
 
     if (isPinnedToBottom) {
       scrollRef.current?.scrollToBottom();
@@ -318,6 +338,16 @@ export function ChatPage(props: ChatPageProps) {
 
     syncPinnedState();
   }, [messageSignature, availableRows, isPinnedToBottom, messages.length]);
+
+  // Continuously scroll to bottom during streaming and when content updates
+  useEffect(() => {
+    if (isPinnedToBottom && scrollRef.current) {
+      // Use queueMicrotask to scroll after current render cycle completes
+      queueMicrotask(() => {
+        scrollRef.current?.scrollToBottom();
+      });
+    }
+  }, [messageSignature]);
 
   // Keyboard and mouse scrolling
   useInput((input, key) => {
