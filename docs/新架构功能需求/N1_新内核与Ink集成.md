@@ -17,6 +17,34 @@ CodeAgent 现已迁移至基于 `@mariozechner/pi-agent-core` 的新内核，并
 - **Slash Commands**: 输入 `/` 触发命令菜单，支持分类显示与实时预览。
 - **结构化 Chat 视图**: chat 页面已从平铺文本流演进为消息块视图，用户、助手、系统与错误消息分开显示，`thinking` 从最终回答正文中剥离。
 
+### 2.1 代码组织重构 (2026-03-29)
+为提升可维护性，对 Ink TUI 代码进行了四阶段重构：
+
+| 阶段 | 文件 | 改动 |
+|------|------|------|
+| 阶段一 | `ChatPage.tsx` | 拆分为 `WelcomePage` + `ChatPage` 独立组件 |
+| 阶段二 | `pi_app.tsx` | 简化导入，直接使用子组件 |
+| 阶段三 | `pi_app_reducer.ts` | 拆分为 6 个子 reducer 函数 (`handleUiEvent`, `handleInputKey`, `handleAgentEvent`, `handleCommandExec`, `handleSessionRestored`, `handleModelConfigEvent`) |
+| 阶段四 | `hooks/` | 提取自定义 Hooks：`useDebug`, `useSlashCommands`, `useFocusOwner` |
+
+**重构后文件结构：**
+```
+src/apps/cli/ink/
+├── components/pages/
+│   ├── ChatPage.tsx      # 主聊天页面
+│   ├── WelcomePage.tsx   # 欢迎页面
+│   └── types.ts
+├── hooks/
+│   ├── index.ts          # 统一导出
+│   ├── useDebug.ts       # Debug 面板状态
+│   ├── useFocusOwner.ts  # 焦点所有者管理
+│   ├── useModelConfig.ts # 模型配置
+│   └── useSlashCommands.ts # Slash 命令过滤
+├── state/
+│   └── pi_app_reducer.ts # 子 reducer 拆分
+└── pi_app.tsx            # 直接使用子组件
+```
+
 ### 3. 会话管理 (Session Management)
 - **持久化**: 会话以 JSON 格式存储在 `~/.codeagent/sessions/`。
 - **自动保存**: 每一轮对话结束时自动保存会话状态。

@@ -20,7 +20,7 @@ export type InputAreaProps = {
   slashSelected: number;
   modelName: string;
   cwd: string;
-  isDimmed?: boolean;
+  isDimmed?: boolean | undefined;
   exitPromptVisible?: boolean;
   thinking?: boolean;
   usage?: { input: number; output: number; cost: number } | null;
