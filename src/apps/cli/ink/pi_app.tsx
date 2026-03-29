@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { randomUUID } from 'crypto';
-import { Box, useInput, useApp, useStdout, useStdin } from 'ink';
+import { Box, Text, useInput, useApp, useStdout, useStdin } from 'ink';
 import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import { WelcomePage, ChatPage } from './components/pages/index.js';
 import { DebugPanel } from './components/DebugPanel.js';
@@ -141,6 +141,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   const [historyItems, setHistoryItems] = useState<SessionInfo[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSessionInfo | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);  // 启动初始化状态
   const isDev = process.env.NODE_ENV !== 'production';
   const [debugMessages, setDebugMessages] = useState<string[]>([]);
   const [isDebugVisible, setIsDebugVisible] = useState(false); // 默认关闭
@@ -194,9 +195,15 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     setActiveSessionId(id);
   }, []);
 
-  const refreshHistory = useCallback(async () => {
-    const history = await sessionManager.getHistory(50);
+  const isFirstHistoryLoadRef = useRef(true);
+  const refreshHistory = useCallback(async (limit?: number) => {
+    const history = await sessionManager.getHistory(limit ?? 50);
     setHistoryItems(history);
+    // 首次加载完成后，标记初始化完成
+    if (isFirstHistoryLoadRef.current) {
+      isFirstHistoryLoadRef.current = false;
+      setIsInitializing(false);
+    }
   }, []);
 
   const persistCurrentSession = useCallback((status: SessionStatus = 'completed', messagesToSave?: AgentMessage[]) => {
@@ -359,16 +366,15 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
     },
     '/history': () => {
       void (async () => {
-        const history = await sessionManager.getHistory(50);
-        setHistoryItems(history);
+        await refreshHistory(50);  // 加载完整列表
         dispatch({
           type: 'COMMAND_EXEC',
           op: 'show_modal',
           modal: {
             kind: 'selectOne',
             message: 'Sessions',
-            choices: history.length > 0
-              ? history.map(session => `${session.title} (${session.id.slice(0, 8)}) · ${session.status} · ${session.messageCount} msgs`)
+            choices: historyItems.length > 0
+              ? historyItems.map(session => `${session.title} (${session.id.slice(0, 8)}) · ${session.status} · ${session.messageCount} msgs`)
               : ['No history sessions found'],
             selected: 0,
           },
@@ -417,7 +423,7 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   };
 
   useEffect(() => {
-    void refreshHistory();
+    void refreshHistory(1);  // 启动时只加载1条，用于 /resume
   }, [refreshHistory]);
 
   useEffect(() => {
@@ -731,7 +737,11 @@ export function PiInkApp({ agent, onExit }: PiInkAppProps) {
   return (
     <Box flexDirection="column" height={rows} width={columns}>
       <Box flexGrow={1} flexDirection="column">
-        {state.page === 'welcome' ? (
+        {isInitializing ? (
+          <Box justifyContent="center" alignItems="center">
+            <Text color="cyan">Loading...</Text>
+          </Box>
+        ) : state.page === 'welcome' ? (
           <WelcomePage version={version} cwd={cwd} provider={provider} logs={[]} rows={rows} cols={columns} isDimmed={isDimmed}>
             <InputArea
               value={state.inputValue}

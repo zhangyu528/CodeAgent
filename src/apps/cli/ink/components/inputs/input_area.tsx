@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { InputAreaProps } from './types.js';
 import { InputBar } from './input_bar.js';
@@ -18,7 +18,20 @@ export function InputArea(props: InputAreaProps) {
   const isWelcome = props.page === 'welcome';
   const hasValue = props.value.length > 0;
   const showPopups = props.slashVisible;
-  const borderColor = props.exitPromptVisible ? "red" : (props.isDimmed ? "gray" : (hasValue ? "cyan" : "gray"));
+
+  // 边框呼吸效果：当输入为空且未 dimmed 时，灰色在两个色阶间切换
+  const [isPulse, setIsPulse] = useState(false);
+  useEffect(() => {
+    if (!hasValue && !props.isDimmed && !props.exitPromptVisible) {
+      const interval = setInterval(() => {
+        setIsPulse(p => !p);
+      }, 500);
+      return () => clearInterval(interval);
+    }
+    return () => {};
+  }, [hasValue, props.isDimmed, props.exitPromptVisible]);
+
+  const borderColor = props.exitPromptVisible ? "red" : (props.isDimmed ? "gray" : (hasValue ? "cyan" : (isPulse ? "#06b6d4" : "#0891b2")));
 
   const renderPopups = () => (
     <>

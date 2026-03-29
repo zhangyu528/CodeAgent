@@ -12,12 +12,6 @@ export type SlashPaletteProps = {
 };
 
 
-export type HistoryPickerProps = {
-  visible: boolean;
-  items: Array<{ id: string; title: string; updatedAt?: number; status?: string; messageCount?: number }>;
-  selectedIndex: number;
-};
-
 export type InputAreaProps = {
   value: string;
   page: 'welcome' | 'chat';
