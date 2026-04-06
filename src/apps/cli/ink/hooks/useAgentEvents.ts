@@ -1,0 +1,174 @@
+/**
+ * useAgentEvents - Agent 事件订阅 + 消息状态管理
+ * 管理 messages, thinking, usage 状态
+ */
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
+import { ChatMessage } from '../pages/types.js';
+import { agentMessagesToChatMessages } from '../pages/chat/messageAdapters.js';
+
+export interface UseAgentEventsOptions {
+  isRawModeSupported: boolean;
+  onRawModeChange: (mode: boolean) => void;
+  onAgentStart?: () => void;
+  onAgentEnd?: () => void;
+  onTurnSettled?: (status: 'completed' | 'error') => void;
+  onError?: (message: string) => void;
+}
+
+export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
+  const { isRawModeSupported, onRawModeChange, onAgentStart, onAgentEnd, onTurnSettled, onError } = options;
+  
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [thinking, setThinking] = useState(false);
+  const [usage, setUsage] = useState<{ input: number; output: number; cost: number } | null>(null);
+
+  const lastTurnStatusRef = useRef<'active' | 'completed' | 'error'>('completed');
+
+  const addMessage = useCallback((msg: ChatMessage) => {
+    setMessages(prev => [...prev, msg]);
+  }, []);
+
+  const updateLastMessage = useCallback((update: (msg: ChatMessage) => ChatMessage) => {
+    setMessages(prev => {
+      if (prev.length === 0) return prev;
+      return [...prev.slice(0, -1), update(prev[prev.length - 1])];
+    });
+  }, []);
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
+  const hydrateFromAgentState = useCallback(() => {
+    setMessages(agentMessagesToChatMessages(agent.state.messages as any[]));
+  }, [agent]);
+
+  // Agent event subscription
+  useEffect(() => {
+    const unsubscribe = agent.subscribe((event: AgentEvent) => {
+      switch (event.type) {
+        case 'agent_start':
+          lastTurnStatusRef.current = 'active';
+          setThinking(true);
+          onAgentStart?.();
+          addMessage({
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            title: 'Assistant',
+            createdAt: Date.now(),
+            status: 'streaming',
+            blocks: [],
+          });
+          break;
+
+        case 'agent_end': {
+          if (isRawModeSupported) onRawModeChange(true);
+          const finalStatus = lastTurnStatusRef.current === 'error' ? 'error' : 'completed';
+          setThinking(false);
+          onAgentEnd?.();
+          onTurnSettled?.(finalStatus);
+          updateLastMessage(msg => ({ ...msg, status: finalStatus }));
+          break;
+        }
+
+        case 'message_update': {
+          const assistantEvent = event.assistantMessageEvent;
+          if (assistantEvent.type === 'text_delta') {
+            appendTextDelta(assistantEvent.delta);
+          } else if (assistantEvent.type === 'thinking_delta') {
+            appendThinkingDelta(assistantEvent.delta);
+          }
+          break;
+        }
+
+        case 'message_end': {
+          if (isRawModeSupported) onRawModeChange(true);
+          const msg = event.message as any;
+          if (msg.stopReason === 'error' && msg.errorMessage) {
+            lastTurnStatusRef.current = 'error';
+            onError?.(msg.errorMessage);
+          } else {
+            lastTurnStatusRef.current = 'completed';
+          }
+          if (msg.usage) {
+            setUsage({
+              input: msg.usage.inputTokens || msg.usage.input || 0,
+              output: msg.usage.outputTokens || msg.usage.output || 0,
+              cost: msg.usage.cost?.total || 0,
+            });
+          }
+          break;
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [agent, isRawModeSupported, onRawModeChange, onAgentStart, onAgentEnd, onTurnSettled, onError, addMessage, updateLastMessage]);
+
+  const appendTextDelta = useCallback((delta: string) => {
+    updateLastMessage(msg => {
+      if (!msg) return msg;
+      const blockIndex = msg.blocks.findIndex(block => block.kind === 'text');
+      if (blockIndex >= 0) {
+        const nextBlocks = [...msg.blocks];
+        const textBlock = nextBlocks[blockIndex] as { kind: 'text'; text: string };
+        nextBlocks[blockIndex] = { kind: 'text', text: textBlock.text + delta };
+        return { ...msg, status: 'streaming', blocks: nextBlocks };
+      }
+      return { ...msg, status: 'streaming', blocks: [...msg.blocks, { kind: 'text', text: delta }] };
+    });
+  }, [updateLastMessage]);
+
+  const appendThinkingDelta = useCallback((delta: string) => {
+    updateLastMessage(msg => {
+      if (!msg) return msg;
+      const blockIndex = msg.blocks.findIndex(block => block.kind === 'thinking');
+      if (blockIndex >= 0) {
+        const nextBlocks = [...msg.blocks];
+        const thinkingBlock = nextBlocks[blockIndex] as { kind: 'thinking'; text: string };
+        nextBlocks[blockIndex] = { kind: 'thinking', text: thinkingBlock.text + delta, collapsed: true };
+        return { ...msg, status: 'streaming', blocks: nextBlocks };
+      }
+      return { ...msg, status: 'streaming', blocks: [{ kind: 'thinking', text: delta, collapsed: true }, ...msg.blocks] };
+    });
+  }, [updateLastMessage]);
+
+  const appendUserMessage = useCallback((text: string) => {
+    addMessage({
+      id: `u-${Date.now()}`,
+      role: 'user',
+      title: 'You',
+      createdAt: Date.now(),
+      status: 'completed',
+      blocks: [{ kind: 'text', text }],
+    });
+  }, [addMessage]);
+
+  const appendErrorMessage = useCallback((text: string) => {
+    addMessage({
+      id: `error-${Date.now()}`,
+      role: 'error',
+      title: 'Error',
+      createdAt: Date.now(),
+      status: 'error',
+      blocks: [{ kind: 'text', text }],
+    });
+  }, [addMessage]);
+
+  return {
+    // State
+    messages,
+    thinking,
+    usage,
+    // Mutations
+    addMessage,
+    updateLastMessage,
+    clearMessages,
+    hydrateFromAgentState,
+    appendUserMessage,
+    appendErrorMessage,
+    // Refs
+    lastTurnStatusRef,
+  };
+}

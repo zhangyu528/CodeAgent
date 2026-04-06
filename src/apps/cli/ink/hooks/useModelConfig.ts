@@ -1,11 +1,13 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Agent } from '@mariozechner/pi-agent-core';
-import { checkApiKeyConfigured, saveApiKey, saveModelConfig } from '../../../../core/pi/factory.js';
-import { ModalState } from '../components/overlays/types.js';
+import { checkApiKeyConfigured, saveApiKey, saveModelConfig } from '../../../../agent/index.js';
+import { ModalChoice, useModalStore } from '../components/modals/modalStore.js';
+import { useAppStore } from '../store/uiStore.js';
 
 // 延迟加载 pi-ai 模块，避免启动时加载 13896 行的 models.generated.js
 // 懒加载缓存
-let providersCache: string[] | null = null;
+type AllowedProvider = 'zai' | 'minimax-cn';
+let providersCache: AllowedProvider[] | null = null;
 let modelsByProviderCache: Record<string, any[]> | null = null;
 let isLoadingCache = false;
 
@@ -14,16 +16,10 @@ export type ConfigStep = 'idle' | 'selecting_provider' | 'entering_api_key' | 's
 export interface UseModelConfigResult {
   step: ConfigStep;
   isActive: boolean;
-  pendingModal: ModalState;
   pendingCommand: string | null;
   isLoading: boolean;  // 是否正在加载模型列表
   startConfig: (pendingCommand?: string) => void;
   cancelConfig: () => void;
-  onKeyUp: () => void;
-  onKeyDown: () => void;
-  onKeyReturn: (input: string) => void;
-  onApiKeyInput: (key: { backspace?: boolean; delete?: boolean }, input: string) => void;
-  onApiKeySubmit: () => void;
 }
 
 // 同步获取 providers（如果已缓存）
@@ -49,8 +45,8 @@ async function ensureProvidersLoaded(): Promise<string[]> {
   }
   isLoadingCache = true;
   const { getProviders: gp, getModels: gm } = await import('@mariozechner/pi-ai');
-  const ALLOWED_PROVIDERS = ['zai', 'minimax-cn'];
-  providersCache = gp().filter((p: string) => ALLOWED_PROVIDERS.includes(p));
+  const ALLOWED_PROVIDERS = ['zai', 'minimax-cn'] as const;
+  providersCache = (gp() as string[]).filter((p): p is AllowedProvider => ALLOWED_PROVIDERS.includes(p as AllowedProvider));
   modelsByProviderCache = {};
   for (const p of providersCache) {
     modelsByProviderCache[p] = gm(p);
@@ -62,178 +58,160 @@ async function ensureProvidersLoaded(): Promise<string[]> {
 export function useModelConfig(agent: Agent): UseModelConfigResult {
   const [step, setStep] = useState<ConfigStep>('idle');
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
-  const [selectedModelIndex, setSelectedModelIndex] = useState(0);
-  const [apiKeyInput, setApiKeyInput] = useState('');
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [configTriggered, setConfigTriggered] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const setCurrentModel = useAppStore(state => state.setCurrentModel);
+  const openNotice = useModalStore(state => state.openNotice);
+  const openAsk = useModalStore(state => state.openAsk);
+  const openSelectOne = useModalStore(state => state.openSelectOne);
 
   const startConfig = useCallback((cmd?: string) => {
     setPendingCommand(cmd || null);
     setStep('selecting_provider');
     setConfigTriggered(true);
     setIsLoading(true);
+    setLoadError(null);
     // 触发异步加载
-    ensureProvidersLoaded().then(() => {
-      setIsLoading(false);
-    });
+    ensureProvidersLoaded()
+      .then(() => {
+        setIsLoading(false);
+      })
+      .catch((error) => {
+        setLoadError(error instanceof Error ? error.message : 'Failed to load providers');
+        setIsLoading(false);
+      });
   }, []);
 
   const cancelConfig = useCallback(() => {
     setStep('idle');
     setSelectedProvider(null);
-    setSelectedModelIndex(0);
-    setApiKeyInput('');
     setPendingCommand(null);
     setConfigTriggered(false);
+    setLoadError(null);
   }, []);
 
-  const pendingModal = useMemo((): ModalState => {
+  useEffect(() => {
+    if (!configTriggered) return;
+
     if (isLoading) {
-      return { kind: 'none' };
+      openNotice(
+        'Model Configuration',
+        'Loading available providers and models...',
+        'Esc Cancel',
+        cancelConfig,
+      );
+      return;
     }
-    if (step === 'idle' || !configTriggered) {
-      return { kind: 'none' };
+
+    if (loadError) {
+      openNotice(
+        'Model Configuration',
+        `Failed to load providers.\n${loadError}`,
+        'Esc Close',
+        cancelConfig,
+      );
+      return;
     }
 
     const providers = getProviders();
-    if (!providers) {
-      return { kind: 'none' };
-    }
+    if (!providers || step === 'idle') return;
 
     if (step === 'selecting_provider') {
-      return {
-        kind: 'selectOne',
-        message: 'Select Provider',
-        choices: providers.map(p => {
-          const configured = checkApiKeyConfigured(p);
-          const status = configured ? '[* configured]' : '[ ] not configured';
-          return `${p.toUpperCase().padEnd(15)} ${status}`;
-        }),
-        selected: selectedModelIndex,
-      };
-    }
+      const choices: ModalChoice[] = providers.map((provider) => ({
+        value: provider,
+        label: `${provider.toUpperCase()} ${checkApiKeyConfigured(provider) ? '[configured]' : '[api key required]'}`,
+      }));
 
-    if (step === 'entering_api_key') {
-      return {
-        kind: 'ask',
-        message: `API Key for ${selectedProvider?.toUpperCase()}: ${apiKeyInput}`,
-        value: apiKeyInput,
-      };
-    }
+      openSelectOne({
+        title: 'Select Provider',
+        message: 'Choose the provider to configure.',
+        choices,
+        footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
+        onClose: cancelConfig,
+        onSubmit: (choice) => {
+          const provider = choice.value;
+          setSelectedProvider(provider);
 
-    if (step === 'selecting_model') {
-      const models = getModels(selectedProvider!) || [];
-      return {
-        kind: 'selectOne',
-        message: `Select Model (${selectedProvider?.toUpperCase()})`,
-        choices: models.map((m: any) => m.id),
-        selected: selectedModelIndex,
-      };
-    }
+          if (!checkApiKeyConfigured(provider)) {
+            setStep('entering_api_key');
+            return;
+          }
 
-    return { kind: 'none' };
-  }, [step, selectedProvider, selectedModelIndex, apiKeyInput, configTriggered, isLoading]);
+          const models = getModels(provider);
+          if (!models || models.length === 0) {
+            openNotice('Model Configuration', `No models available for ${provider.toUpperCase()}.`, 'Esc Close', cancelConfig);
+            return;
+          }
 
-  const onKeyUp = useCallback(() => {
-    const providers = getProviders();
-    if (step === 'selecting_provider' && providers) {
-      setSelectedModelIndex(prev => Math.max(0, prev - 1));
-    } else if (step === 'selecting_model') {
-      setSelectedModelIndex(prev => Math.max(0, prev - 1));
-    }
-  }, [step]);
-
-  const onKeyDown = useCallback(() => {
-    const providers = getProviders();
-    if (step === 'selecting_provider' && providers) {
-      setSelectedModelIndex(prev => Math.min(providers.length - 1, prev + 1));
-    } else if (step === 'selecting_model') {
-      const models = getModels(selectedProvider!) || [];
-      setSelectedModelIndex(prev => Math.min(models.length - 1, prev + 1));
-    }
-  }, [step, selectedProvider]);
-
-  const onKeyReturn = useCallback((input: string) => {
-    const providers = getProviders();
-    if (step === 'selecting_provider' && providers) {
-      const provider = providers[selectedModelIndex];
-      if (!provider) return;
-
-      setSelectedProvider(provider);
-
-      if (!checkApiKeyConfigured(provider)) {
-        setApiKeyInput('');
-        setStep('entering_api_key');
-      } else {
-        const models = getModels(provider);
-        if (models && models.length > 0) {
-          setSelectedModelIndex(0);
           setStep('selecting_model');
-        } else {
+        },
+      });
+      return;
+    }
+
+    if (step === 'entering_api_key' && selectedProvider) {
+      openAsk({
+        title: `API Key • ${selectedProvider.toUpperCase()}`,
+        message: 'Enter the provider API key.',
+        footer: 'Type to edit • Enter Save • Esc Cancel',
+        onClose: cancelConfig,
+        onSubmit: (value) => {
+          if (!value.trim()) {
+            openNotice('Model Configuration', 'API key cannot be empty.', 'Esc Close', () => setStep('entering_api_key'));
+            return;
+          }
+
+          saveApiKey(selectedProvider, value.trim());
+          const models = getModels(selectedProvider);
+          if (!models || models.length === 0) {
+            openNotice('Model Configuration', `No models available for ${selectedProvider.toUpperCase()}.`, 'Esc Close', cancelConfig);
+            return;
+          }
+
+          setStep('selecting_model');
+        },
+      });
+      return;
+    }
+
+    if (step === 'selecting_model' && selectedProvider) {
+      const models = getModels(selectedProvider) || [];
+      const choices: ModalChoice[] = models.map((model: any) => ({
+        value: model.id,
+        label: model.id,
+      }));
+
+      openSelectOne({
+        title: `Select Model • ${selectedProvider.toUpperCase()}`,
+        message: 'Choose the model to use for new prompts.',
+        choices,
+        footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
+        emptyLabel: 'No models available',
+        onClose: cancelConfig,
+        onSubmit: (choice) => {
+          const selectedModel = models.find((model: any) => model.id === choice.value);
+          if (!selectedModel) {
+            cancelConfig();
+            return;
+          }
+
+          agent.setModel(selectedModel as any);
+          saveModelConfig(selectedModel.provider, selectedModel.id);
+          setCurrentModel(selectedModel.id);
           cancelConfig();
-        }
-      }
-      return;
+        },
+      });
     }
-
-    if (step === 'selecting_model') {
-      const provider = selectedProvider;
-      if (!provider) return;
-
-      const models = getModels(provider);
-      if (!models) return;
-
-      const selectedModel = models[selectedModelIndex];
-      if (selectedModel) {
-        agent.setModel(selectedModel as any);
-        saveModelConfig(selectedModel.provider, selectedModel.id);
-
-        const cmd = pendingCommand;
-        cancelConfig();
-
-        if (cmd) {
-          setPendingCommand(cmd);
-        }
-      }
-    }
-  }, [step, selectedProvider, selectedModelIndex, agent, pendingCommand, cancelConfig]);
-
-  const onApiKeyInput = useCallback((key: { backspace?: boolean; delete?: boolean }, input: string) => {
-    if (key.backspace || key.delete) {
-      setApiKeyInput(prev => prev.slice(0, -1));
-      return;
-    }
-    if (input) {
-      setApiKeyInput(prev => prev + input);
-    }
-  }, []);
-
-  const onApiKeySubmit = useCallback(() => {
-    if (apiKeyInput.length > 0 && selectedProvider) {
-      saveApiKey(selectedProvider, apiKeyInput);
-      const models = getModels(selectedProvider);
-      if (models && models.length > 0) {
-        setSelectedModelIndex(0);
-        setStep('selecting_model');
-      } else {
-        cancelConfig();
-      }
-    }
-  }, [apiKeyInput, selectedProvider, cancelConfig]);
+  }, [agent, cancelConfig, configTriggered, isLoading, loadError, openAsk, openNotice, openSelectOne, selectedProvider, setCurrentModel, step]);
 
   return {
     step,
     isActive: step !== 'idle',
-    pendingModal,
     pendingCommand,
     isLoading,
     startConfig,
     cancelConfig,
-    onKeyUp,
-    onKeyDown,
-    onKeyReturn,
-    onApiKeyInput,
-    onApiKeySubmit,
   };
 }

@@ -12,6 +12,8 @@
 | **High** | N4 | **会话存储抽象与兼容迁移** | 引入 `SessionRepository` 抽象、schema version 与 migration，支持 JSON/SQLite 双实现路径。 | 📅 待启动 | [详情](新架构功能需求/N4_会话存储抽象与兼容迁移.md) |
 | **Med** | N5 | **会话治理与检索增强** | 增加归档/删除/导入导出/TTL、history 检索和 session 级 token/cost 聚合。 | 📅 待启动 | [详情](新架构功能需求/N5_会话治理与检索增强.md) |
 | **Med** | N6 | **恢复 Session 后的 Chat 显示一致性** | 统一 `/resume` 与 history 恢复后的 chat UI 状态恢复，确保消息、header 与输入区一致。 | 🚧 进行中 | [详情](新架构功能需求/N6_恢复Session后的Chat显示一致性.md) |
+| **Med** | N11 | **Ink TUI 输入系统重构** | 简化输入处理架构，修复 Windows Enter 键问题，集成 Debug Panel。 | ✅ 已完成 | [详情](新架构功能需求/N11_Ink_TUI_输入系统重构.md) |
+| **Med** | N12 | **自动化测试方案** | 建立 Vitest 单元测试体系，覆盖 slash 命令、消息处理等核心逻辑。 | 🚧 进行中 | [详情](新架构功能需求/N12_自动化测试方案.md) |
 
 ---
 
