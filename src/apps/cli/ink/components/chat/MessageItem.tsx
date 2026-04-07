@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Box, Text } from 'ink';
-import { ChatMessage, ChatMessageBlock, ChatMessageRole } from '../types.js';
+import { ChatMessage, ChatMessageBlock, ChatMessageRole } from '../../pages/types.js';
 import { TypingIndicator } from './TypingIndicator.js';
 
 interface MessageItemProps {

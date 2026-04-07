@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { ChatSessionInfo } from '../types.js';
+import { ChatSessionInfo } from '../../pages/types.js';
 
 interface ChatHeaderProps {
   session: ChatSessionInfo | null | undefined;

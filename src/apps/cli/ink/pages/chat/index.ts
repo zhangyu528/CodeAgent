@@ -1,6 +1,3 @@
 export { ChatPage } from './ChatPage.js';
-export { DateDivider } from './DateDivider.js';
-export { ChatHeader } from './ChatHeader.js';
-export { MessageItem } from './MessageItem.js';
-export { MessageList } from './MessageList.js';
-export { TypingIndicator } from './TypingIndicator.js';
+// Re-export from components/chat for convenience
+export { ChatHeader, DateDivider, MessageItem, MessageList, TypingIndicator } from '../../components/chat/index.js';

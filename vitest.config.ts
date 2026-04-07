@@ -9,7 +9,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: ['src/apps/cli/ink/**/*.{ts,tsx}'],
-      exclude: ['src/apps/cli/ink/**/*.d.ts'],
+      exclude: [
+        'src/apps/cli/ink/**/*.d.ts',
+        'src/apps/cli/ink/test-input.ts',
+      ],
     },
   },
 });

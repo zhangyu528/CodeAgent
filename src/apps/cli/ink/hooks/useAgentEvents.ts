@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import { ChatMessage } from '../pages/types.js';
-import { agentMessagesToChatMessages } from '../pages/chat/messageAdapters.js';
+import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
 
 export interface UseAgentEventsOptions {
   isRawModeSupported: boolean;

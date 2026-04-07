@@ -2,16 +2,16 @@ import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { ScrollView, ScrollViewRef } from 'ink-scroll-view';
 import { ScrollBar } from '@byteland/ink-scroll-bar';
-import { ChatMessage } from '../types.js';
+import { ChatMessage } from '../../pages/types.js';
 import { DateDivider } from './DateDivider.js';
 import { MessageItem } from './MessageItem.js';
-import { useModalStore } from '../../components/modals/modalStore.js';
 import { useInput } from 'ink';
 
 interface MessageListProps {
   messages: ChatMessage[];
   scrollEnabled?: boolean;
   availableRows: number;
+  isModalOpen?: boolean;  // 从 props 传入，而不是直接读取 store
 }
 
 type DateGroup = {
@@ -71,6 +71,7 @@ export function MessageList({
   messages,
   scrollEnabled = true,
   availableRows,
+  isModalOpen = false,  // 默认 false
 }: MessageListProps) {
   const { stdout } = useStdout();
   const scrollRef = useRef<ScrollViewRef>(null);
@@ -78,7 +79,6 @@ export function MessageList({
   const [contentHeight, setContentHeight] = useState(0);
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false);
-  const hasModal = useModalStore(state => state.modal.kind !== 'none');
 
   const messageSignature = useMemo(() => buildMessageSignature(messages), [messages]);
   const groupedMessages = useMemo(() => groupMessagesByDate(messages), [messages]);
@@ -155,7 +155,7 @@ export function MessageList({
   }, [messageSignature]);
 
   useInput((input, key) => {
-    if (hasModal || !scrollEnabled || !scrollRef.current) return;
+    if (isModalOpen || !scrollEnabled || !scrollRef.current) return;
 
     // Handle mouse scroll events
     if (typeof input === 'string') {
@@ -218,7 +218,7 @@ export function MessageList({
       syncPinnedState();
       return;
     }
-  }, { isActive: !hasModal });
+  }, { isActive: !isModalOpen });
 
   if (messages.length === 0) {
     return (
