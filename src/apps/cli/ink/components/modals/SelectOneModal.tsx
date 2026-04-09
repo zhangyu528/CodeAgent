@@ -156,10 +156,18 @@ export function SelectOneModal() {
             const globalIndex = windowStart + idx;
             const isSelected = globalIndex === state.selected;
             const prefix = isSelected ? '› ' : '  ';
+            if (isSelected) {
+              return (
+                <Box key={`${globalIndex}-${item.value}`} backgroundColor="#2a2a3a" paddingX={1}>
+                  <Text color="white" bold>{padToWidth(`${prefix}${item.label}`, innerWidth)}</Text>
+                </Box>
+              );
+            }
             return (
-              <Box key={`${globalIndex}-${item.value}`}>
-                <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected} dimColor={!isSelected}>
-                  {padToWidth(`${prefix}${item.label}`, innerWidth)}
+              <Box key={`${globalIndex}-${item.value}`} paddingX={1}>
+                <Text>
+                  <Text color="#505050" bold>{prefix}</Text>
+                  <Text color="#e0e0e0" bold>{padToWidth(item.label, innerWidth - 2)}</Text>
                 </Text>
               </Box>
             );

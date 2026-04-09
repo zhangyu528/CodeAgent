@@ -19,10 +19,10 @@ export function ModalFrame({ title, width, footer, children }: ModalFrameProps) 
     <Box
       flexDirection="column"
       width={width}
-      borderStyle="round"
-      borderColor="cyan"
+      borderStyle="single"
+      borderColor="#2a2a3a"
       paddingX={1}
-      backgroundColor="black"
+      backgroundColor="#161625"
     >
       <Box>
         <Text color="cyan" bold>{padToWidth(title, innerWidth)}</Text>
