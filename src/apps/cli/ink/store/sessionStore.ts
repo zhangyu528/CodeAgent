@@ -6,6 +6,8 @@ import { create } from 'zustand';
 import { getAgent } from '../../../../agent/index.js';
 import { sessionManager, SessionInfo, SessionRecord, SessionStatus } from '../../../../agent/sessions.js';
 import { ChatSessionInfo } from '../pages/types.js';
+import { useMessageStore } from './messageStore.js';
+import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
 
 export function createSessionId(): string {
   try {
@@ -101,6 +103,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const agent = getAgent();
     agent.sessionId = record.id;
     agent.replaceMessages(record.messages);
+    useMessageStore.getState().setMessages(agentMessagesToChatMessages(record.messages));
     set({
       activeSessionId: record.id,
       currentSession: toSessionView(record),
