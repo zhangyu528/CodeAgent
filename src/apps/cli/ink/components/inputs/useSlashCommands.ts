@@ -1,10 +1,11 @@
 import { useCallback } from 'react';
 import type { SessionInfo } from '../../../../../agent/index.js';
 import { getAgent } from '../../../../../agent/index.js';
-import { useModalStore } from '../modals/index.js';
 import { useAppStore } from '../../store/uiStore.js';
-import { useAppSession } from '../../hooks/useAppSession.js';
+import { useSessionStore } from '../../store/sessionStore.js';
+import { useMessageStore } from '../../store/messageStore.js';
 import type { UseModelConfigResult } from '../../hooks/useModelConfig.js';
+import { showNotice, showSelectOne } from '../modals/index.js';
 
 export interface SlashListViewItem {
   name: string;
@@ -82,53 +83,3 @@ function formatSessionChoice(item: SessionInfo): { value: string; label: string 
   };
 }
 
-export function useSlashCommands(params: {
-  modelConfig: UseModelConfigResult;
-}) {
-  const { modelConfig } = params;
-  const session = useAppSession();
-  const setPage = useAppStore(state => state.setPage);
-  const openNotice = useModalStore(state => state.openNotice);
-  const openSelectOne = useModalStore(state => state.openSelectOne);
-
-  const openHistoryModal = useCallback(async (limit?: number) => {
-    try {
-      const history = await session.refreshHistory(limit);
-      if (history.length === 0) {
-        openNotice('Session History', 'No saved sessions found yet.');
-        return;
-      }
-
-      openSelectOne({
-        title: limit ? 'Resume Recent Session' : 'Session History',
-        message: limit ? 'Choose a recent session to resume.' : 'Browse and restore a saved session.',
-        choices: history.map(formatSessionChoice),
-        footer: '↑/↓ Navigate • Enter Resume • Esc Cancel',
-        emptyLabel: 'No saved sessions found',
-        onSubmit: async (choice) => {
-          const restored = await session.restoreSessionById(choice.value);
-          if (!restored) {
-            openNotice('Session History', 'Failed to restore the selected session.');
-            return;
-          }
-          setPage('chat');
-        },
-      });
-    } catch (error) {
-      openNotice('Session History', 'Failed to load session history.');
-    }
-  }, [openNotice, openSelectOne, session, setPage]);
-
-  return useCallback((cmd: string) => executeSlash(cmd, {
-    onHelp: () => openNotice('Help', HELP_MESSAGE),
-    onNew: () => {
-      session.clearSession();
-      getAgent().replaceMessages([]);
-      setPage('chat');
-    },
-    onModel: () => modelConfig.startConfig(),
-    onHistory: () => { void openHistoryModal(); },
-    onResume: () => { void openHistoryModal(10); },
-    onQuit: () => process.exit(0),
-  }), [modelConfig, openHistoryModal, openNotice, session, setPage]);
-}

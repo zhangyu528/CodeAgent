@@ -11,7 +11,7 @@ interface MessageListProps {
   messages: ChatMessage[];
   scrollEnabled?: boolean;
   availableRows: number;
-  isModalOpen?: boolean;  // 从 props 传入，而不是直接读取 store
+  isModalOpen?: boolean;
 }
 
 type DateGroup = {
@@ -229,43 +229,46 @@ export function MessageList({
   }
 
   return (
-    <>
-      <ScrollView
-        ref={scrollRef}
-        onScroll={(offset: number) => {
-          setScrollOffset(offset);
-          const ref = scrollRef.current;
-          if (!ref) return;
+    <Box flexDirection="row" width="100%" height="100%" flexShrink={0} overflow="hidden">
+      <Box height="100%" width="100%" flexGrow={1} flexShrink={1} overflow="hidden">
+        <ScrollView
+          ref={scrollRef}
+          onScroll={(offset: number) => {
+            setScrollOffset(offset);
+            const ref = scrollRef.current;
+            if (!ref) return;
 
-          const bottomOffset = Math.max(0, ref.getBottomOffset());
-          const pinned = bottomOffset <= 0 || offset >= bottomOffset - 1;
-          setIsPinnedToBottom(pinned);
+            const bottomOffset = Math.max(0, ref.getBottomOffset());
+            const pinned = bottomOffset <= 0 || offset >= bottomOffset - 1;
+            setIsPinnedToBottom(pinned);
 
-          if (pinned) {
-            setHasUnreadBelow(false);
-          }
-        }}
-        onContentHeightChange={(height: number) => {
-          setContentHeight(height);
-        }}
-      >
-        {groupedMessages.map((group, groupIndex) => (
-          <Box key={`group-${groupIndex}`} flexDirection="column">
-            <DateDivider label={group.dateLabel} />
-            {group.messages.map((message) => (
-              <MessageItem key={message.id} message={message} />
-            ))}
-          </Box>
-        ))}
-      </ScrollView>
+            if (pinned) {
+              setHasUnreadBelow(false);
+            }
+          }}
+          onContentHeightChange={(height: number) => {
+            setContentHeight(height);
+          }}
+        >
+          {groupedMessages.map((group, groupIndex) => (
+            <Box key={`group-${groupIndex}`} flexDirection="column">
+              <DateDivider label={group.dateLabel} />
+              {group.messages.map((message) => (
+                <MessageItem key={message.id} message={message} />
+              ))}
+            </Box>
+          ))}
+        </ScrollView>
+      </Box>
       <ScrollBar
         placement="inset"
-        style="block"
+        style="line"
+        color="cyan"
         contentHeight={contentHeight}
         viewportHeight={availableRows}
         scrollOffset={scrollOffset}
         autoHide
       />
-    </>
+    </Box>
   );
 }

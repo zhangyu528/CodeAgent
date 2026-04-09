@@ -1,14 +1,15 @@
 /**
  * InputController - manages input state and actions
  */
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useAppStore } from '../../store/uiStore.js';
+import { useSessionStore } from '../../store/sessionStore.js';
+import { useMessageStore } from '../../store/messageStore.js';
 import { shortenPath } from '../../utils.js';
-import { useAppSession } from '../../hooks/useAppSession.js';
 import { useModelConfig } from '../../hooks/useModelConfig.js';
 import { useInput as useKeyboardInput } from 'ink';
 import { getAgent } from '../../../../../agent/index.js';
-import { useDebugStore } from '../debug/debugStore.js';
+import { hasAnyModalOpen } from '../modals/index.js';
 
 export interface InputControllerResult {
   value: string;
@@ -22,14 +23,22 @@ export interface InputControllerResult {
 export function useInput(): InputControllerResult {
   const agent = getAgent();
   const modelConfig = useModelConfig(agent);
-  const session = useAppSession();
   const [value, setValue] = useState('');
+
+  // Subscribe to state
   const isExitHint = useAppStore(state => state.isFirstPress);
   const page = useAppStore(state => state.page);
-  const setPage = useAppStore(state => state.setPage);
   const currentModel = useAppStore(state => state.currentModel);
 
-  const submitPrompt = (currentValue: string) => {
+  // Get actions
+  const setPage = useAppStore(state => state.setPage);
+  const ensureSessionForPrompt = useSessionStore(state => state.ensureSessionForPrompt);
+  const setPendingPrompt = useSessionStore(state => state.setPendingPrompt);
+  const addMessage = useMessageStore(state => state.addMessage);
+
+  const hasModal = hasAnyModalOpen();
+
+  const submitPrompt = useCallback((currentValue: string) => {
     const trimmed = currentValue.trim();
     if (!trimmed) return;
 
@@ -41,28 +50,33 @@ export function useInput(): InputControllerResult {
 
     if (page === 'welcome') {
       // Store prompt as pending, will be processed after ChatPage mounts
-      session.ensureSessionForPrompt(trimmed);
-      session.setPendingPrompt(trimmed);
+      ensureSessionForPrompt(trimmed);
+      setPendingPrompt(trimmed);
       setPage('chat');
     } else {
       // Already on chat page, send directly
-      session.ensureSessionForPrompt(trimmed);
+      ensureSessionForPrompt(trimmed);
+      addMessage({
+        id: `u-${Date.now()}`,
+        role: 'user',
+        title: 'You',
+        createdAt: Date.now(),
+        status: 'completed',
+        blocks: [{ kind: 'text', text: trimmed }],
+      });
       void agent.prompt(trimmed);
     }
     setValue('');
-  };
+  }, [currentModel, page, modelConfig, setPage, ensureSessionForPrompt, setPendingPrompt, agent, addMessage]);
 
   useKeyboardInput((input, key) => {
     // Return - submit or execute slash command
     // Also handle \r (carriage return) which Windows Terminal sends
     if (key.return || input === '\r') {
       const hasSlash = value.startsWith('/') && !value.includes(' ');
-      useDebugStore.getState().addMessage(`[Input] Return pressed, hasSlash: ${hasSlash}, value: ${value}`);
       if (hasSlash) {
-        useDebugStore.getState().addMessage('[Input] Slash command, delegating to SlashListController');
         return;
       } else {
-        useDebugStore.getState().addMessage('[Input] Calling submitPrompt');
         submitPrompt(value);
       }
       return;
@@ -70,6 +84,9 @@ export function useInput(): InputControllerResult {
 
     // Character input
     if (input) {
+      if (key.ctrl || key.meta) {
+        return;
+      }
       setValue(prev => prev + input);
       return;
     }
@@ -83,7 +100,7 @@ export function useInput(): InputControllerResult {
       setValue('');
       return;
     }
-  });
+  }, { isActive: !hasModal });
 
   return {
     value,

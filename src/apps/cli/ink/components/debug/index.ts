@@ -1,3 +1,1 @@
-export { DebugPanel } from './DebugPanel.js';
-export { useDebugStore } from './debugStore.js';
-export { useDebugController } from './useDebugController.js';
+export { DebugPanel, addDebugMessage, toggleDebug, clearDebug, isDebugVisible } from './DebugPanel.js';

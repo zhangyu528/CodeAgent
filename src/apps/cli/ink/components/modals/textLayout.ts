@@ -7,8 +7,8 @@ export function getDisplayWidth(text: string): number {
   return width;
 }
 
-export function truncateToWidth(text: string, maxWidth: number): string {
-  if (maxWidth <= 0) return '';
+export function truncateToWidth(text: string | undefined, maxWidth: number): string {
+  if (text === undefined || maxWidth <= 0) return '';
 
   let width = 0;
   let result = '';
@@ -23,7 +23,8 @@ export function truncateToWidth(text: string, maxWidth: number): string {
   return result;
 }
 
-export function padToWidth(text: string, width: number): string {
+export function padToWidth(text: string | undefined, width: number): string {
+  if (text === undefined) return '';
   const truncated = truncateToWidth(text, width);
   const visibleWidth = getDisplayWidth(truncated);
   return truncated + ' '.repeat(Math.max(0, width - visibleWidth));

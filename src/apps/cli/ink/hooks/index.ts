@@ -1,2 +1,2 @@
 export { useModelConfig } from './useModelConfig.js';
-export { useAppSession, createSessionId } from './useAppSession.js';
+export { useAgentEvents } from './useAgentEvents.js';

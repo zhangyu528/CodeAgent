@@ -1,23 +1,20 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useApp } from 'ink';
-import { SLASH_COMMANDS, type SlashListViewItem, executeSlash } from './useSlashCommands.js';
+import { SLASH_COMMANDS, type SlashListViewItem, executeSlash, HELP_MESSAGE } from './useSlashCommands.js';
 import { useInput } from 'ink';
-import { useModalStore } from '../modals/index.js';
 import { useAppStore } from '../../store/uiStore.js';
-import { useAppSession } from '../../hooks/useAppSession.js';
+import { useSessionStore } from '../../store/sessionStore.js';
+import { useMessageStore } from '../../store/messageStore.js';
 import { getAgent } from '../../../../../agent/index.js';
 import type { UseModelConfigResult } from '../../hooks/useModelConfig.js';
-import { useDebugStore } from '../debug/debugStore.js';
+import { showNotice, showSelectOne } from '../modals/index.js';
 
 export type { SlashListViewItem };
 
 export function useSlashList(inputValue: string, modelConfig: UseModelConfigResult, setInputValue: (value: string | ((prev: string) => string)) => void) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { exit } = useApp();
-  const session = useAppSession();
   const setPage = useAppStore(state => state.setPage);
-  const openNotice = useModalStore(state => state.openNotice);
-  const openSelectOne = useModalStore(state => state.openSelectOne);
 
   const hasSlash = inputValue.startsWith('/') && !inputValue.includes(' ');
   const search = hasSlash ? inputValue.slice(1).toLowerCase() : '';
@@ -40,13 +37,14 @@ export function useSlashList(inputValue: string, modelConfig: UseModelConfigResu
 
   // Open history modal
   const openHistoryModal = useCallback(async (limit?: number) => {
+    const session = useSessionStore.getState();
     try {
       const history = await session.refreshHistory(limit);
       if (history.length === 0) {
-        openNotice('Session History', 'No saved sessions found yet.');
+        showNotice({ title: 'Session History', message: 'No saved sessions found yet.' });
         return;
       }
-      openSelectOne({
+      showSelectOne({
         title: limit ? 'Resume Recent Session' : 'Session History',
         message: limit ? 'Choose a recent session to resume.' : 'Browse and restore a saved session.',
         choices: history.map(item => ({
@@ -58,34 +56,34 @@ export function useSlashList(inputValue: string, modelConfig: UseModelConfigResu
         onSubmit: async (choice) => {
           const restored = await session.restoreSessionById(choice.value);
           if (!restored) {
-            openNotice('Session History', 'Failed to restore the selected session.');
+            showNotice({ title: 'Session History', message: 'Failed to restore the selected session.' });
             return;
           }
           setPage('chat');
         },
       });
     } catch (error) {
-      openNotice('Session History', 'Failed to load session history.');
+      showNotice({ title: 'Session History', message: 'Failed to load session history.' });
     }
-  }, [openNotice, openSelectOne, session, setPage]);
+  }, [setPage]);
 
   // Build command handlers
   const handlers = useMemo(() => ({
-    onHelp: () => openNotice('Help', `Available Commands:\n/new - Start a new session\n/model - Configure LLM model\n/history - Browse session history\n/resume - Resume last session\n/help - Show this message\n/quit - Exit application`),
+    onHelp: () => showNotice({ title: 'Help', message: HELP_MESSAGE }),
     onNew: () => {
-      session.clearSession();
+      useSessionStore.getState().clearSession();
+      useMessageStore.getState().clearMessages();
       getAgent().replaceMessages([]);
-      setPage('chat');
+      setPage('welcome');
     },
     onModel: () => modelConfig.startConfig(),
     onHistory: () => { void openHistoryModal(); },
     onResume: () => { void openHistoryModal(10); },
     onQuit: () => exit(),
-  }), [modelConfig, exit, openHistoryModal, openNotice, session, setPage]);
+  }), [modelConfig, exit, openHistoryModal, setPage]);
 
   // Execute slash command directly from this handler
   const confirmSlash = useCallback((cmd: string) => {
-    useDebugStore.getState().addMessage(`[SlashList] confirmSlash called with: ${cmd}`);
     executeSlash(cmd, handlers);
     setInputValue('');
   }, [handlers, setInputValue]);

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getAgent } from '../../../../agent/index.js';
 import { sessionManager, SessionInfo, SessionRecord, SessionStatus } from '../../../../agent/sessions.js';
 import { ChatSessionInfo } from '../pages/types.js';
+import { useAppStore } from '../store/uiStore.js';
 
 export function createSessionId(): string {
   try {
@@ -40,8 +41,6 @@ export function useAppSession() {
   const activeSessionIdRef = useRef<string | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef(false);
-  // Pending prompt to be sent after ChatPage mounts
-  const pendingPromptRef = useRef<string | null>(null);
 
   const refreshHistory = useCallback(async (limit?: number) => {
     const history = await sessionManager.getHistory(limit ?? 50);
@@ -107,7 +106,7 @@ export function useAppSession() {
   const clearSession = useCallback(() => {
     activeSessionIdRef.current = null;
     setCurrentSession(null);
-    pendingPromptRef.current = null;
+    useAppStore.getState().setPendingPrompt(null);
   }, []);
 
   const ensureSessionForPrompt = useCallback((userInput: string): string => {
@@ -140,12 +139,12 @@ export function useAppSession() {
   }, [agent, currentSession]);
 
   const setPendingPrompt = useCallback((prompt: string) => {
-    pendingPromptRef.current = prompt;
+    useAppStore.getState().setPendingPrompt(prompt);
   }, []);
 
   const getAndClearPendingPrompt = useCallback((): string | null => {
-    const pending = pendingPromptRef.current;
-    pendingPromptRef.current = null;
+    const pending = useAppStore.getState().pendingPrompt;
+    useAppStore.getState().setPendingPrompt(null);
     return pending;
   }, []);
 
@@ -159,7 +158,6 @@ export function useAppSession() {
     currentSession,
     setCurrentSession,
     activeSessionIdRef,
-    pendingPromptRef,
     refreshHistory,
     persistCurrentSession,
     restoreSessionById,

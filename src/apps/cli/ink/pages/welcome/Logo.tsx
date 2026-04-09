@@ -2,7 +2,8 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { ASCII_LOGO } from './constants.js';
 
-const VERSION = '1.0.0';
+// Read version from package.json
+const { version: VERSION } = require('../../../../../../package.json');
 
 export function Logo() {
   return (

@@ -1,6 +1,6 @@
 {
   "name": "codeagent",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "This is a new project initialized with Gemini CLI.",
   "main": "dist/apps/cli/index.js",
   "bin": {
