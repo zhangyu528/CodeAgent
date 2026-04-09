@@ -7,12 +7,11 @@ import { useSessionStore } from '../../store/sessionStore.js';
 import { useMessageStore } from '../../store/messageStore.js';
 import { useAgentEvents } from '../../hooks/useAgentEvents.js';
 import { getAgent } from '../../../../../agent/index.js';
-import { hasAnyModalOpen } from '../../components/modals/index.js';
+// (useAppStore removed)
 
 export function ChatPage() {
   const agent = getAgent();
   const messages = useMessageStore(state => state.messages);
-  const isModalOpen = hasAnyModalOpen();
   const { stdout } = useStdout();
   const [terminalRows, setTerminalRows] = React.useState(stdout.rows || 24);
 
@@ -54,12 +53,12 @@ export function ChatPage() {
 
   const currentSession = useSessionStore(state => state.currentSession);
   const headerRows = currentSession ? 2 : 0;
-  // Account for header, input (approx 8 rows), and debug panel hint (1 row)
+  // Account for header, input (approx 7 rows + 2 margin), and debug panel hint (1 row)
   const availableRows = Math.max(1, terminalRows - headerRows - 9);
   const viewportHeight = availableRows;
 
   return (
-    <Box flexDirection="column" paddingX={2} flexGrow={1}>
+    <Box flexDirection="column" paddingX={2} flexGrow={1} height="100%">
       <Box flexShrink={0}>
         <ChatHeader session={currentSession} />
       </Box>
@@ -68,7 +67,6 @@ export function ChatPage() {
           messages={messages}
           scrollEnabled={true}
           availableRows={viewportHeight}
-          isModalOpen={isModalOpen}
         />
       </Box>
       <Box flexShrink={0}>

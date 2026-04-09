@@ -5,9 +5,9 @@
 import React, { useReducer, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { ModalFrame } from './ModalFrame.js';
-import { padToWidth } from './textLayout.js';
+import { padToWidth, wrapToWidth } from './textLayout.js';
 import { useInput } from 'ink';
-import { modalVisibility } from './visibility.js';
+import { modalVisibility, setModalVisibility } from './visibility.js';
 
 interface AskState {
   visible: boolean;
@@ -63,10 +63,10 @@ export function AskModal() {
 
   useEffect(() => {
     askReducerRef = dispatch;
-    modalVisibility.ask = state.visible;
+    setModalVisibility('ask', state.visible);
     return () => {
       askReducerRef = null;
-      modalVisibility.ask = false;
+      setModalVisibility('ask', false);
     };
   }, [state.visible]);
 
@@ -115,9 +115,19 @@ export function AskModal() {
         width={72}
         footer={state.footer || 'Type to edit • Enter Confirm • Esc Cancel'}
       >
-        {state.message && <Text>{state.message}</Text>}
-        {state.message && <Box height={1} />}
-        <Text bold>> {padToWidth(state.value, 64)}</Text>
+        {state.message && wrapToWidth(state.message, 68).map((line, index) => (
+          <Box key={`message-${index}`}>
+            <Text>{padToWidth(line, 68)}</Text>
+          </Box>
+        ))}
+        {state.message && (
+          <Box>
+            <Text>{padToWidth('', 68)}</Text>
+          </Box>
+        )}
+        <Box>
+          <Text bold>{`> ${padToWidth(state.value, 66)}`}</Text>
+        </Box>
       </ModalFrame>
     </Box>
   );

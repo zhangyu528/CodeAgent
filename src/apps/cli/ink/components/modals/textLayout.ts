@@ -2,7 +2,22 @@ export function getDisplayWidth(text: string): number {
   let width = 0;
   for (const char of text) {
     const codePoint = char.codePointAt(0) ?? 0;
-    width += codePoint <= 0xff ? 1 : 2;
+    if (codePoint <= 0x02FF) {
+      width += 1;
+    } else if (
+      (codePoint >= 0x1100 && codePoint <= 0x115f) || // Hangul Jamo
+      (codePoint >= 0x2e80 && codePoint <= 0xa4cf) || // CJK
+      (codePoint >= 0xac00 && codePoint <= 0xd7a3) || // Hangul Syllables
+      (codePoint >= 0xf900 && codePoint <= 0xfaff) || // CJK Compatibility
+      (codePoint >= 0xfe10 && codePoint <= 0xfe19) || // Vertical forms
+      (codePoint >= 0xfe30 && codePoint <= 0xfe6f) || // CJK Compatibility Forms
+      (codePoint >= 0xff00 && codePoint <= 0xff60) || // Fullwidth Forms
+      (codePoint >= 0xffe0 && codePoint <= 0xffe6)    // Fullwidth symbols
+    ) {
+      width += 2;
+    } else {
+      width += 1;
+    }
   }
   return width;
 }

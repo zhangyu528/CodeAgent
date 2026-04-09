@@ -5,8 +5,9 @@
 import React, { useReducer, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { ModalFrame } from './ModalFrame.js';
+import { padToWidth, wrapToWidth } from './textLayout.js';
 import { useInput } from 'ink';
-import { modalVisibility } from './visibility.js';
+import { modalVisibility, setModalVisibility } from './visibility.js';
 
 interface ConfirmState {
   visible: boolean;
@@ -55,10 +56,10 @@ export function ConfirmModal() {
 
   useEffect(() => {
     confirmReducerRef = dispatch;
-    modalVisibility.confirm = state.visible;
+    setModalVisibility('confirm', state.visible);
     return () => {
       confirmReducerRef = null;
-      modalVisibility.confirm = false;
+      setModalVisibility('confirm', false);
     };
   }, [state.visible]);
 
@@ -96,7 +97,11 @@ export function ConfirmModal() {
         width={72}
         footer={state.footer || 'Enter Confirm • Esc Cancel'}
       >
-        <Text>{state.message}</Text>
+        {wrapToWidth(state.message, 68).map((line, index) => (
+          <Box key={`msg-${index}`}>
+            <Text>{padToWidth(line, 68)}</Text>
+          </Box>
+        ))}
       </ModalFrame>
     </Box>
   );

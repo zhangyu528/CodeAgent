@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import { useSlashList } from './SlashListController.js';
 import { useModelConfig } from '../../hooks/useModelConfig.js';
 import { getAgent } from '../../../../../agent/index.js';
@@ -13,7 +13,27 @@ interface SlashListProps {
 export function SlashList({ inputValue, setInputValue }: SlashListProps) {
   const agent = getAgent();
   const modelConfig = useModelConfig(agent);
-  const { hasSlash, commands, selectedIndex } = useSlashList(inputValue, modelConfig, setInputValue);
+  const { hasSlash, commands, selectedIndex, setSelectedIndex, confirmSlash, listHeight } = useSlashList(inputValue, modelConfig, setInputValue);
+
+  // Keyboard navigation
+  useInput((_, key) => {
+    if (!hasSlash) return;
+
+    if (key.upArrow) {
+      setSelectedIndex(prev => Math.max(0, prev - 1));
+      return;
+    }
+    if (key.downArrow) {
+      setSelectedIndex(prev => Math.min(Math.max(0, commands.length - 1), prev + 1));
+      return;
+    }
+    if (key.return && commands.length > 0) {
+      const selectedCmd = commands[selectedIndex];
+      if (selectedCmd) {
+        confirmSlash(selectedCmd.name);
+      }
+    }
+  }, { isActive: hasSlash });
 
   if (!hasSlash) return null;
 
@@ -32,8 +52,18 @@ export function SlashList({ inputValue, setInputValue }: SlashListProps) {
   const windowItems = commands.slice(windowStart, windowStart + maxVisible);
 
   return (
-    <Box flexDirection="column" width="100%" paddingX={2} paddingY={1}>
-      <Text dimColor>────── Slash Commands ──────</Text>
+    <Box 
+      position="absolute"
+      marginTop={-listHeight}
+      flexDirection="column" 
+      width="100%" 
+      backgroundColor="#161625"
+      paddingY={1}
+    >
+      <Box paddingX={3} paddingY={0}>
+        <Text color="#b0b0b0" bold> COMMANDS </Text>
+      </Box>
+      
       {commands.length > 0 ? (
         <>
           {windowItems.map((item, idx) => {
@@ -42,38 +72,37 @@ export function SlashList({ inputValue, setInputValue }: SlashListProps) {
             
             const indicator = isSelected ? '› ' : '  ';
             const nameStr = padToWidth(item.name, 12);
-            const descStr = padToWidth(truncateToWidth(item.description, 35), 35);
-            const catStr = `[${item.category}]`;
+            const descStr = padToWidth(truncateToWidth(item.description, 45), 45);
             
-            const lineStr = `${indicator}${nameStr}  ${descStr}  ${catStr}`;
-
             return (
-              <Box key={item.name}>
+              <Box key={item.name} paddingX={1}>
                 {isSelected ? (
-                  <Text color="black" backgroundColor="cyan" bold>{lineStr}</Text>
+                  <Box backgroundColor="#2a2a3a" width="100%" paddingX={1}>
+                    <Text color="white" bold>{`${indicator}${nameStr} ${descStr}`}</Text>
+                  </Box>
                 ) : (
-                  <Text>
-                    <Text>{indicator}</Text>
-                    <Text color="white">{nameStr}</Text>
-                    <Text color="gray">  {descStr}  </Text>
-                    <Text color="blue" dimColor>{catStr}</Text>
-                  </Text>
+                  <Box paddingX={1}>
+                    <Text>
+                      <Text color="#505050" bold>{indicator}</Text>
+                      <Text color="#e0e0e0" bold>{nameStr}</Text>
+                      <Text color="#808080"> {descStr}</Text>
+                    </Text>
+                  </Box>
                 )}
               </Box>
             );
           })}
           {total > maxVisible && (
-            <Box marginTop={1}>
-              <Text dimColor italic>{`[${selectedIndex + 1}/${total}] use ↑/↓ to navigate`}</Text>
+            <Box paddingX={2} marginTop={0}>
+              <Text color="#404040" italic>{`── [${selectedIndex + 1}/${total}] use ↑/↓ to navigate ──`}</Text>
             </Box>
           )}
         </>
       ) : (
-        <Box>
-          <Text dimColor italic>No commands found</Text>
+        <Box paddingX={1}>
+          <Text dimColor italic>No matches found</Text>
         </Box>
       )}
     </Box>
   );
 }
-

@@ -10,6 +10,7 @@ import { useModelConfig } from '../../hooks/useModelConfig.js';
 import { useInput as useKeyboardInput } from 'ink';
 import { getAgent } from '../../../../../agent/index.js';
 import { hasAnyModalOpen } from '../modals/index.js';
+import { useSlashHandlers } from './SlashListController.js';
 
 export interface InputControllerResult {
   value: string;
@@ -87,6 +88,9 @@ export function useInput(): InputControllerResult {
       if (key.ctrl || key.meta) {
         return;
       }
+      
+      // Trigger command palette on '/' at start
+      // (Hijack removed, treated as normal character now)
       setValue(prev => prev + input);
       return;
     }

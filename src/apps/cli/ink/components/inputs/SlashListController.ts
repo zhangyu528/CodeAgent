@@ -1,41 +1,18 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useApp } from 'ink';
-import { SLASH_COMMANDS, type SlashListViewItem, executeSlash, HELP_MESSAGE } from './useSlashCommands.js';
-import { useInput } from 'ink';
+import { SLASH_COMMANDS, executeSlash, HELP_MESSAGE } from './useSlashCommands.js';
 import { useAppStore } from '../../store/uiStore.js';
 import { useSessionStore } from '../../store/sessionStore.js';
 import { useMessageStore } from '../../store/messageStore.js';
 import { getAgent } from '../../../../../agent/index.js';
 import type { UseModelConfigResult } from '../../hooks/useModelConfig.js';
 import { showNotice, showSelectOne } from '../modals/index.js';
+import { padToWidth } from '../modals/textLayout.js';
 
-export type { SlashListViewItem };
-
-export function useSlashList(inputValue: string, modelConfig: UseModelConfigResult, setInputValue: (value: string | ((prev: string) => string)) => void) {
-  const [selectedIndex, setSelectedIndex] = useState(0);
+export function useSlashHandlers(modelConfig: UseModelConfigResult) {
   const { exit } = useApp();
   const setPage = useAppStore(state => state.setPage);
 
-  const hasSlash = inputValue.startsWith('/') && !inputValue.includes(' ');
-  const search = hasSlash ? inputValue.slice(1).toLowerCase() : '';
-
-  const commands = useMemo((): SlashListViewItem[] => {
-    if (!hasSlash) return [];
-    if (search === '') return [...SLASH_COMMANDS];
-    return SLASH_COMMANDS.filter(cmd =>
-      cmd.name.toLowerCase().slice(1).startsWith(search),
-    );
-  }, [hasSlash, search]);
-
-  // Reset selection when list changes
-  useEffect(() => {
-    setSelectedIndex(prev => {
-      if (!hasSlash || commands.length === 0) return 0;
-      return Math.min(prev, commands.length - 1);
-    });
-  }, [hasSlash, commands]);
-
-  // Open history modal
   const openHistoryModal = useCallback(async (limit?: number) => {
     const session = useSessionStore.getState();
     try {
@@ -67,7 +44,6 @@ export function useSlashList(inputValue: string, modelConfig: UseModelConfigResu
     }
   }, [setPage]);
 
-  // Build command handlers
   const handlers = useMemo(() => ({
     onHelp: () => showNotice({ title: 'Help', message: HELP_MESSAGE }),
     onNew: () => {
@@ -78,40 +54,70 @@ export function useSlashList(inputValue: string, modelConfig: UseModelConfigResu
     },
     onModel: () => modelConfig.startConfig(),
     onHistory: () => { void openHistoryModal(); },
-    onResume: () => { void openHistoryModal(10); },
+    onResume: () => {
+      void (async () => {
+        const session = useSessionStore.getState();
+        try {
+          const history = await session.refreshHistory(1);
+          if (history.length > 0) {
+            const restored = await session.restoreSessionById(history[0]!.id);
+            if (restored) {
+              setPage('chat');
+              return;
+            }
+          }
+          showNotice({ title: 'Resume Session', message: 'No recent session found to resume.' });
+        } catch (error) {
+          showNotice({ title: 'Resume Session', message: 'Failed to resume session.' });
+        }
+      })();
+    },
     onQuit: () => exit(),
   }), [modelConfig, exit, openHistoryModal, setPage]);
 
-  // Execute slash command directly from this handler
+  return handlers;
+}
+
+export function useSlashList(inputValue: string, modelConfig: UseModelConfigResult, setInputValue: (value: string | ((prev: string) => string)) => void) {
+  const handlers = useSlashHandlers(modelConfig);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const hasSlash = inputValue.startsWith('/') && !inputValue.includes(' ');
+  const search = hasSlash ? inputValue.slice(1).toLowerCase() : '';
+
+  const commands = useMemo(() => {
+    if (!hasSlash) return [];
+    if (search === '') return [...SLASH_COMMANDS];
+    return SLASH_COMMANDS.filter(cmd =>
+      cmd.name.toLowerCase().slice(1).startsWith(search),
+    );
+  }, [hasSlash, search]);
+
+  // Reset selection when list changes
+  useEffect(() => {
+    setSelectedIndex(prev => {
+      if (!hasSlash || commands.length === 0) return 0;
+      return Math.min(prev, commands.length - 1);
+    });
+  }, [hasSlash, commands]);
+
+  // Execute slash command
   const confirmSlash = useCallback((cmd: string) => {
     executeSlash(cmd, handlers);
     setInputValue('');
   }, [handlers, setInputValue]);
 
-  // Keyboard navigation (only when slash list is visible)
-  useInput((_, key) => {
-    if (!hasSlash) return;
-
-    if (key.upArrow) {
-      setSelectedIndex(prev => Math.max(0, prev - 1));
-      return;
-    }
-    if (key.downArrow) {
-      setSelectedIndex(prev => Math.min(Math.max(0, commands.length - 1), prev + 1));
-      return;
-    }
-    // Enter - execute selected command
-    if (key.return && commands.length > 0) {
-      const selectedCmd = commands[selectedIndex];
-      if (selectedCmd) {
-        confirmSlash(selectedCmd.name);
-      }
-    }
-  }, { isActive: hasSlash });
+  const maxVisible = 6;
+  const listHeight = hasSlash 
+    ? 1 /* header */ + Math.max(1, Math.min(maxVisible, commands.length)) /* items */ + (commands.length > maxVisible ? 1 : 0) /* footer */ + 2 /* borders */
+    : 0;
 
   return {
     hasSlash,
     commands,
     selectedIndex,
+    setSelectedIndex,
+    confirmSlash,
+    listHeight,
   };
 }

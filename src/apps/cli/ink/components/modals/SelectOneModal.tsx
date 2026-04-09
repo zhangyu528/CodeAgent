@@ -7,7 +7,7 @@ import { Box, Text } from 'ink';
 import { ModalFrame } from './ModalFrame.js';
 import { padToWidth, wrapToWidth } from './textLayout.js';
 import { useInput } from 'ink';
-import { modalVisibility } from './visibility.js';
+import { modalVisibility, setModalVisibility } from './visibility.js';
 
 export interface ModalChoice {
   label: string;
@@ -75,10 +75,10 @@ export function SelectOneModal() {
 
   useEffect(() => {
     selectOneReducerRef = dispatch;
-    modalVisibility.selectOne = state.visible;
+    setModalVisibility('selectOne', state.visible);
     return () => {
       selectOneReducerRef = null;
-      modalVisibility.selectOne = false;
+      setModalVisibility('selectOne', false);
     };
   }, [state.visible]);
 
@@ -141,7 +141,11 @@ export function SelectOneModal() {
             <Text>{padToWidth(line, innerWidth)}</Text>
           </Box>
         ))}
-        {state.message && <Box height={1} />}
+        {state.message && (
+          <Box>
+            <Text>{padToWidth('', innerWidth)}</Text>
+          </Box>
+        )}
 
         {windowItems.length === 0 ? (
           <Box>

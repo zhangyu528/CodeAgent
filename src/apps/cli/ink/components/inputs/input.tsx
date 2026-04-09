@@ -14,28 +14,21 @@ export function Input() {
     cwdLabel,
   } = useInput();
 
-  const borderColor = isExitHint ? 'red' : 'cyan';
+  const isCommandMode = value.startsWith('/') && !value.includes(' ');
+  const borderColor = isExitHint ? 'red' : (isCommandMode ? 'blue' : 'cyan');
   const placeholder = isWelcome ? 'Ask anything to start...' : 'Type a message...';
 
   return (
     <Box 
       flexDirection="column" 
-      borderStyle="round" 
-      borderColor={borderColor} 
-      paddingY={1}
       width={isWelcome ? 80 : '100%'}
+      backgroundColor="#161625"
+      paddingY={1}
     >
-      {isWelcome ? (
-        <>
-          <InputField value={value} placeholder={placeholder} />
-          <SlashList inputValue={value} setInputValue={setValue} />
-        </>
-      ) : (
-        <>
-          <SlashList inputValue={value} setInputValue={setValue} />
-          <InputField value={value} placeholder={placeholder} />
-        </>
-      )}
+      <SlashList inputValue={value} setInputValue={setValue} />
+      <Box paddingY={1}>
+        <InputField value={value} placeholder={placeholder} isCommandMode={isCommandMode} />
+      </Box>
 
       <Box height={1} />
 

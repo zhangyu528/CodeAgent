@@ -5,8 +5,9 @@
 import React, { useReducer, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { ModalFrame } from './ModalFrame.js';
+import { padToWidth, wrapToWidth } from './textLayout.js';
 import { useInput } from 'ink';
-import { modalVisibility } from './visibility.js';
+import { modalVisibility, setModalVisibility } from './visibility.js';
 
 interface NoticeState {
   visible: boolean;
@@ -54,10 +55,10 @@ export function NoticeModal() {
 
   useEffect(() => {
     noticeReducerRef = dispatch;
-    modalVisibility.notice = state.visible;
+    setModalVisibility('notice', state.visible);
     return () => {
       noticeReducerRef = null;
-      modalVisibility.notice = false;
+      setModalVisibility('notice', false);
     };
   }, [state.visible]);
 
@@ -87,7 +88,11 @@ export function NoticeModal() {
         width={72}
         footer={state.footer || 'Esc / Enter Close'}
       >
-        <Text>{state.message}</Text>
+        {wrapToWidth(state.message, 68).map((line, index) => (
+          <Box key={`msg-${index}`}>
+            <Text>{padToWidth(line, 68)}</Text>
+          </Box>
+        ))}
       </ModalFrame>
     </Box>
   );

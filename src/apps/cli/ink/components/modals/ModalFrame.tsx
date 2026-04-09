@@ -27,11 +27,15 @@ export function ModalFrame({ title, width, footer, children }: ModalFrameProps) 
       <Box>
         <Text color="cyan" bold>{padToWidth(title, innerWidth)}</Text>
       </Box>
-      <Box height={1} />
+      <Box>
+        <Text>{padToWidth('', innerWidth)}</Text>
+      </Box>
       {children}
       {footerLines.length > 0 && (
         <>
-          <Box height={1} />
+          <Box>
+            <Text>{padToWidth('', innerWidth)}</Text>
+          </Box>
           {footerLines.map((line, index) => (
             <Box key={`footer-${index}`}>
               <Text dimColor>{padToWidth(line, innerWidth)}</Text>
