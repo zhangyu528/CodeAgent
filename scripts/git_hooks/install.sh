@@ -5,11 +5,12 @@ echo "🔧 正在安装 CodeAgent..."
 
 # 安装 Git hooks 配置
 echo "📦 配置 Git hooks..."
-git config core.hooksPath scripts/git_hooks
+git config core.hooksPath "$(dirname "$0")"
 echo "✅ Git hooks 路径已配置: scripts/git_hooks"
 
 # 确保 hooks 有执行权限
-chmod +x scripts/git_hooks/post-commit
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+chmod +x "$SCRIPT_DIR"/post-commit
 echo "✅ Hooks 执行权限已设置"
 
 # 安装依赖
