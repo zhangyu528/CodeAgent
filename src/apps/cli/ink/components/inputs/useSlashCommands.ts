@@ -2,8 +2,7 @@ import { useCallback } from 'react';
 import type { SessionInfo } from '../../../../../agent/index.js';
 import { getAgent } from '../../../../../agent/index.js';
 import { useAppStore } from '../../store/uiStore.js';
-import { useSessionStore } from '../../store/sessionStore.js';
-import { useMessageStore } from '../../store/messageStore.js';
+import { useChatStore } from '../../store/index.js';
 import type { UseModelConfigResult } from '../../hooks/useModelConfig.js';
 import { showNotice, showSelectOne } from '../modals/index.js';
 

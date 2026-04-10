@@ -3,13 +3,12 @@
  */
 import { useState, useCallback } from 'react';
 import { useAppStore } from '../../store/uiStore.js';
-import { useSessionStore } from '../../store/sessionStore.js';
-import { useMessageStore } from '../../store/messageStore.js';
+import { useChatStore } from '../../store/index.js';
 import { shortenPath } from '../../utils.js';
 import { useModelConfig } from '../../hooks/useModelConfig.js';
 import { useInput as useKeyboardInput } from 'ink';
 import { getAgent } from '../../../../../agent/index.js';
-import { hasAnyModalOpen } from '../modals/index.js';
+import { useModalOpenState } from '../modals/index.js';
 import { useSlashHandlers } from './SlashListController.js';
 
 export interface InputControllerResult {
@@ -31,13 +30,13 @@ export function useInput(): InputControllerResult {
   const page = useAppStore(state => state.page);
   const currentModel = useAppStore(state => state.currentModel);
 
-  // Get actions
+  // Get actions from unified chat store
   const setPage = useAppStore(state => state.setPage);
-  const ensureSessionForPrompt = useSessionStore(state => state.ensureSessionForPrompt);
-  const setPendingPrompt = useSessionStore(state => state.setPendingPrompt);
-  const addMessage = useMessageStore(state => state.addMessage);
+  const ensureSessionForPrompt = useChatStore(state => state.ensureSessionForPrompt);
+  const setPendingPrompt = useChatStore(state => state.setPendingPrompt);
+  const addMessage = useChatStore(state => state.addMessage);
 
-  const hasModal = hasAnyModalOpen();
+  const hasModal = useModalOpenState();
 
   const submitPrompt = useCallback((currentValue: string) => {
     const trimmed = currentValue.trim();

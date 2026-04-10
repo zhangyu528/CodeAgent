@@ -126,20 +126,56 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
         footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
         onSubmit: (choice) => {
           const provider = choice.value;
-          setSelectedProvider(provider);
 
           if (!checkApiKeyConfigured(provider)) {
+            setSelectedProvider(provider);
             setStep('entering_api_key');
             return;
           }
 
+          // Directly show model selection - no need to wait for useEffect
           const models = getModels(provider);
           if (!models || models.length === 0) {
             showNotice('Model Configuration', `No models available for ${provider.toUpperCase()}.`, 'Esc Close');
             return;
           }
 
-          setStep('selecting_model');
+          // Show model selection modal directly
+          const modelChoices = models.map((model: any) => ({
+            value: model.id,
+            label: model.id,
+          }));
+
+          showSelectOne({
+            title: `Select Model • ${provider.toUpperCase()}`,
+            message: 'Choose the model to use for new prompts.',
+            choices: modelChoices,
+            footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
+            emptyLabel: 'No models available',
+            onSubmit: (modelChoice) => {
+              const selectedModel = models.find((model: any) => model.id === modelChoice.value);
+              if (!selectedModel) {
+                cancelConfig();
+                return;
+              }
+
+              try {
+                // agent.setModel(selectedModel as any);
+                // saveModelConfig(provider, selectedModel.id);
+                cancelConfig();
+                // Call after cancelConfig so modal is fully closed
+                setCurrentModel(selectedModel.id);
+              } catch (error) {
+                // 显示错误消息在同一个 modal 上
+                showNotice(
+                  'Model Configuration',
+                  `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`,
+                  'Esc Close'
+                );
+              }
+            },
+            onCancel: cancelConfig,
+          });
         },
         onCancel: cancelConfig,
       });
@@ -164,7 +200,37 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
             return;
           }
 
-          setStep('selecting_model');
+          // Show model selection modal directly
+          const modelChoices = models.map((model: any) => ({
+            value: model.id,
+            label: model.id,
+          }));
+
+          showSelectOne({
+            title: `Select Model • ${selectedProvider.toUpperCase()}`,
+            message: 'Choose the model to use for new prompts.',
+            choices: modelChoices,
+            footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
+            emptyLabel: 'No models available',
+            onSubmit: (modelChoice) => {
+              const selectedModel = models.find((model: any) => model.id === modelChoice.value);
+              if (!selectedModel) {
+                cancelConfig();
+                return;
+              }
+
+              try {
+                agent.setModel(selectedModel as any);
+                saveModelConfig(selectedProvider, selectedModel.id);
+                setCurrentModel(selectedModel.id);
+              } catch (error) {
+                showNotice('Model Configuration', `Failed to set model: ${error instanceof Error ? error.message : String(error)}`, 'Esc Close');
+                return;
+              }
+              cancelConfig();
+            },
+            onCancel: cancelConfig,
+          });
         },
         onCancel: cancelConfig,
       });
@@ -191,12 +257,20 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
             return;
           }
 
-          agent.setModel(selectedModel as any);
-          saveModelConfig(selectedModel.provider, selectedModel.id);
-          setCurrentModel(selectedModel.id);
+          try {
+            agent.setModel(selectedModel as any);
+            saveModelConfig(selectedModel.provider, selectedModel.id);
+            setCurrentModel(selectedModel.id);
+          } catch (error) {
+            showNotice(
+              'Model Configuration',
+              `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`,
+              'Esc Close'
+            );
+            return;
+          }
           cancelConfig();
         },
-        onCancel: cancelConfig,
       });
     }
   }, [agent, cancelConfig, configTriggered, isLoading, loadError, selectedProvider, setCurrentModel, step]);

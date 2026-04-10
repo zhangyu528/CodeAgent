@@ -1,0 +1,15 @@
+#!/bin/bash
+# Git post-commit hook
+# 当 git commit 完成后自动发送测试报告到飞书
+
+# 项目目录
+PROJECT_DIR="/mnt/d/work/project/CodeAgent"
+
+# 切换到项目目录
+cd "$PROJECT_DIR"
+
+# 运行测试报告脚本
+python3 scripts/test_report.py
+
+# 记录日志
+echo "[$(date)] Post-commit hook triggered" >> scripts/git_hooks/hook.log

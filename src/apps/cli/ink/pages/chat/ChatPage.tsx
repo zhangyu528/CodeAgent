@@ -3,15 +3,13 @@ import { Box, useStdout } from 'ink';
 import { Input } from '../../components/inputs/index.js';
 import { ChatHeader } from '../../components/chat/ChatHeader.js';
 import { MessageList } from '../../components/chat/MessageList.js';
-import { useSessionStore } from '../../store/sessionStore.js';
-import { useMessageStore } from '../../store/messageStore.js';
+import { useChatStore } from '../../store/index.js';
 import { useAgentEvents } from '../../hooks/useAgentEvents.js';
-import { getAgent } from '../../../../../agent/index.js';
-// (useAppStore removed)
+import { useAgent } from '../../context/index.js';
 
 export function ChatPage() {
-  const agent = getAgent();
-  const messages = useMessageStore(state => state.messages);
+  const agent = useAgent();
+  const messages = useChatStore(state => state.messages);
   const { stdout } = useStdout();
   const [terminalRows, setTerminalRows] = React.useState(stdout.rows || 24);
 
@@ -30,14 +28,14 @@ export function ChatPage() {
     isRawModeSupported: false,
     onRawModeChange: () => {},
     onTurnSettled: (status) => {
-      useSessionStore.getState().persistCurrentSession(status, agent.state.messages);
+      useChatStore.getState().persistCurrentSession(status, agent.state.messages);
     },
   });
 
   // Handle pending prompt from WelcomePage - runs once when component mounts
   useEffect(() => {
     // Get pending prompt from WelcomePage
-    const pending = useSessionStore.getState().getAndClearPendingPrompt();
+    const pending = useChatStore.getState().getAndClearPendingPrompt();
 
     if (!pending) {
       // No pending prompt - hydrate from agent state if available
@@ -46,12 +44,12 @@ export function ChatPage() {
     }
 
     // Has pending prompt - create session, add user message, and send to agent
-    useSessionStore.getState().ensureSessionForPrompt(pending);
+    useChatStore.getState().ensureSessionForPrompt(pending);
     appendUserMessage(pending);
     void agent.prompt(pending);
   }, []); // Run only once on mount
 
-  const currentSession = useSessionStore(state => state.currentSession);
+  const currentSession = useChatStore(state => state.currentSession);
   const headerRows = currentSession ? 2 : 0;
   // Account for header, input (approx 7 rows + 2 margin), and debug panel hint (1 row)
   const availableRows = Math.max(1, terminalRows - headerRows - 9);

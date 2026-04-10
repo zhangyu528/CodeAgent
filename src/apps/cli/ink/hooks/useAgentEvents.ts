@@ -1,10 +1,10 @@
 /**
  * useAgentEvents - Agent 事件订阅
- * 使用 messageStore 共享消息状态
+ * 使用 useChatStore 共享消息状态
  */
 import { useEffect, useRef, useCallback } from 'react';
 import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
-import { useMessageStore } from '../store/messageStore.js';
+import { useChatStore } from '../store/index.js';
 import { ChatMessage } from '../pages/types.js';
 
 export interface UseAgentEventsOptions {
@@ -21,14 +21,13 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
 
   const lastTurnStatusRef = useRef<'active' | 'completed' | 'error'>('completed');
 
-  const addMessage = useMessageStore(state => state.addMessage);
-  const updateLastMessage = useMessageStore(state => state.updateLastMessage);
-  const clearMessages = useMessageStore(state => state.clearMessages);
-  const setThinking = useMessageStore(state => state.setThinking);
-  const setUsage = useMessageStore(state => state.setUsage);
+  const addMessage = useChatStore(state => state.addMessage);
+  const updateLastMessage = useChatStore(state => state.updateLastMessage);
+  const setThinking = (thinking: boolean) => useChatStore.setState({ thinking });
+  const setUsage = (usage: { input: number; output: number; cost: number }) => useChatStore.setState({ usage });
 
   const appendTextDelta = useCallback((delta: string) => {
-    useMessageStore.getState().updateLastMessage(msg => {
+    useChatStore.getState().updateLastMessage(msg => {
       if (!msg) return msg;
       const blockIndex = msg.blocks.findIndex(block => block.kind === 'text');
       if (blockIndex >= 0) {
@@ -42,7 +41,7 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
   }, []);
 
   const appendThinkingDelta = useCallback((delta: string) => {
-    useMessageStore.getState().updateLastMessage(msg => {
+    useChatStore.getState().updateLastMessage(msg => {
       if (!msg) return msg;
       const blockIndex = msg.blocks.findIndex(block => block.kind === 'thinking');
       if (blockIndex >= 0) {
@@ -79,7 +78,7 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
 
   const hydrateFromAgentState = useCallback(() => {
     const { agentMessagesToChatMessages } = require('../utils/messageAdapters.js');
-    useMessageStore.getState().setMessages(agentMessagesToChatMessages(agent.state.messages as any[]));
+    useChatStore.getState().setMessages(agentMessagesToChatMessages(agent.state.messages as any[]));
   }, [agent]);
 
   // Agent event subscription
@@ -168,9 +167,9 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
   ]);
 
   // Return store state and actions
-  const messages = useMessageStore(state => state.messages);
-  const thinking = useMessageStore(state => state.thinking);
-  const usage = useMessageStore(state => state.usage);
+  const messages = useChatStore(state => state.messages);
+  const thinking = useChatStore(state => state.thinking);
+  const usage = useChatStore(state => state.usage);
 
   return {
     // State (from store)
@@ -180,7 +179,6 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
     // Mutations
     addMessage,
     updateLastMessage,
-    clearMessages,
     hydrateFromAgentState,
     appendUserMessage,
     appendErrorMessage,

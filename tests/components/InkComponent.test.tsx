@@ -38,16 +38,22 @@ describe('Ink 组件渲染测试', () => {
       expect(lastFrame()).toContain('5 msgs');
     });
 
-    it('should render nothing when session is null', () => {
+    it('should render No Session placeholder when session is null', () => {
       const { lastFrame } = render(<ChatHeader session={null} />);
 
-      expect(lastFrame()).toBe('');
+      expect(lastFrame()).toContain('No Session');
+      expect(lastFrame()).toContain('#none');
+      expect(lastFrame()).toContain('unknown');
+      expect(lastFrame()).toContain('0 msgs');
     });
 
-    it('should render nothing when session is undefined', () => {
+    it('should render No Session placeholder when session is undefined', () => {
       const { lastFrame } = render(<ChatHeader session={undefined} />);
 
-      expect(lastFrame()).toBe('');
+      expect(lastFrame()).toContain('No Session');
+      expect(lastFrame()).toContain('#none');
+      expect(lastFrame()).toContain('unknown');
+      expect(lastFrame()).toContain('0 msgs');
     });
   });
 

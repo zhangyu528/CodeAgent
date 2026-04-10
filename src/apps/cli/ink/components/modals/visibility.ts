@@ -21,6 +21,12 @@ export function setModalVisibility(key: keyof typeof modalVisibility, value: boo
   updateStoreVisibility();
 }
 
+// FIXED: Return a React hook that returns the current modal open state
+export function useModalOpenState() {
+  return useAppStore(state => state.hasModalOpen);
+}
+
+// Keep the old function for backwards compatibility (but prefer the hook)
 export function hasAnyModalOpen(): boolean {
-  return modalVisibility.notice || modalVisibility.confirm || modalVisibility.ask || modalVisibility.selectOne;
+  return useAppStore.getState().hasModalOpen;
 }

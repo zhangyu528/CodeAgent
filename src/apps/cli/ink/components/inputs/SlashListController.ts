@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useApp } from 'ink';
 import { SLASH_COMMANDS, executeSlash, HELP_MESSAGE } from './useSlashCommands.js';
 import { useAppStore } from '../../store/uiStore.js';
-import { useSessionStore } from '../../store/sessionStore.js';
-import { useMessageStore } from '../../store/messageStore.js';
+import { useChatStore } from '../../store/index.js';
 import { getAgent } from '../../../../../agent/index.js';
 import type { UseModelConfigResult } from '../../hooks/useModelConfig.js';
 import { showNotice, showSelectOne } from '../modals/index.js';
@@ -14,7 +13,7 @@ export function useSlashHandlers(modelConfig: UseModelConfigResult) {
   const setPage = useAppStore(state => state.setPage);
 
   const openHistoryModal = useCallback(async (limit?: number) => {
-    const session = useSessionStore.getState();
+    const session = useChatStore.getState();
     try {
       const history = await session.refreshHistory(limit);
       if (history.length === 0) {
@@ -47,16 +46,14 @@ export function useSlashHandlers(modelConfig: UseModelConfigResult) {
   const handlers = useMemo(() => ({
     onHelp: () => showNotice({ title: 'Help', message: HELP_MESSAGE }),
     onNew: () => {
-      useSessionStore.getState().clearSession();
-      useMessageStore.getState().clearMessages();
-      getAgent().replaceMessages([]);
+      useChatStore.getState().clearAll();
       setPage('welcome');
     },
     onModel: () => modelConfig.startConfig(),
     onHistory: () => { void openHistoryModal(); },
     onResume: () => {
       void (async () => {
-        const session = useSessionStore.getState();
+        const session = useChatStore.getState();
         try {
           const history = await session.refreshHistory(1);
           if (history.length > 0) {

@@ -1,5 +1,5 @@
 import type { AgentMessage } from '@mariozechner/pi-agent-core';
-import type { ChatMessage, ChatMessageRole } from '../types.js';
+import type { ChatMessage, ChatMessageRole } from '../pages/types.js';
 
 function normalizeRole(role: string | undefined): ChatMessageRole {
   if (role === 'user' || role === 'assistant' || role === 'system' || role === 'error') {

@@ -1,13 +1,21 @@
 /**
- * SessionStore - Shared session state across all components
- * Replaces useAppSession's local state with global state
+ * ChatStore - Unified store for session and message state
+ * 
+ * Session and Messages are part of the same aggregate (a Session contains Messages).
+ * Keeping them in one store:
+ * - Eliminates cross-store coordination
+ * - Makes clearSession() work atomically on all related state
+ * - Reflects the true business model
  */
 import { create } from 'zustand';
 import { getAgent } from '../../../../agent/index.js';
-import { sessionManager, SessionInfo, SessionRecord, SessionStatus } from '../../../../agent/sessions.js';
-import { ChatSessionInfo } from '../pages/types.js';
-import { useMessageStore } from './messageStore.js';
+import { sessionManager, SessionInfo, SessionStatus } from '../../../../agent/sessions.js';
+import { ChatSessionInfo, ChatMessage } from '../pages/types.js';
 import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
+
+// ============================================================================
+// Helpers
+// ============================================================================
 
 export function createSessionId(): string {
   try {
@@ -24,39 +32,62 @@ function extractSessionTitle(text: string): string {
   return normalized.length > 40 ? `${normalized.slice(0, 40)}...` : normalized;
 }
 
-function toSessionView(record: SessionRecord): ChatSessionInfo {
-  return {
-    id: record.id,
-    title: record.title || 'Untitled Session',
-    status: record.meta.status,
-    updatedAt: record.meta.updatedAt,
-    messageCount: record.messages?.length || 0,
-  };
-}
+// ============================================================================
+// Types
+// ============================================================================
 
-interface SessionStore {
-  // State
+interface ChatStore {
+  // Session State
   historyItems: SessionInfo[];
   currentSession: ChatSessionInfo | null;
   activeSessionId: string | null;
   pendingPrompt: string | null;
 
-  // Actions
+  // Message State
+  messages: ChatMessage[];
+  thinking: boolean;
+  usage: { input: number; output: number; cost: number } | null;
+
+  // Session Actions
   refreshHistory: (limit?: number) => Promise<SessionInfo[]>;
   persistCurrentSession: (status?: SessionStatus, messages?: any[]) => void;
   restoreSessionById: (sessionId: string) => Promise<boolean>;
-  clearSession: () => void;
   ensureSessionForPrompt: (userInput: string) => string;
+
+  // Pending Prompt Actions
   setPendingPrompt: (prompt: string | null) => void;
   getAndClearPendingPrompt: () => string | null;
+
+  // Message Actions
+  setMessages: (messages: ChatMessage[]) => void;
+  addMessage: (msg: ChatMessage) => void;
+  updateLastMessage: (update: (msg: ChatMessage) => ChatMessage) => void;
+
+  // Combined Actions
+  /**
+   * Clears all session and message state.
+   * This is an atomic operation - either everything is cleared or nothing.
+   */
+  clearAll: () => void;
 }
 
-export const useSessionStore = create<SessionStore>((set, get) => ({
+// ============================================================================
+// Store
+// ============================================================================
+
+export const useChatStore = create<ChatStore>((set, get) => ({
+  // Initial Session State
   historyItems: [],
   currentSession: null,
   activeSessionId: null,
   pendingPrompt: null,
 
+  // Initial Message State
+  messages: [],
+  thinking: false,
+  usage: null,
+
+  // Session Actions
   refreshHistory: async (limit?: number) => {
     const history = await sessionManager.getHistory(limit ?? 50);
     set({ historyItems: history });
@@ -103,22 +134,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const agent = getAgent();
     agent.sessionId = record.id;
     agent.replaceMessages(record.messages);
-    useMessageStore.getState().setMessages(agentMessagesToChatMessages(record.messages));
+
+    // Restore both session state and messages atomically
     set({
       activeSessionId: record.id,
-      currentSession: toSessionView(record),
+      currentSession: {
+        id: record.id,
+        title: record.title || 'Untitled Session',
+        status: record.meta.status,
+        updatedAt: record.meta.updatedAt,
+        messageCount: record.messages?.length || 0,
+      },
+      messages: agentMessagesToChatMessages(record.messages),
     });
-    return true;
-  },
 
-  clearSession: () => {
-    const agent = getAgent();
-    agent.replaceMessages([]);
-    set({
-      activeSessionId: null,
-      currentSession: null,
-      pendingPrompt: null,
-    });
+    return true;
   },
 
   ensureSessionForPrompt: (userInput: string) => {
@@ -156,6 +186,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     return newSessionId;
   },
 
+  // Pending Prompt Actions
   setPendingPrompt: (prompt: string | null) => {
     set({ pendingPrompt: prompt });
   },
@@ -164,5 +195,31 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const { pendingPrompt } = get();
     set({ pendingPrompt: null });
     return pendingPrompt;
+  },
+
+  // Message Actions
+  setMessages: (messages) => set({ messages }),
+
+  addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
+
+  updateLastMessage: (update) => set((state) => {
+    if (state.messages.length === 0) return state;
+    const newMessages = [...state.messages];
+    newMessages[newMessages.length - 1] = update(newMessages[newMessages.length - 1]);
+    return { messages: newMessages };
+  }),
+
+  // Combined Actions
+  clearAll: () => {
+    const agent = getAgent();
+    agent.replaceMessages([]);
+    set({
+      activeSessionId: null,
+      currentSession: null,
+      pendingPrompt: null,
+      messages: [],
+      thinking: false,
+      usage: null,
+    });
   },
 }));

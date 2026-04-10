@@ -4,4 +4,4 @@ export { AskModal, showAsk, hideAsk, isAskVisible } from './AskModal.js';
 export { SelectOneModal, showSelectOne, hideSelectOne, isSelectOneVisible } from './SelectOneModal.js';
 export { ModalFrame } from './ModalFrame.js';
 export type { ModalChoice } from './SelectOneModal.js';
-export { hasAnyModalOpen } from './visibility.js';
+export { hasAnyModalOpen, useModalOpenState } from './visibility.js';

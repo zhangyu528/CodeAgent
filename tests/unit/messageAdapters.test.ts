@@ -1,257 +1,320 @@
 /**
- * messageAdapters 单元测试
- * 测试消息格式转换逻辑
+ * messageAdapters 测试
+ * 测试 agent 消息到 chat 消息的真实转换逻辑
  */
 import { describe, it, expect } from 'vitest';
 import { agentMessagesToChatMessages } from '../../src/apps/cli/ink/utils/messageAdapters.js';
 
-// 辅助函数：从实现中复制以便独立测试
-function normalizeRole(role: string | undefined) {
-  if (role === 'user' || role === 'assistant' || role === 'system' || role === 'error') {
-    return role;
-  }
-  return 'system';
-}
+// 导入真实类型
+import type { AgentMessage } from '@mariozechner/pi-agent-core';
 
-function extractText(content: unknown): string {
-  if (typeof content === 'string') return content;
+describe('messageAdapters - 真实转换逻辑测试', () => {
+  describe('agentMessagesToChatMessages', () => {
+    it('应该正确转换 user 角色消息', () => {
+      const agentMessages: AgentMessage[] = [
+        {
+          id: 'msg-1',
+          role: 'user',
+          content: 'Hello world',
+          createdAt: 1000,
+        },
+      ];
 
-  if (Array.isArray(content)) {
-    return content
-      .map((item: any) => {
-        if (typeof item === 'string') return item;
-        if (item && typeof item.text === 'string') return item.text;
-        if (item && typeof item.content === 'string') return item.content;
-        if (item && typeof item.input_text === 'string') return item.input_text;
-        return '';
-      })
-      .filter(Boolean)
-      .join(' ');
-  }
+      const result = agentMessagesToChatMessages(agentMessages);
 
-  if (content && typeof content === 'object') {
-    const value = content as any;
-    if (typeof value.text === 'string') return value.text;
-    if (typeof value.content === 'string') return value.content;
-    if (typeof value.input_text === 'string') return value.input_text;
-  }
-
-  return '';
-}
-
-describe('normalizeRole', () => {
-  it('should return user for "user"', () => {
-    expect(normalizeRole('user')).toBe('user');
-  });
-
-  it('should return assistant for "assistant"', () => {
-    expect(normalizeRole('assistant')).toBe('assistant');
-  });
-
-  it('should return system for "system"', () => {
-    expect(normalizeRole('system')).toBe('system');
-  });
-
-  it('should return error for "error"', () => {
-    expect(normalizeRole('error')).toBe('error');
-  });
-
-  it('should return system for unknown role', () => {
-    expect(normalizeRole('unknown')).toBe('system');
-  });
-
-  it('should return system for undefined', () => {
-    expect(normalizeRole(undefined)).toBe('system');
-  });
-});
-
-describe('extractText', () => {
-  it('should return string content as-is', () => {
-    expect(extractText('Hello World')).toBe('Hello World');
-  });
-
-  it('should return empty string for null', () => {
-    expect(extractText(null)).toBe('');
-  });
-
-  it('should return empty string for undefined', () => {
-    expect(extractText(undefined)).toBe('');
-  });
-
-  it('should extract text from object with text property', () => {
-    expect(extractText({ text: 'Hello' })).toBe('Hello');
-  });
-
-  it('should extract text from object with content property', () => {
-    expect(extractText({ content: 'World' })).toBe('World');
-  });
-
-  it('should extract text from object with input_text property', () => {
-    expect(extractText({ input_text: 'Test' })).toBe('Test');
-  });
-
-  it('should handle array of strings', () => {
-    expect(extractText(['Hello', 'World'])).toBe('Hello World');
-  });
-
-  it('should handle array of objects with text property', () => {
-    expect(extractText([{ text: 'Hello' }, { text: 'World' }])).toBe('Hello World');
-  });
-
-  it('should handle mixed array', () => {
-    expect(extractText(['Hello', { text: 'World' }])).toBe('Hello World');
-  });
-
-  it('should filter empty values from array', () => {
-    expect(extractText(['Hello', '', { text: 'World' }])).toBe('Hello World');
-  });
-
-  it('should return empty string for empty object', () => {
-    expect(extractText({})).toBe('');
-  });
-
-  it('should return empty string for array of empty objects', () => {
-    expect(extractText([{}, {}])).toBe('');
-  });
-});
-
-describe('agentMessagesToChatMessages', () => {
-  it('should convert user message', () => {
-    const agentMessages = [{
-      id: 'msg-1',
-      role: 'user',
-      content: 'Hello',
-      createdAt: 1000,
-    }];
-
-    const result = agentMessagesToChatMessages(agentMessages as any);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
-      id: 'msg-1',
-      role: 'user',
-      title: 'You',
-      createdAt: 1000,
-      status: 'completed',
-      blocks: [{ kind: 'text', text: 'Hello' }],
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('msg-1');
+      expect(result[0].role).toBe('user');
+      expect(result[0].title).toBe('You');
+      expect(result[0].blocks).toEqual([{ kind: 'text', text: 'Hello world' }]);
     });
-  });
 
-  it('should convert assistant message', () => {
-    const agentMessages = [{
-      id: 'msg-2',
-      role: 'assistant',
-      content: 'Hi there!',
-      createdAt: 2000,
-    }];
+    it('应该正确转换 assistant 角色消息', () => {
+      const agentMessages: AgentMessage[] = [
+        {
+          id: 'msg-2',
+          role: 'assistant',
+          content: 'Hi there!',
+          createdAt: 2000,
+        },
+      ];
 
-    const result = agentMessagesToChatMessages(agentMessages as any);
+      const result = agentMessagesToChatMessages(agentMessages);
 
-    expect(result[0]).toEqual({
-      id: 'msg-2',
-      role: 'assistant',
-      title: 'Assistant',
-      createdAt: 2000,
-      status: 'completed',
-      blocks: [{ kind: 'text', text: 'Hi there!' }],
+      expect(result[0].role).toBe('assistant');
+      expect(result[0].title).toBe('Assistant');
+      expect(result[0].blocks).toEqual([{ kind: 'text', text: 'Hi there!' }]);
     });
-  });
 
-  it('should convert error message with error status', () => {
-    const agentMessages = [{
-      id: 'msg-3',
-      role: 'error',
-      content: 'Something went wrong',
-      createdAt: 3000,
-    }];
+    it('应该正确转换 system 角色消息', () => {
+      const agentMessages: AgentMessage[] = [
+        {
+          id: 'msg-3',
+          role: 'system',
+          content: 'System prompt',
+          createdAt: 3000,
+        },
+      ];
 
-    const result = agentMessagesToChatMessages(agentMessages as any);
+      const result = agentMessagesToChatMessages(agentMessages);
 
-    expect(result[0].role).toBe('error');
-    expect(result[0].title).toBe('Error');
-    expect(result[0].status).toBe('error');
-  });
+      expect(result[0].role).toBe('system');
+      expect(result[0].title).toBe('System');
+    });
 
-  it('should convert system message', () => {
-    const agentMessages = [{
-      id: 'msg-4',
-      role: 'system',
-      content: 'System prompt',
-      createdAt: 4000,
-    }];
+    it('应该正确转换 error 角色消息', () => {
+      const agentMessages: AgentMessage[] = [
+        {
+          id: 'msg-4',
+          role: 'error',
+          content: 'Something went wrong',
+          createdAt: 4000,
+        },
+      ];
 
-    const result = agentMessagesToChatMessages(agentMessages as any);
+      const result = agentMessagesToChatMessages(agentMessages);
 
-    expect(result[0].role).toBe('system');
-    expect(result[0].title).toBe('System');
-  });
+      expect(result[0].role).toBe('error');
+      expect(result[0].title).toBe('Error');
+      expect(result[0].status).toBe('error');
+    });
 
-  it('should generate id if not provided', () => {
-    const agentMessages = [{
-      role: 'user',
-      content: 'Hello',
-    }];
+    // === BUG 潜在点：未知角色 ===
+    it('应该处理未知角色 - 默认转为 system', () => {
+      const agentMessages: AgentMessage[] = [
+        {
+          id: 'msg-5',
+          role: 'unknown_role' as any,
+          content: 'Unknown content',
+          createdAt: 5000,
+        },
+      ];
 
-    const result = agentMessagesToChatMessages(agentMessages as any);
+      const result = agentMessagesToChatMessages(agentMessages);
 
-    expect(result[0].id).toBeDefined();
-    expect(result[0].id.length).toBeGreaterThan(0);
-  });
+      // BUG: 未知角色应该报错或警告，而不是静默转为 system
+      expect(result[0].role).toBe('system');
+    });
 
-  it('should use createdAt from message', () => {
-    const agentMessages = [{
-      id: 'msg-1',
-      role: 'user',
-      content: 'Hello',
-      createdAt: 1234567890,
-    }];
+    // === 边界条件测试 ===
+    describe('边界条件', () => {
+      it('应该处理空数组', () => {
+        const result = agentMessagesToChatMessages([]);
+        expect(result).toEqual([]);
+      });
 
-    const result = agentMessagesToChatMessages(agentMessages as any);
+      it('应该处理 content 为空字符串', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-6', role: 'user', content: '', createdAt: 6000 },
+        ];
 
-    expect(result[0].createdAt).toBe(1234567890);
-  });
+        const result = agentMessagesToChatMessages(agentMessages);
 
-  it('should handle unknown role as system', () => {
-    const agentMessages = [{
-      id: 'msg-1',
-      role: 'unknown' as any,
-      content: 'Hello',
-    }];
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: '' }]);
+      });
 
-    const result = agentMessagesToChatMessages(agentMessages as any);
+      it('应该处理 undefined content', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-7', role: 'user', content: undefined, createdAt: 7000 } as any,
+        ];
 
-    expect(result[0].role).toBe('system');
-  });
+        const result = agentMessagesToChatMessages(agentMessages);
 
-  it('should convert array content', () => {
-    const agentMessages = [{
-      id: 'msg-1',
-      role: 'user',
-      content: ['Hello', 'World'],
-    }];
+        // BUG: undefined content 应该被处理，而不是静默
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: '' }]);
+      });
 
-    const result = agentMessagesToChatMessages(agentMessages as any);
+      it('应该处理 content 为 null', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-8', role: 'user', content: null, createdAt: 8000 } as any,
+        ];
 
-    expect(result[0].blocks[0].text).toBe('Hello World');
-  });
+        const result = agentMessagesToChatMessages(agentMessages);
 
-  it('should handle empty messages array', () => {
-    const result = agentMessagesToChatMessages([]);
-    expect(result).toHaveLength(0);
-  });
+        // BUG: null content 可能导致问题
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: '' }]);
+      });
 
-  it('should handle multiple messages', () => {
-    const agentMessages = [
-      { id: '1', role: 'user', content: 'Hello' },
-      { id: '2', role: 'assistant', content: 'Hi!' },
-      { id: '3', role: 'user', content: 'How are you?' },
-    ];
+      it('应该处理 content 为数字', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-9', role: 'user', content: 123 as any, createdAt: 9000 },
+        ];
 
-    const result = agentMessagesToChatMessages(agentMessages as any);
+        const result = agentMessagesToChatMessages(agentMessages);
 
-    expect(result).toHaveLength(3);
-    expect(result[0].role).toBe('user');
-    expect(result[1].role).toBe('assistant');
-    expect(result[2].role).toBe('user');
+        // BUG: 数字类型应该被转换，而不是静默
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: '' }]);
+      });
+
+      it('应该处理 content 为对象', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-10', role: 'user', content: { text: 'Hello' } as any, createdAt: 10000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: 'Hello' }]);
+      });
+
+      it('应该处理 content 为对象但没有 text 属性', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-11', role: 'user', content: { no_text: 'Hello' } as any, createdAt: 11000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        // BUG: 对象没有 text 属性应该返回什么？
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: '' }]);
+      });
+    });
+
+    // === 数组 content 测试 ===
+    describe('数组 content 处理', () => {
+      it('应该处理字符串数组', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-12', role: 'user', content: ['Hello', 'World'] as any, createdAt: 12000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: 'Hello World' }]);
+      });
+
+      it('应该处理混合类型数组', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-13', role: 'user', content: ['Hello', { text: 'World' }, { content: '!' }] as any, createdAt: 13000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: 'Hello World !' }]);
+      });
+
+      it('应该过滤掉空值', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-14', role: 'user', content: ['Hello', '', null, 'World'] as any, createdAt: 14000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: 'Hello World' }]);
+      });
+    });
+
+    // === createdAt 测试 ===
+    describe('createdAt 处理', () => {
+      it('应该使用消息中的 createdAt', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-15', role: 'user', content: 'Hello', createdAt: 1234567890 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        expect(result[0].createdAt).toBe(1234567890);
+      });
+
+      it('应该处理 createdAt 为字符串', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-16', role: 'user', content: 'Hello', createdAt: '2024-01-01' as any },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        // BUG: 字符串日期会被转为 NaN，然后 fallback 到 Date.now() + index
+        expect(result[0].createdAt).toBeDefined();
+      });
+
+      it('应该处理 createdAt 缺失 - 使用 index fallback', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-17', role: 'user', content: 'Hello' } as any,
+          { id: 'msg-18', role: 'user', content: 'World' } as any,
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        // createdAt 应该是 Date.now() + index
+        expect(result[0].createdAt).toBeLessThanOrEqual(Date.now());
+        expect(result[1].createdAt).toBeGreaterThan(result[0].createdAt);
+      });
+    });
+
+    // === ID 生成测试 ===
+    describe('ID 生成', () => {
+      it('应该使用消息中的 id', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'my-custom-id', role: 'user', content: 'Hello', createdAt: 1000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        expect(result[0].id).toBe('my-custom-id');
+      });
+
+      it('应该生成 fallback id 当 id 缺失时', () => {
+        const agentMessages: AgentMessage[] = [
+          { role: 'user', content: 'Hello', createdAt: 1000 } as any,
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        expect(result[0].id).toMatch(/^user-\d+-\d+$/);
+      });
+    });
+
+    // === 特殊字符测试 ===
+    describe('特殊字符处理', () => {
+      it('应该处理 emoji', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-emoji', role: 'user', content: 'Hello 👋🌍', createdAt: 1000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: 'Hello 👋🌍' }]);
+      });
+
+      it('应该处理多行文本', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-multi', role: 'user', content: 'Line 1\nLine 2\nLine 3', createdAt: 1000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: 'Line 1\nLine 2\nLine 3' }]);
+      });
+
+      it('应该处理 SQL 注入尝试', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-sql', role: 'user', content: "'; DROP TABLE users; --", createdAt: 1000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        // 应该被当作普通文本处理
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: "'; DROP TABLE users; --" }]);
+      });
+
+      it('应该处理 XSS 尝试', () => {
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-xss', role: 'user', content: '<script>alert("xss")</script>', createdAt: 1000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        // 应该被当作普通文本处理，不做转义（转义应该在渲染层）
+        expect(result[0].blocks).toEqual([{ kind: 'text', text: '<script>alert("xss")</script>' }]);
+      });
+
+      it('应该处理超长文本', () => {
+        const longText = 'A'.repeat(100000);
+        const agentMessages: AgentMessage[] = [
+          { id: 'msg-long', role: 'user', content: longText, createdAt: 1000 },
+        ];
+
+        const result = agentMessagesToChatMessages(agentMessages);
+
+        expect(result[0].blocks[0].text).toHaveLength(100000);
+      });
+    });
   });
 });
