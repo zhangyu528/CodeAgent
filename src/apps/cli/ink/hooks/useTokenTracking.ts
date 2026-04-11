@@ -1,37 +1,80 @@
 /**
  * Token Tracking Module
  * 
- * This module is designated for tracking token usage across model calls.
- * Currently, there is no token tracking implementation in useModelConfig.ts.
- * This file is a placeholder for future token tracking functionality.
- * 
- * If token tracking is needed in the future, the following can be implemented:
- * - Track input/output token counts per model
- * - Monitor token usage limits
- * - Report token usage statistics
+ * This module tracks token usage across model calls.
+ * Token usage data is obtained from chatStore's usage state,
+ * which is updated by agent events in useAgentEvents.ts.
  */
 
-// Placeholder interface for token tracking state
+import { useCallback } from 'react';
+import { useChatStore } from '../store/index.js';
+
+// Token tracking state interface
 export interface TokenTrackingState {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
 }
 
-// Placeholder hook for token tracking
+/**
+ * Hook for tracking token usage
+ * 
+ * This hook provides functions to track and retrieve token usage data
+ * from the chatStore, which is updated by agent events.
+ */
 export function useTokenTracking() {
-  // TODO: Implement token tracking if needed
+  // Get current usage from chatStore
+  const usage = useChatStore(state => state.usage);
+  
+  // Get the setUsage function to update token usage
+  const setUsage = useChatStore(state => state.setUsage);
+
+  /**
+   * Track tokens by updating the usage in chatStore
+   * This accumulates the input and output tokens
+   */
+  const trackTokens = useCallback((input: number, output: number) => {
+    const currentUsage = useChatStore.getState().usage;
+    const newInput = (currentUsage?.input || 0) + input;
+    const newOutput = (currentUsage?.output || 0) + output;
+    const newCost = (currentUsage?.cost || 0) + (input * 0.001 + output * 0.002); // Approximate cost calculation
+    
+    setUsage({
+      input: newInput,
+      output: newOutput,
+      cost: newCost,
+    });
+  }, [setUsage]);
+
+  /**
+   * Get the current token usage state
+   */
+  const getTokenUsage = useCallback((): TokenTrackingState => {
+    const currentUsage = useChatStore.getState().usage;
+    if (!currentUsage) {
+      return {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+      };
+    }
+    return {
+      inputTokens: currentUsage.input,
+      outputTokens: currentUsage.output,
+      totalTokens: currentUsage.input + currentUsage.output,
+    };
+  }, []);
+
+  /**
+   * Reset token usage to initial state
+   */
+  const resetTokenUsage = useCallback(() => {
+    setUsage(null);
+  }, [setUsage]);
+
   return {
-    trackTokens: (input: number, output: number) => {
-      // Placeholder for future implementation
-    },
-    getTokenUsage: (): TokenTrackingState => ({
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-    }),
-    resetTokenUsage: () => {
-      // Placeholder for future implementation
-    },
+    trackTokens,
+    getTokenUsage,
+    resetTokenUsage,
   };
 }
