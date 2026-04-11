@@ -43,14 +43,17 @@ src/
 ├── agent/                    # Agent core business logic
 │   ├── agent.ts             # Agent singleton factory
 │   ├── model.ts             # LLM model resolution
-│   ├── tools/               # Execution tools
-│   └── sessions.ts          # Session management
+│   ├── sessions.ts          # Session management
+│   └── tools/               # Execution tools
 ├── apps/cli/                 # Ink CLI interface
 │   ├── index.tsx            # CLI entry point
 │   └── ink/                 # Ink components
 │       ├── ink_app.tsx      # Main Ink app
 │       ├── components/      # UI components
-│       └── hooks/           # React hooks
+│       ├── hooks/           # React hooks
+│       ├── pages/           # Page components
+│       ├── store/           # State store
+│       └── context/         # React context
 └── docs/                    # Documentation and roadmaps
 ```
 
@@ -62,14 +65,13 @@ Copy `.env.example` to `.env` and configure:
 
 ### Development Notes
 - Uses Bun as runtime (package.json has "engines": { "bun": ">=1.3.0" })
-- TypeScript configuration is implicit in build process
-- No type declaration files (tsconfig.json missing but works via Bun)
+- TypeScript configuration via tsconfig.json
 - Git uses LF line endings (check .gitattributes)
 
 ### Current Status (from ROADMAP.md)
 - ✅ N1: New kernel with Ink TUI integration complete
 - ✅ N2: Multi-provider support with env config complete
-- 🚧 N3: Session lifecycle and persistence in progress
+- ✅ N3: Session lifecycle and persistence complete
 - 📅 N4: Session storage abstraction planned
 
 ### Important Conventions

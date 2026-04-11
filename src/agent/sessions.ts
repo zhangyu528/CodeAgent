@@ -62,30 +62,35 @@ export class SessionManager {
     }
   }
   async saveSession(id: string, messages: AgentMessage[], options: SaveSessionOptions = {}): Promise<void> {
-    // Ensure sessions directory exists before writing
-    if (!fs.existsSync(SESSIONS_DIR)) {
-      fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-    }
-    await this.cleanupTempFiles();
-    const filePath = this.getSessionPath(id);
-    const title = options.title || this.extractTitle(messages) || 'New Session';
-    const updatedAt = Date.now();
-    const document: SessionDocument = {
-      version: SESSION_VERSION,
-      meta: {
-        id,
-        title,
-        updatedAt,
-        messageCount: messages.length,
-        model: options.model || 'unknown',
-        provider: options.provider || 'unknown',
-        status: options.status || 'completed',
+    try {
+      // Ensure sessions directory exists before writing
+      if (!fs.existsSync(SESSIONS_DIR)) {
+        fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+      }
+      await this.cleanupTempFiles();
+      const filePath = this.getSessionPath(id);
+      const title = options.title || this.extractTitle(messages) || 'New Session';
+      const updatedAt = Date.now();
+      const document: SessionDocument = {
         version: SESSION_VERSION,
-      },
-      messages,
-    };
+        meta: {
+          id,
+          title,
+          updatedAt,
+          messageCount: messages.length,
+          model: options.model || 'unknown',
+          provider: options.provider || 'unknown',
+          status: options.status || 'completed',
+          version: SESSION_VERSION,
+        },
+        messages,
+      };
 
-    await this.atomicWriteJson(filePath, document);
+      await this.atomicWriteJson(filePath, document);
+    } catch (err) {
+      // Gracefully handle session save failures to avoid crashing the CLI.
+      console.error(`[SessionManager] Failed to save session "${id}":`, err);
+    }
   }
 
   async loadSession(id: string): Promise<SessionRecord | null> {

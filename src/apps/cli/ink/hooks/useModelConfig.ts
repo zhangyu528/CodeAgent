@@ -1,15 +1,17 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Agent } from '@mariozechner/pi-agent-core';
-import { checkApiKeyConfigured, saveApiKey, saveModelConfig } from '../../../../agent/index.js';
-import { showNotice, showAsk, showSelectOne } from '../components/modals/index.js';
+import { saveApiKey, saveModelConfig } from '../../../../agent/index.js';
+import { showNotice } from '../components/modals/index.js';
 import { useAppStore } from '../store/uiStore.js';
-
-// 延迟加载 pi-ai 模块，避免启动时加载 13896 行的 models.generated.js
-// 懒加载缓存
-type AllowedProvider = 'zai' | 'minimax-cn';
-let providersCache: AllowedProvider[] | null = null;
-let modelsByProviderCache: Record<string, any[]> | null = null;
-let isLoadingCache = false;
+import {
+  ensureProvidersLoaded,
+  getProviders,
+  getModels,
+  checkApiKeyConfigured,
+  showProviderSelection,
+  showModelSelection,
+  showApiKeyInput,
+} from './useProviderConfig.js';
 
 export type ConfigStep = 'idle' | 'selecting_provider' | 'entering_api_key' | 'selecting_model';
 
@@ -20,39 +22,6 @@ export interface UseModelConfigResult {
   isLoading: boolean;  // 是否正在加载模型列表
   startConfig: (pendingCommand?: string) => void;
   cancelConfig: () => void;
-}
-
-// 同步获取 providers（如果已缓存）
-function getProviders(): string[] | null {
-  return providersCache;
-}
-
-// 同步获取 models by provider（如果已缓存）
-function getModels(provider: string): any[] | null {
-  if (!modelsByProviderCache) return null;
-  return modelsByProviderCache[provider] || null;
-}
-
-// 异步加载 providers
-async function ensureProvidersLoaded(): Promise<string[]> {
-  if (providersCache) return providersCache;
-  if (isLoadingCache) {
-    // 等待加载完成（轮询）
-    while (!providersCache) {
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    return providersCache;
-  }
-  isLoadingCache = true;
-  const { getProviders: gp, getModels: gm } = await import('@mariozechner/pi-ai');
-  const ALLOWED_PROVIDERS = ['zai', 'minimax-cn'] as const;
-  providersCache = (gp() as string[]).filter((p): p is AllowedProvider => ALLOWED_PROVIDERS.includes(p as AllowedProvider));
-  modelsByProviderCache = {};
-  for (const p of providersCache) {
-    modelsByProviderCache[p] = gm(p);
-  }
-  isLoadingCache = false;
-  return providersCache;
 }
 
 export function useModelConfig(agent: Agent): UseModelConfigResult {
@@ -114,19 +83,9 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
     if (!providers || step === 'idle') return;
 
     if (step === 'selecting_provider') {
-      const choices = providers.map((provider) => ({
-        value: provider,
-        label: `${provider.toUpperCase()} ${checkApiKeyConfigured(provider) ? '[configured]' : '[api key required]'}`,
-      }));
-
-      showSelectOne({
-        title: 'Select Provider',
-        message: 'Choose the provider to configure.',
-        choices,
-        footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
-        onSubmit: (choice) => {
-          const provider = choice.value;
-
+      showProviderSelection(
+        providers,
+        (provider) => {
           if (!checkApiKeyConfigured(provider)) {
             setSelectedProvider(provider);
             setStep('entering_api_key');
@@ -141,27 +100,11 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
           }
 
           // Show model selection modal directly
-          const modelChoices = models.map((model: any) => ({
-            value: model.id,
-            label: model.id,
-          }));
-
-          showSelectOne({
-            title: `Select Model • ${provider.toUpperCase()}`,
-            message: 'Choose the model to use for new prompts.',
-            choices: modelChoices,
-            footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
-            emptyLabel: 'No models available',
-            onSubmit: (modelChoice) => {
-              const selectedModel = models.find((model: any) => model.id === modelChoice.value);
-              if (!selectedModel) {
-                cancelConfig();
-                return;
-              }
-
+          showModelSelection(
+            provider,
+            models,
+            (selectedModel) => {
               try {
-                // agent.setModel(selectedModel as any);
-                // saveModelConfig(provider, selectedModel.id);
                 cancelConfig();
                 // Call after cancelConfig so modal is fully closed
                 setCurrentModel(selectedModel.id);
@@ -174,26 +117,19 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
                 );
               }
             },
-            onCancel: cancelConfig,
-          });
+            cancelConfig
+          );
         },
-        onCancel: cancelConfig,
-      });
+        cancelConfig
+      );
       return;
     }
 
     if (step === 'entering_api_key' && selectedProvider) {
-      showAsk({
-        title: `API Key • ${selectedProvider.toUpperCase()}`,
-        message: 'Enter the provider API key.',
-        footer: 'Type to edit • Enter Save • Esc Cancel',
-        onSubmit: (value) => {
-          if (!value.trim()) {
-            showNotice('Model Configuration', 'API key cannot be empty.', 'Esc Close');
-            return;
-          }
-
-          saveApiKey(selectedProvider, value.trim());
+      showApiKeyInput(
+        selectedProvider,
+        (apiKey) => {
+          saveApiKey(selectedProvider, apiKey);
           const models = getModels(selectedProvider);
           if (!models || models.length === 0) {
             showNotice('Model Configuration', `No models available for ${selectedProvider.toUpperCase()}.`, 'Esc Close');
@@ -201,24 +137,10 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
           }
 
           // Show model selection modal directly
-          const modelChoices = models.map((model: any) => ({
-            value: model.id,
-            label: model.id,
-          }));
-
-          showSelectOne({
-            title: `Select Model • ${selectedProvider.toUpperCase()}`,
-            message: 'Choose the model to use for new prompts.',
-            choices: modelChoices,
-            footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
-            emptyLabel: 'No models available',
-            onSubmit: (modelChoice) => {
-              const selectedModel = models.find((model: any) => model.id === modelChoice.value);
-              if (!selectedModel) {
-                cancelConfig();
-                return;
-              }
-
+          showModelSelection(
+            selectedProvider,
+            models,
+            (selectedModel) => {
               try {
                 agent.setModel(selectedModel as any);
                 saveModelConfig(selectedProvider, selectedModel.id);
@@ -229,34 +151,21 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
               }
               cancelConfig();
             },
-            onCancel: cancelConfig,
-          });
+            cancelConfig
+          );
         },
-        onCancel: cancelConfig,
-      });
+        cancelConfig
+      );
       return;
     }
 
     if (step === 'selecting_model' && selectedProvider) {
       const models = getModels(selectedProvider) || [];
-      const choices = models.map((model: any) => ({
-        value: model.id,
-        label: model.id,
-      }));
 
-      showSelectOne({
-        title: `Select Model • ${selectedProvider.toUpperCase()}`,
-        message: 'Choose the model to use for new prompts.',
-        choices,
-        footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
-        emptyLabel: 'No models available',
-        onSubmit: (choice) => {
-          const selectedModel = models.find((model: any) => model.id === choice.value);
-          if (!selectedModel) {
-            cancelConfig();
-            return;
-          }
-
+      showModelSelection(
+        selectedProvider,
+        models,
+        (selectedModel) => {
           try {
             agent.setModel(selectedModel as any);
             saveModelConfig(selectedModel.provider, selectedModel.id);
@@ -271,7 +180,8 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
           }
           cancelConfig();
         },
-      });
+        cancelConfig
+      );
     }
   }, [agent, cancelConfig, configTriggered, isLoading, loadError, selectedProvider, setCurrentModel, step]);
 
