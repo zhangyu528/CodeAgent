@@ -8,10 +8,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['src/apps/cli/ink/**/*.{ts,tsx}'],
+      include: [
+        'src/apps/cli/ink/**/*.{ts,tsx}',
+        'src/agent/**/*.{ts,tsx}',
+      ],
       exclude: [
         'src/apps/cli/ink/**/*.d.ts',
         'src/apps/cli/ink/test-input.ts',
+        'src/agent/**/*.d.ts',
       ],
     },
   },

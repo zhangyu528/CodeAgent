@@ -27,6 +27,7 @@ export function useModalOpenState() {
 }
 
 // Keep the old function for backwards compatibility (but prefer the hook)
+// FIXED: Read directly from modalVisibility to ensure consistency with direct assignments
 export function hasAnyModalOpen(): boolean {
-  return useAppStore.getState().hasModalOpen;
+  return modalVisibility.notice || modalVisibility.confirm || modalVisibility.ask || modalVisibility.selectOne;
 }
