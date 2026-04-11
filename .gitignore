@@ -24,3 +24,15 @@ dist/
 coverage/
 
 /temp
+# Python
+.venv/
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
