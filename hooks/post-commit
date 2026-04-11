@@ -36,14 +36,46 @@ def main():
         return
     info = get_git_info()
     ts = datetime.datetime.fromtimestamp(int(info.get("timestamp", 0)))
-    msg = f"📝 Git 提交报告\n\n⏰ {ts.strftime('%Y-%m-%d %H:%M')}\n🌿 分支: {info['branch']}\n📌 提交: {info['hash']}\n\n━━━━━━━━━━━━━━━━━━━━━━━\n\n💬 {info['subject']}\n\n👤 {info['author']}\n📁 {len(info['files'])} 文件改动\n\n"
+    
+    # 文件统计
+    added = deleted = modified = 0
+    for line in info['diff_stat'].split('\n') if info['diff_stat'] else []:
+        if '+' in line and '-' not in line[:10]:
+            added += 1
+        elif '-' in line:
+            deleted += 1
+        else:
+            modified += 1
+    
+    msg = f"""📝 代码提交
+
+🔖 {info['subject']}
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📦 仓库: CodeAgent
+🌿 分支: {info['branch']}
+📌 版本: {info['hash']}
+👤 作者: {info['author']}
+⏰ 时间: {ts.strftime('%Y-%m-%d %H:%M')}
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📂 改动文件 ({len(info['files'])} 个)
+"""
     for f in info['files'][:10]:
-        msg += f"• {f}\n"
+        msg += f"├ {f}\n"
     if len(info['files']) > 10:
-        msg += f"... 还有 {len(info['files']) - 10} 个文件\n"
+        msg += f"└ ... 还有 {len(info['files']) - 10} 个文件\n"
+    
     if info['diff_stat']:
-        msg += f"\n📊 改动统计：\n{info['diff_stat']}\n"
-    msg += "━━━━━━━━━━━━━━━━━━━━━━━"
+        msg += f"""
+📊 改动统计
+{info['diff_stat']}
+"""
+    
+    msg += "━━━━━━━━━━━━━━━━━━━━━━"
+    
     print(msg)
     result = send_text_message(webhook_url, msg)
     print(f"✅ 已发送到飞书: {result}")
