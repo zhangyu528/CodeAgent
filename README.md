@@ -72,24 +72,61 @@ Run the full test suite (may require real provider keys for integration/e2e):
 npm test
 ```
 
-## Project Structure (Hexagonal Architecture)
+## Project Structure
 
 ```
 src/
-├── core/                    # Core business logic (no UI dependencies)
-│   ├── controller/          # Agent and Planner logic
-│   ├── llm/                 # LLM provider implementations
-│   ├── tools/               # Core execution tools
-│   ├── interfaces/          # IUIAdapter definitions
-│   ├── prompts/             # System prompts
-│   └── session/             # Session service + repository + sqlite storage
+├── agent/                    # Agent core business logic
+│   ├── agent.ts             # Agent singleton factory
+│   ├── config.ts            # Configuration
+│   ├── model.ts             # LLM model resolution
+│   ├── sessions.ts          # Session management
+│   └── tools/               # Execution tools (read_file, write_file, run_command, list_directory)
 │
-├── apps/                    # Application entry points
-│   ├── cli/                 # Ink interactive interface
-│   └── kernel/              # JSON-RPC kernel (for desktop app integration)
+├── apps/cli/                 # Ink CLI interface
+│   ├── index.tsx            # CLI entry point
+│   └── ink/                 # Ink components
+│       ├── App.tsx          # Main Ink app
+│       ├── components/      # UI components (modals, inputs, chat, debug)
+│       ├── hooks/           # React hooks
+│       ├── pages/           # Page components (welcome, chat, loading)
+│       ├── store/           # State stores (session, chat, ui)
+│       └── context/         # React context
 │
-├── tests/                   # Integration and unit tests
-└── web/                     # Web search and browsing tools
+├── docs/                    # Documentation and roadmaps
+└── tests/                   # Unit and integration tests
+```
+
+## Configuration
+
+Create a `.env` file in the project root with your provider API keys:
+
+```bash
+# Default provider: zai, openai, anthropic, minimax-cn
+DEFAULT_PROVIDER=zai
+
+# Provider API keys
+ZAI_API_KEY=your_zai_key
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
+MINIMAX_API_KEY=your_minimax_key
+MINIMAX_API_BASE_URL=https://api.minimax.chat
+```
+
+## Quick Start
+
+```bash
+# Install dependencies
+bun install
+
+# Run in development mode
+bun run dev
+
+# Build for production
+bun run build
+
+# Run tests
+bun run test:run
 ```
 
 ## Session Storage
