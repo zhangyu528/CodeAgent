@@ -124,7 +124,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       .then(() => {
         void get().refreshHistory();
       })
-      .catch(() => {});
+      .catch((err) => console.error('Failed to persist session:', err));
   },
 
   restoreSessionById: async (sessionId: string) => {

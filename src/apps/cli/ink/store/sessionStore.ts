@@ -93,7 +93,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       .then(() => {
         void get().refreshHistory();
       })
-      .catch(() => {});
+      .catch((err) => console.error('Failed to update session title:', err));
   },
 
   restoreSessionById: async (sessionId: string) => {

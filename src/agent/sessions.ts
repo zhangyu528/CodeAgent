@@ -164,7 +164,7 @@ export class SessionManager {
       }
     } finally {
       if (handle) {
-        await handle.close().catch(() => {});
+        await handle.close().catch((err) => console.error('Failed to close handle:', err));
       }
       if (!renamed) {
         await this.removeFileWithRetry(tmpPath);
