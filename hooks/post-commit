@@ -1,6 +1,95 @@
-#!/bin/bash
-# Git Post-Commit Hook
-# 每次提交后发送报告到飞书
+#!/usr/bin/env python3
+"""
+Git Post-Commit Hook
+每次提交后自动发送报告到飞书
+"""
 
-cd /mnt/d/work/project/CodeAgent
-python3 scripts/post_commit_report.py
+import subprocess
+import os
+import requests
+from pathlib import Path
+
+
+PROJECT_DIR = Path(__file__).parent.parent
+ENV_FILE = PROJECT_DIR / "scripts" / ".env"
+
+
+def get_env(key: str) -> str:
+    env_file = ENV_FILE
+    if env_file.exists():
+        with open(env_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    if k.strip() == key:
+                        return v.strip().strip('"').strip("'")
+    return os.getenv(key, "")
+
+
+def get_git_info():
+    result = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True)
+    branch = result.stdout.strip() if result.returncode == 0 else "unknown"
+    
+    result = subprocess.run(["git", "log", "-1", "--format=%h|%s|%an|%ae|%ct"], capture_output=True, text=True)
+    if result.returncode == 0:
+        parts = result.stdout.strip().split("|")
+        hash_, subject, author, email, timestamp = parts if len(parts) >= 5 else ("?", "无", "?", "?", "0")
+    else:
+        hash_, subject, author, email, timestamp = "?", "无", "?", "?", "0"
+    
+    result = subprocess.run(["git", "diff", "--name-only", "HEAD~1..HEAD"], capture_output=True, text=True)
+    files = [f for f in result.stdout.strip().split("\n") if f]
+    
+    result = subprocess.run(["git", "diff", "--stat", "HEAD~1..HEAD"], capture_output=True, text=True)
+    diff_stat = result.stdout.strip() if result.returncode == 0 else ""
+    
+    return {"branch": branch, "hash": hash_, "subject": subject, "author": author, "timestamp": timestamp, "files": files, "diff_stat": diff_stat}
+
+
+def send_feishu(webhook_url: str, message: str):
+    requests.post(webhook_url, json={"msg_type": "text", "content": {"text": message}})
+
+
+def main():
+    import datetime
+    
+    webhook_url = get_env("FEISHU_WEBHOOK_URL")
+    if not webhook_url:
+        print("❌ 未设置 FEISHU_WEBHOOK_URL")
+        return
+    
+    info = get_git_info()
+    ts = datetime.datetime.fromtimestamp(int(info.get("timestamp", 0)))
+    
+    msg = f"""📝 Git 提交报告
+
+⏰ {ts.strftime("%Y-%m-%d %H:%M")}
+🌿 分支: {info['branch']}
+📌 提交: {info['hash']}
+
+━━━━━━━━━━━━━━━━━━━━━━━
+
+💬 {info['subject']}
+
+👤 {info['author']}
+📁 {len(info['files'])} 文件改动
+
+"""
+    for f in info['files'][:10]:
+        msg += f"• {f}\n"
+    if len(info['files']) > 10:
+        msg += f"... 还有 {len(info['files']) - 10} 个文件\n"
+    
+    if info['diff_stat']:
+        msg += f"\n📊 改动统计：\n{info['diff_stat']}\n"
+    
+    msg += "━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    print(msg)
+    send_feishu(webhook_url, msg)
+    print("✅ 已发送到飞书")
+
+
+if __name__ == "__main__":
+    main()
