@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Git Post-Commit Hook - 每次提交后发送报告到飞书"""
-import subprocess, os, requests
+import subprocess, os, sys
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_DIR / "scripts"))
+from feishu_webhook import send_text_message
+
 ENV_FILE = PROJECT_DIR / "scripts" / ".env"
 
 def get_env(key):
@@ -42,8 +45,8 @@ def main():
         msg += f"\n📊 改动统计：\n{info['diff_stat']}\n"
     msg += "━━━━━━━━━━━━━━━━━━━━━━━"
     print(msg)
-    requests.post(webhook_url, json={"msg_type": "text", "content": {"text": msg}})
-    print("✅ 已发送到飞书")
+    result = send_text_message(webhook_url, msg)
+    print(f"✅ 已发送到飞书: {result}")
 
 if __name__ == "__main__":
     main()
