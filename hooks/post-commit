@@ -1,0 +1,6 @@
+#!/bin/bash
+# Git Post-Commit Hook
+# 每次提交后发送报告到飞书
+
+cd /mnt/d/work/project/CodeAgent
+python3 scripts/post_commit_report.py
