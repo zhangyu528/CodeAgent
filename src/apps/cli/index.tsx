@@ -20,8 +20,8 @@ function initializeSavedModel() {
 
 export async function bootstrap() {
   if (!process.stdin.isTTY) {
-    console.log('Error: Interactive mode requires a TTY terminal.');
-    console.log('Please run this command in a local terminal session.');
+    console.error('Error: Interactive mode requires a TTY terminal.');
+    console.error('Please run this command in a local terminal session.');
     process.exit(1);
   }
 

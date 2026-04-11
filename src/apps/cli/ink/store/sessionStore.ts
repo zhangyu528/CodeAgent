@@ -114,6 +114,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   clearSession: () => {
     const agent = getAgent();
     agent.replaceMessages([]);
+    useMessageStore.getState().clearMessages();
     set({
       activeSessionId: null,
       currentSession: null,

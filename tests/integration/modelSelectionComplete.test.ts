@@ -33,7 +33,7 @@ describe('Model Selection Flow - Complete Simulation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSetCurrentModel.mockImplementation((id) => {
-      console.log('setCurrentModel called with:', id);
+      // Mock implementation
     });
   });
 

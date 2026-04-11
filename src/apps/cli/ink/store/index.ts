@@ -9,6 +9,5 @@
 export { useChatStore, createSessionId } from './chatStore.js';
 
 // Legacy stores - for backward compatibility during migration
-// TODO: Remove after full migration to useChatStore
 export { useSessionStore, createSessionId as createSessionIdLegacy } from './sessionStore.js';
 export { useMessageStore } from './messageStore.js';

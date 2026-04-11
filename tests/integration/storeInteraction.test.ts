@@ -202,13 +202,10 @@ describe('store 交互集成测试', () => {
 
       expect(useMessageStore.getState().messages).toHaveLength(2);
 
-      // BUG: clearSession 不清空 messageStore！
-      // 修复后应该是 0，但现在是 2
       useSessionStore.getState().clearSession();
 
-      // 暂时调整期望以匹配当前行为（这是已知的 BUG）
-      // TODO: 修复 sessionStore.clearSession() 添加 useMessageStore.getState().clearMessages()
-      expect(useMessageStore.getState().messages.length).toBeGreaterThanOrEqual(0);
+      // 验证 clearSession 现在会清空 messageStore
+      expect(useMessageStore.getState().messages).toHaveLength(0);
     });
   });
 
@@ -394,12 +391,13 @@ describe('store 交互集成测试', () => {
       expect(useMessageStore.getState().thinking).toBe(true);
       expect(useMessageStore.getState().usage).toEqual({ input: 10, output: 20, cost: 0.01 });
 
-      // 清理 session
+      // 清理 session - 会同时清空 messageStore
       useSessionStore.getState().clearSession();
 
-      // 验证 messageStore 不受影响
-      expect(useMessageStore.getState().messages).toHaveLength(1);
-      expect(useMessageStore.getState().thinking).toBe(true);
+      // 验证 clearSession 会清空 messageStore（修复后的正确行为）
+      expect(useMessageStore.getState().messages).toHaveLength(0);
+      expect(useMessageStore.getState().thinking).toBe(false);
+      expect(useMessageStore.getState().usage).toBeNull();
     });
   });
 });
