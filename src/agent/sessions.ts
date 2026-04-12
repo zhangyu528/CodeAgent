@@ -136,7 +136,7 @@ export class SessionManager {
 
   async getLatestSessionId(): Promise<string | null> {
     const history = await this.getHistory(1);
-    const latest = history[0];
+    const latest = history[0]!;
     return latest ? latest.id : null;
   }
 

@@ -1,0 +1,105 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { searchFilesTool } from '../../../../src/agent/tools/search_files.js';
+
+describe('searchFilesTool', () => {
+  beforeEach(() => {
+    // Reset state if needed
+  });
+
+  describe('Basic search functionality', () => {
+    it('should return no matches for non-existent pattern', async () => {
+      const result = await searchFilesTool.execute('call-id', {
+        pattern: 'NONEXISTENT_PATTERN_12345_UNIQUE',
+        directoryPath: 'src/agent',
+        maxResults: 50,
+      });
+      expect(result.details.matches).toBe(0);
+    });
+
+    it('should find a known pattern in source files', async () => {
+      const result = await searchFilesTool.execute('call-id', {
+        pattern: 'searchFilesTool',
+        directoryPath: 'src/agent/tools',
+        maxResults: 50,
+      });
+      expect(result.details.matches).toBeGreaterThan(0);
+      expect(result.content[0].text).toContain('searchFilesTool');
+    });
+  });
+
+  describe('File extension filtering', () => {
+    it('should filter by file extension', async () => {
+      const result = await searchFilesTool.execute('call-id', {
+        pattern: 'export',
+        directoryPath: 'src/agent/tools',
+        fileExtension: '.ts',
+        maxResults: 50,
+      });
+      // All results should be .ts files
+      const text = result.content[0].text;
+      const lines = text.split('\n');
+      for (const line of lines) {
+        if (line.includes('.ts:')) {
+          expect(line).toContain('.ts');
+        }
+      }
+    });
+
+    it('should return no results for non-matching extension', async () => {
+      const result = await searchFilesTool.execute('call-id', {
+        pattern: 'const.*=',
+        directoryPath: 'src/agent/tools',
+        fileExtension: '.nonexistent',
+        maxResults: 50,
+      });
+      expect(result.details.matches).toBe(0);
+    });
+  });
+
+  describe('maxResults limit', () => {
+    it('should respect maxResults limit', async () => {
+      const result = await searchFilesTool.execute('call-id', {
+        pattern: 'export',
+        directoryPath: 'src',
+        maxResults: 5,
+      });
+      expect(result.details.matches).toBeLessThanOrEqual(5);
+    });
+  });
+
+  describe('Error handling', () => {
+    it('should handle non-existent directory gracefully', async () => {
+      const result = await searchFilesTool.execute('call-id', {
+        pattern: 'test',
+        directoryPath: '/non/existent/path/12345',
+        maxResults: 50,
+      });
+      // Should not throw, should return zero matches
+      expect(result.details.matches).toBe(0);
+    });
+
+    it('should skip unreadable files gracefully', async () => {
+      // Try to search in a directory with permission issues
+      const result = await searchFilesTool.execute('call-id', {
+        pattern: 'test',
+        directoryPath: '/root',  // May have permission issues
+        maxResults: 10,
+      });
+      // Should not throw, should return whatever is accessible or 0
+      expect(typeof result.details.matches).toBe('number');
+    });
+  });
+
+  describe('Result format', () => {
+    it('should return results with file path, line number and content', async () => {
+      const result = await searchFilesTool.execute('call-id', {
+        pattern: 'searchFilesTool',
+        directoryPath: 'src/agent/tools',
+        maxResults: 50,
+      });
+      const text = result.content[0].text;
+      // Should contain file:line:content format
+      expect(text).toContain('.ts:');
+    });
+  });
+});

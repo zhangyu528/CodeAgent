@@ -42,7 +42,7 @@ class ModelResolver {
 
   private resolveFallbackModel(provider: string) {
     const models = getModels(provider as any);
-    return models.length > 0 ? models[0] : null;
+    return models.length > 0 ? models[0]! : null;
   }
 
   private applyEnvOverrides(model: any, provider: string) {
