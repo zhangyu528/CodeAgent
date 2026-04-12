@@ -18,7 +18,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
-    "prepare": "husky"
+    "prepare": "husky",
+    "audit": "bun pm scan"
   },
   "repository": {
     "type": "git",
