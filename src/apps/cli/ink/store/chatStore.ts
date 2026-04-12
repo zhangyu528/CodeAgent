@@ -62,6 +62,7 @@ interface ChatStore {
   setMessages: (messages: ChatMessage[]) => void;
   addMessage: (msg: ChatMessage) => void;
   updateLastMessage: (update: (msg: ChatMessage) => ChatMessage) => void;
+  setUsage: (usage: { input: number; output: number; cost: number } | null) => void;
 
   // Combined Actions
   /**
@@ -208,6 +209,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     newMessages[newMessages.length - 1] = update(newMessages[newMessages.length - 1]);
     return { messages: newMessages };
   }),
+
+  setUsage: (usage) => set({ usage }),
 
   // Combined Actions
   clearAll: () => {

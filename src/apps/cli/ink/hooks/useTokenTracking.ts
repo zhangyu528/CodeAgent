@@ -6,7 +6,7 @@
  * which is updated by agent events in useAgentEvents.ts.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useChatStore } from '../store/index.js';
 
 // Token tracking state interface
@@ -25,9 +25,28 @@ export interface TokenTrackingState {
 export function useTokenTracking() {
   // Get current usage from chatStore
   const usage = useChatStore(state => state.usage);
-  
+ 
   // Get the setUsage function to update token usage
   const setUsage = useChatStore(state => state.setUsage);
+
+  /**
+   * Computed token tracking state derived from usage
+   * Memoized to avoid recalculating on every render
+   */
+  const tokenUsage: TokenTrackingState = useMemo(() => {
+    if (!usage) {
+      return {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+      };
+    }
+    return {
+      inputTokens: usage.input,
+      outputTokens: usage.output,
+      totalTokens: usage.input + usage.output,
+    };
+  }, [usage]);
 
   /**
    * Track tokens by updating the usage in chatStore
@@ -47,25 +66,6 @@ export function useTokenTracking() {
   }, [setUsage]);
 
   /**
-   * Get the current token usage state
-   */
-  const getTokenUsage = useCallback((): TokenTrackingState => {
-    const currentUsage = useChatStore.getState().usage;
-    if (!currentUsage) {
-      return {
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
-      };
-    }
-    return {
-      inputTokens: currentUsage.input,
-      outputTokens: currentUsage.output,
-      totalTokens: currentUsage.input + currentUsage.output,
-    };
-  }, []);
-
-  /**
    * Reset token usage to initial state
    */
   const resetTokenUsage = useCallback(() => {
@@ -74,7 +74,7 @@ export function useTokenTracking() {
 
   return {
     trackTokens,
-    getTokenUsage,
+    tokenUsage,
     resetTokenUsage,
   };
 }
