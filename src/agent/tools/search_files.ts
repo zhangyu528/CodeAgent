@@ -21,9 +21,10 @@ export const searchFilesTool = {
     try {
       const regex = new RegExp(pattern, 'gi');
       const matches: Array<{ file: string; line: number; content: string }> = [];
+      const MAX_DEPTH = 10;
       
-      async function searchDir(dir: string): Promise<void> {
-        if (matches.length >= maxResults) return;
+      const searchDir = async function(dir: string, depth: number = 0): Promise<void> {
+        if (depth > MAX_DEPTH || matches.length >= maxResults) return;
         
         let entries;
         try {
@@ -40,7 +41,7 @@ export const searchFilesTool = {
           // Skip node_modules, .git, dist, etc.
           if (entry.isDirectory()) {
             if (!['node_modules', '.git', 'dist', 'build', '.next', '.cache', '.turbo', 'coverage'].includes(entry.name)) {
-              await searchDir(fullPath);
+              await searchDir(fullPath, depth + 1);
             }
           } else if (entry.isFile()) {
             // Filter by extension if specified
@@ -70,7 +71,7 @@ export const searchFilesTool = {
             }
           }
         }
-      }
+      };
       
       await searchDir(directoryPath);
       
