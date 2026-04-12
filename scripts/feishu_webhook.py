@@ -267,6 +267,72 @@ def card_error(title: str, error_msg: str) -> list:
     ]
 
 
+def card_commit_report(
+    commit_hash: str,
+    branch: str,
+    commit_time: str,
+    commit_msg: str,
+    files_changed: int,
+    insertions: int,
+    deletions: int,
+    new_files: int,
+    modified_files: int,
+    deleted_files: int,
+    src_changes: int,
+    test_changes: int,
+    script_changes: int,
+    files: str = ""
+) -> list:
+    """
+    Commit 报告卡片 — post-commit hook 使用，发送 commit 变更信息
+
+    Args:
+        commit_hash: commit hash (短)
+        branch: 分支名
+        commit_time: 提交时间
+        commit_msg: commit 消息
+        files_changed: 变更文件总数
+        insertions: 新增行数
+        deletions: 删除行数
+        new_files: 新增文件数
+        modified_files: 修改文件数
+        deleted_files: 删除文件数
+        src_changes: src/ 目录变更数
+        test_changes: tests/ 目录变更数
+        script_changes: scripts/ 目录变更数
+        files: 变更文件列表
+
+    Returns:
+        卡片 elements 列表
+    """
+    return [
+        {
+            "tag": "markdown",
+            "content": f"""**📝 Commit 报告**
+---
+🔖 **Commit** | `{commit_hash}`
+📋 **分支** | `{branch}`
+⏰ **时间** | {commit_time}
+---
+📊 **变更统计**
+• 文件数: {files_changed} 个
+• 新增: {new_files} 个 | 修改: {modified_files} 个 | 删除: {deleted_files} 个
+• +{insertions} / -{deletions} 行
+---
+📁 **变更分类**
+• 源代码 (src/): {src_changes} 个
+• 测试文件 (tests/): {test_changes} 个
+• 脚本 (scripts/): {script_changes} 个
+---
+📝 **Commit 消息**
+{commit_msg}
+---
+变更文件:
+{files}"""
+        }
+    ]
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("使用方法: python scripts/feishu_webhook.py <webhook_url> <消息内容>")
