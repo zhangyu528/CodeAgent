@@ -156,3 +156,7 @@ bun run test:run
 - `browse_page`: Fetch and extract main page content with summary.
 
 See `docs/archive/legacy_functional_requirements/F5_浏览器增强.md` and related implementation plan for configuration and safety rules.
+# test
+# update
+# test2
+test3
