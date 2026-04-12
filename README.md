@@ -62,14 +62,21 @@ codeagent
 
 ## Testing
 
-Run unit tests:
+This project uses [vitest](https://vitest.dev/) for testing.
+
+Run tests in watch mode:
 ```bash
-npm run test:unit
+bun test
 ```
 
-Run the full test suite (may require real provider keys for integration/e2e):
+Run all tests once:
 ```bash
-npm test
+bun run test:run
+```
+
+Run tests with UI:
+```bash
+bun run test:ui
 ```
 
 ## Project Structure

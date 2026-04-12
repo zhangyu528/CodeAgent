@@ -11,9 +11,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Global install**: `npm install -g` then use `codeagent` command
 
 ### Testing
-No test suite is currently configured. The project structure indicates where tests should go:
-- Unit tests would go in `tests/unit/`
-- Integration tests would go in `tests/integration/`
+The project uses vitest for testing. Test files are located in the `tests/` directory:
+- Unit tests: `tests/unit/`
+- Integration tests: `tests/integration/`
+
+Run tests:
+- `bun test` - Run tests in watch mode
+- `bun run test:run` - Run all tests once
+- `bun run test:ui` - Run tests with UI
 
 ## Architecture Overview
 
