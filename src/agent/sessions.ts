@@ -57,8 +57,9 @@ export class SessionManager {
       const files = await fsp.readdir(SESSIONS_DIR);
       const tmpFiles = files.filter(file => file.endsWith('.tmp'));
       await Promise.all(tmpFiles.map(file => fsp.rm(path.join(SESSIONS_DIR, file), { force: true })));
-    } catch {
+    } catch (err) {
       // Ignore cleanup failures to avoid impacting CLI startup.
+      console.error('[SessionManager] cleanupTempFiles error:', err);
     }
   }
   async saveSession(id: string, messages: AgentMessage[], options: SaveSessionOptions = {}): Promise<void> {
@@ -101,7 +102,8 @@ export class SessionManager {
       const raw = await fsp.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(raw);
       return this.normalizeSessionRecord(id, parsed);
-    } catch {
+    } catch (err) {
+      console.error('[SessionManager] Failed to load session:', err);
       return null;
     }
   }
@@ -118,7 +120,8 @@ export class SessionManager {
           const parsed = JSON.parse(raw);
           const record = this.normalizeSessionRecord(path.basename(f, '.json'), parsed);
           return record?.meta || null;
-        } catch {
+        } catch (err) {
+          console.error('[SessionManager] Failed to read session file:', err);
           return null;
         }
       })
@@ -157,7 +160,8 @@ export class SessionManager {
       try {
         await fsp.rename(tmpPath, filePath);
         renamed = true;
-      } catch {
+      } catch (err) {
+        console.error('[SessionManager] atomicWriteJson rename error:', err);
         await fsp.rm(filePath, { force: true });
         await fsp.rename(tmpPath, filePath);
         renamed = true;
@@ -177,7 +181,8 @@ export class SessionManager {
       try {
         await fsp.rm(target, { force: true });
         return;
-      } catch {
+      } catch (err) {
+        console.error('[SessionManager] removeFileWithRetry error:', err);
         await new Promise(resolve => setTimeout(resolve, 10 * (i + 1)));
       }
     }
@@ -246,7 +251,8 @@ export class SessionManager {
     try {
       await fsp.access(target);
       return true;
-    } catch {
+    } catch (err) {
+      console.error('[SessionManager] exists check error:', err);
       return false;
     }
   }
