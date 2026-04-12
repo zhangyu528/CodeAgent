@@ -10,6 +10,7 @@ COMMIT_MSG=$(git log -1 --pretty=%B | head -20)
 COMMIT_HASH=$(git log -1 --pretty=%h)
 COMMIT_TIME=$(git log -1 --pretty=%ci | cut -d' ' -f1,2 | sed 's/+08:00//')
 BRANCH=$(git branch --show-current)
+AUTHOR=$(git log -1 --pretty=%an)
 
 # 获取变更统计
 FILES_CHANGED=$(git diff --name-only HEAD^..HEAD | wc -l)
@@ -33,6 +34,20 @@ SRC_CHANGES=$(git diff --name-only HEAD^..HEAD | grep -E "^src/" | wc -l)
 TEST_CHANGES=$(git diff --name-only HEAD^..HEAD | grep -E "^tests/" | wc -l)
 SCRIPT_CHANGES=$(git diff --name-only HEAD^..HEAD | grep -E "^scripts/" | wc -l)
 
+# Agent + Model（仅 Hermes commit 才读取）
+AGENT=""
+MODEL=""
+if [ "$AUTHOR" = "Hermes" ]; then
+    AGENT="CodeAgent"
+    ENV_FILE="$PROJECT_DIR/scripts/.env"
+    if [ -f "$ENV_FILE" ]; then
+        PROVIDER=$(grep "^DEFAULT_PROVIDER=" "$ENV_FILE" | cut -d'=' -f2)
+        if [ -n "$PROVIDER" ]; then
+            MODEL=$(grep "^${PROVIDER}_MODEL=" "$ENV_FILE" | cut -d'=' -f2)
+        fi
+    fi
+fi
+
 # 发送到飞书
 FEISHU_WEBHOOK_URL=$(grep "FEISHU_WEBHOOK_URL" "$PROJECT_DIR/scripts/.env" | cut -d'=' -f2)
 
@@ -46,6 +61,7 @@ card = card_commit_report(
     commit_hash='$COMMIT_HASH',
     branch='$BRANCH',
     commit_time='$COMMIT_TIME',
+    author='$AUTHOR',
     commit_msg='''$COMMIT_MSG'''.strip(),
     files_changed=$FILES_CHANGED,
     insertions=$INSERTIONS,
@@ -56,7 +72,9 @@ card = card_commit_report(
     src_changes=$SRC_CHANGES,
     test_changes=$TEST_CHANGES,
     script_changes=$SCRIPT_CHANGES,
-    files='''$FILES'''.strip()
+    files='''$FILES'''.strip(),
+    agent='$AGENT',
+    model='$MODEL'
 )
 
 from feishu_webhook import send_card

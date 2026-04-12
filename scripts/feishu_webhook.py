@@ -271,17 +271,20 @@ def card_commit_report(
     commit_hash: str,
     branch: str,
     commit_time: str,
-    commit_msg: str,
-    files_changed: int,
-    insertions: int,
-    deletions: int,
-    new_files: int,
-    modified_files: int,
-    deleted_files: int,
-    src_changes: int,
-    test_changes: int,
-    script_changes: int,
-    files: str = ""
+    author: str,
+    commit_msg: str = "",
+    files_changed: int = 0,
+    insertions: int = 0,
+    deletions: int = 0,
+    new_files: int = 0,
+    modified_files: int = 0,
+    deleted_files: int = 0,
+    src_changes: int = 0,
+    test_changes: int = 0,
+    script_changes: int = 0,
+    files: str = "",
+    agent: str = "",
+    model: str = ""
 ) -> list:
     """
     Commit 报告卡片 — post-commit hook 使用，发送 commit 变更信息
@@ -290,6 +293,7 @@ def card_commit_report(
         commit_hash: commit hash (短)
         branch: 分支名
         commit_time: 提交时间
+        author: 提交作者
         commit_msg: commit 消息
         files_changed: 变更文件总数
         insertions: 新增行数
@@ -301,10 +305,18 @@ def card_commit_report(
         test_changes: tests/ 目录变更数
         script_changes: scripts/ 目录变更数
         files: 变更文件列表
+        agent: Agent 名称（autonomy job 才传入）
+        model: LLM 模型名称（autonomy job 才传入）
 
     Returns:
         卡片 elements 列表
     """
+    # Agent + Model 行（仅当 agent 非空时显示）
+    agent_model_line = ""
+    if agent:
+        model_part = f" | 🧠 **{model}**" if model else ""
+        agent_model_line = f"\n👤 **Agent** | {agent}{model_part}\n---"
+
     return [
         {
             "tag": "markdown",
@@ -312,8 +324,9 @@ def card_commit_report(
 ---
 🔖 **Commit** | `{commit_hash}`
 📋 **分支** | `{branch}`
+👤 **作者** | {author}
 ⏰ **时间** | {commit_time}
----
+---{agent_model_line}
 📊 **变更统计**
 • 文件数: {files_changed} 个
 • 新增: {new_files} 个 | 修改: {modified_files} 个 | 删除: {deleted_files} 个
