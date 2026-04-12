@@ -10,6 +10,8 @@
 import sys
 import json
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def send_card(webhook_url: str, card: dict) -> dict:
@@ -33,7 +35,7 @@ def send_card(webhook_url: str, card: dict) -> dict:
 
     headers = {"Content-Type": "application/json"}
 
-    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
+    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload), timeout=10)
     return response.json()
 
 
@@ -57,7 +59,7 @@ def send_text_message(webhook_url: str, text: str) -> dict:
 
     headers = {"Content-Type": "application/json"}
 
-    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
+    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload), timeout=10)
     return response.json()
 
 
@@ -82,7 +84,7 @@ def send_rich_text_message(webhook_url: str, title: str, content: str) -> dict:
 
     headers = {"Content-Type": "application/json"}
 
-    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
+    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload), timeout=10)
     return response.json()
 
 
@@ -109,7 +111,7 @@ def send_markdown_message(webhook_url: str, content: str) -> dict:
 
     headers = {"Content-Type": "application/json"}
 
-    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
+    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload), timeout=10)
     return response.json()
 
 
@@ -243,6 +245,65 @@ def card_execution_report(
         elements.append({"tag": "markdown", "content": f"---\n{details}"})
 
     return elements
+
+
+def card_feature_report(
+    title: str,
+    feature_content: str,
+    branch: str = "main",
+    problem_statement: str = "",
+    mvp_scope: str = "",
+    not_doing: str = "",
+    open_questions: str = ""
+) -> list:
+    """
+    新功能报告卡片 — idea-refine 完成后发送
+
+    Args:
+        title: 卡片标题
+        feature_content: 新功能完整报告（markdown 格式）
+        branch: 当前分支名
+        problem_statement: 问题陈述
+        mvp_scope: MVP 范围
+        not_doing: 不做什么
+        open_questions: 开放问题
+
+    Returns:
+        卡片 elements 列表
+    """
+    return [
+        {
+            "tag": "markdown",
+            "content": f"**💡 {title}**\n---\n📍 **分支** | `{branch}`\n---\n{feature_content}"
+        }
+    ]
+
+
+def card_task_preview(
+    title: str,
+    tasks: str,
+    total: int = 0,
+    from_name: str = "CodeAgent 自主优化"
+) -> list:
+    """
+    执行前任务预览卡片 — 列出即将执行的任务列表
+
+    Args:
+        title: 卡片标题
+        tasks: 任务列表（markdown 格式，每行一个任务）
+        total: 任务总数
+        from_name: 来源名称
+
+    Returns:
+        卡片 elements 列表
+    """
+    from datetime import datetime
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    task_count_text = f"**{total}** 个任务" if total > 0 else "无任务"
+
+    header = f"**📋 {title}**\n---\n⏰ **预览时间** | {now}\n📋 **任务数量** | {task_count_text}\n---\n**待执行任务：**\n{tasks}\n\n---\n⏳ 确认后开始执行..."
+    return [{"tag": "markdown", "content": header}]
 
 
 def card_error(title: str, error_msg: str) -> list:
