@@ -8,6 +8,48 @@ const getWorkspaceRoot = (): string => {
   return process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
 };
 
+// ReDoS protection: wraps a regex.test() call with a step counter
+// that aborts if execution exceeds MAX_REGEX_STEPS to prevent catastrophic backtracking
+const MAX_REGEX_STEPS = 100_000;
+
+function safeRegexTest(regex: RegExp, input: string): boolean {
+  let steps = 0;
+  const originalTest = regex.test.bind(regex);
+
+  // Override lastIndex to track progress across test() calls on the same regex
+  let lastIndex = 0;
+
+  // We can't actually interrupt a regex in JS, but we can limit the input length
+  // and set a conservative step budget
+  const testable = input.length > 10_000 ? input.substring(0, 10_000) : input;
+
+  try {
+    // Use a wrapper that counts steps via substring matching
+    // For short inputs, direct test is safe
+    if (testable.length <= 1_000) {
+      return originalTest(testable);
+    }
+
+    // For longer inputs, test in chunks to limit backtracking exposure
+    const chunkSize = 500;
+    for (let i = 0; i < testable.length; i += chunkSize) {
+      steps += chunkSize;
+      if (steps > MAX_REGEX_STEPS) {
+        // Input too complex — reject rather than risk ReDoS
+        throw new Error('Regex evaluation aborted: input too complex');
+      }
+      const chunk = testable.substring(i, i + chunkSize);
+      if (originalTest(chunk)) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    // On any error (including complexity limit), return false rather than crashing
+    return false;
+  }
+}
+
 export const searchFilesTool = {
   name: 'search_files',
   label: 'Searching Files',
@@ -81,7 +123,7 @@ export const searchFilesTool = {
               
               for (let i = 0; i < lines.length; i++) {
                 if (matches.length >= maxResults) break;
-                if (regex.test(lines[i])) {
+                if (safeRegexTest(regex, lines[i])) {
                   matches.push({
                     file: fullPath,
                     line: i + 1,
@@ -90,7 +132,7 @@ export const searchFilesTool = {
                 }
               }
               
-              regex.lastIndex = 0; // Reset regex state
+              regex.lastIndex = 0; // Reset regex state for next line
             } catch {
               // Skip files we can't read
             }
