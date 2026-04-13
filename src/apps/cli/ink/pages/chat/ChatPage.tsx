@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, useStdout } from 'ink';
 import { Input } from '../../components/inputs/index.js';
 import { ChatHeader } from '../../components/chat/ChatHeader.js';
@@ -11,9 +11,9 @@ export function ChatPage() {
   const agent = useAgent();
   const messages = useChatStore(state => state.messages);
   const { stdout } = useStdout();
-  const [terminalRows, setTerminalRows] = React.useState(stdout.rows || 24);
+  const [terminalRows, setTerminalRows] = useState(stdout.rows || 24);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const onResize = () => setTerminalRows(stdout.rows);
     stdout.on('resize', onResize);
     return () => {
