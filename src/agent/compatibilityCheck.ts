@@ -37,7 +37,8 @@ export function runCompatibilityCheck(): CompatibilityResult {
 
   // Check Node.js version
   const nodeVersion = process.version;
-  const nodeMajor = parseInt(nodeVersion.slice(1).split('.')[0], 10);
+  const versionPart = nodeVersion.slice(1).split('.')[0];
+  const nodeMajor = parseInt(versionPart ?? '0', 10);
   if (nodeMajor >= 18) {
     checks.push({ name: 'Node.js Version', ok: true, message: `Node.js ${nodeVersion} (OK)` });
   } else {

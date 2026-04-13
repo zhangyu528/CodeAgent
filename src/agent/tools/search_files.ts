@@ -142,11 +142,12 @@ export const searchFilesTool = {
               
               for (let i = 0; i < lines.length; i++) {
                 if (matches.length >= maxResults) break;
-                if (safeRegexTest(regex, lines[i])) {
+                const line = lines[i];
+                if (line && safeRegexTest(regex, line)) {
                   matches.push({
                     file: fullPath,
                     line: i + 1,
-                    content: lines[i].trim().substring(0, 200),
+                    content: line.trim().substring(0, 200),
                   });
                 }
               }

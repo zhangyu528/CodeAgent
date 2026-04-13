@@ -167,10 +167,14 @@ export class JsonSessionRepository implements ISessionRepository {
   async list(limit?: number): Promise<SessionMeta[]> {
     if (!(await this.exists(SESSIONS_DIR))) return [];
 
-    const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: true });
+    const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: false });
     const jsonEntries = entries
-      .filter(e => e.isFile() && e.name.endsWith('.json'))
-      .sort((a, b) => (b.mtime?.getTime() ?? 0) - (a.mtime?.getTime() ?? 0));
+      .filter(e => e.endsWith('.json'))
+      .sort((a, b) => {
+        const aStat = fs.statSync(path.join(SESSIONS_DIR, a));
+        const bStat = fs.statSync(path.join(SESSIONS_DIR, b));
+        return (bStat.mtimeMs ?? 0) - (aStat.mtimeMs ?? 0);
+      });
 
     const entriesToRead = typeof limit === 'number'
       ? jsonEntries.slice(0, limit)
@@ -181,7 +185,7 @@ export class JsonSessionRepository implements ISessionRepository {
     const sessions = await Promise.all(
       entriesToRead.map(async entry => {
         try {
-          const raw = await fsp.readFile(path.join(SESSIONS_DIR, entry.name), 'utf-8');
+          const raw = await fsp.readFile(path.join(SESSIONS_DIR, entry), 'utf-8');
           const parsed = JSON.parse(raw) as SessionDocument;
           const migrated = runMigrations(parsed);
           const record = this.normalize(migrated);

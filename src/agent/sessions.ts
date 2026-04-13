@@ -111,10 +111,14 @@ export class SessionManager {
   async getHistory(limit?: number): Promise<SessionInfo[]> {
     if (!(await this.exists(SESSIONS_DIR))) return [];
 
-    const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: true });
+    const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: false });
     const jsonEntries = entries
-      .filter(e => e.isFile() && e.name.endsWith('.json'))
-      .sort((a, b) => (b.mtime?.getTime() ?? 0) - (a.mtime?.getTime() ?? 0));
+      .filter(e => e.endsWith('.json'))
+      .sort((a, b) => {
+        const aStat = fs.statSync(path.join(SESSIONS_DIR, a));
+        const bStat = fs.statSync(path.join(SESSIONS_DIR, b));
+        return (bStat.mtimeMs ?? 0) - (aStat.mtimeMs ?? 0);
+      });
 
     // When limit is specified, only read the top N files (avoids N+1 reads)
     const entriesToRead = typeof limit === 'number'
@@ -126,9 +130,9 @@ export class SessionManager {
     const sessions = await Promise.all(
       entriesToRead.map(async entry => {
         try {
-          const raw = await fsp.readFile(path.join(SESSIONS_DIR, entry.name), 'utf-8');
+          const raw = await fsp.readFile(path.join(SESSIONS_DIR, entry), 'utf-8');
           const parsed = JSON.parse(raw);
-          const record = this.normalizeSessionRecord(path.basename(entry.name, '.json'), parsed);
+          const record = this.normalizeSessionRecord(path.basename(entry, '.json'), parsed);
           return record?.meta || null;
         } catch (err) {
           console.error('[SessionManager] Failed to read session file:', err);
