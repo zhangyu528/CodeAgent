@@ -47,9 +47,16 @@ const ALLOWED_PATTERNS = [
   /^exit\s+/i,              // exit is safe
 ];
 
+// Warn once when security bypass is active
+let unsafeBypassWarned = false;
+
 function isCommandBlocked(command: string): boolean {
   // Allow override via environment variable (for trusted environments)
   if (process.env.RUN_COMMAND_UNSAFE === '1') {
+    if (!unsafeBypassWarned) {
+      console.warn('[run_command] WARNING: RUN_COMMAND_UNSAFE=1 is set — all security checks are bypassed. This is not recommended for untrusted environments.');
+      unsafeBypassWarned = true;
+    }
     return false;
   }
 
