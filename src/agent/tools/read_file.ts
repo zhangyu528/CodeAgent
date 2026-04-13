@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import * as fs from 'fs/promises';
+import * as path from 'path';
 import { AgentToolResult } from '@mariozechner/pi-agent-core';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -12,6 +13,15 @@ export const readFileTool = {
     filePath: z.string().describe('The path to the file to read.'),
   }),
   execute: async (toolCallId: string, { filePath }: { filePath: string }): Promise<AgentToolResult<any>> => {
+    // Block deep path traversal patterns
+    const resolvedPath = path.resolve(filePath);
+    if (filePath.includes('../../../') || filePath.includes('..\\..\\..\\')) {
+      return {
+        content: [{ type: 'text', text: `Error: Path traversal detected in: ${filePath}` }],
+        details: { filePath, success: false, reason: 'path_traversal' }
+      };
+    }
+
     try {
       const stats = await fs.stat(filePath);
       if (stats.size > MAX_FILE_SIZE) {

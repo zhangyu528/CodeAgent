@@ -40,4 +40,10 @@ describe('readFileTool', () => {
     expect(result.content[0].text).toContain('Error: File too large');
     expect(result.details.success).toBe(false);
   });
+
+  it('should reject deep path traversal attempts', async () => {
+    const result = await readFileTool.execute('test-id', { filePath: '../../../etc/passwd' });
+    expect(result.details.success).toBe(false);
+    expect((result.content[0] as any).text).toMatch(/[Pp]ath [Tt]raversal/);
+  });
 });
