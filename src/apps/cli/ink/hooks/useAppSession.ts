@@ -3,6 +3,7 @@
  * Replaces useSession with direct sessionManager calls for persistence.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { randomUUID } from 'crypto';
 import { getAgent } from '../../../../agent/index.js';
 import { sessionManager, SessionInfo, SessionRecord, SessionStatus } from '../../../../agent/sessions.js';
 import { ChatSessionInfo } from '../pages/types.js';
@@ -10,7 +11,6 @@ import { useAppStore } from '../store/uiStore.js';
 
 export function createSessionId(): string {
   try {
-    const { randomUUID } = require('crypto') as { randomUUID: () => string };
     return randomUUID();
   } catch {
     return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;

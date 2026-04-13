@@ -6,6 +6,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import { useChatStore } from '../store/index.js';
 import { ChatMessage } from '../pages/types.js';
+import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
 
 export interface UseAgentEventsOptions {
   isRawModeSupported: boolean;
@@ -77,7 +78,6 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
   }, [addMessage]);
 
   const hydrateFromAgentState = useCallback(() => {
-    const { agentMessagesToChatMessages } = require('../utils/messageAdapters.js');
     useChatStore.getState().setMessages(agentMessagesToChatMessages(agent.state.messages as any[]));
   }, [agent]);
 

@@ -3,6 +3,7 @@
  * Replaces useAppSession's local state with global state
  */
 import { create } from 'zustand';
+import { randomUUID } from 'crypto';
 import { getAgent } from '../../../../agent/index.js';
 import { sessionManager, SessionInfo, SessionRecord, SessionStatus } from '../../../../agent/sessions.js';
 import { ChatSessionInfo } from '../pages/types.js';
@@ -11,7 +12,6 @@ import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
 
 export function createSessionId(): string {
   try {
-    const { randomUUID } = require('crypto') as { randomUUID: () => string };
     return randomUUID();
   } catch {
     return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
