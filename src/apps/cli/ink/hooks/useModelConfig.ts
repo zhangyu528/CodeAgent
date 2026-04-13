@@ -188,7 +188,7 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
         cancelConfig
       );
     }
-  }, [agent, cancelConfig, configTriggered, isLoading, loadError, selectedProvider, setCurrentModel, step]);
+  }, [agent, cancelConfig, configTriggered, isLoading, loadError, selectedProvider, providers, setCurrentModel, step]);
 
   return {
     step,
