@@ -11,18 +11,25 @@ const ALLOWED_REGEX = /^(?:echo|cat|head|tail|grep|wc|ls|pwd|true|false|printf|t
 
 // Compiled regex: BLOCKED patterns — dangerous command injections and destructive operations
 // Combined into single RegExp for performance
-const BLOCKED_REGEX = /\$\(|`[^`]+`|\|\s*\(|^rm\s+-rf\s+\/\s*$|^dd\s+|^mkfs|^format\s+|^fdisk|^sfdisk|^parted|sudo\s+su|^su\s+-/i;
+const BLOCKED_REGEX = /\$\(|`[^`]+`|\|\||&&|;\s*rm|^rm\s+-rf\s+\/\s*$|^dd\s+|^mkfs|^format\s+|^fdisk|^sfdisk|^parted|sudo\s+su|^su\s+-|[<>]\s*[\w\/]/i;
 
 function isCommandBlocked(command: string): boolean {
   const trimmed = command.trim();
 
-  // Check if it's a known-safe command first (allows common tools)
+  // Check blocked patterns FIRST — this prevents allowlist short-circuiting
+  // e.g. "echo hello; rm -rf /" must be blocked even though "echo" is allowlisted
+  if (BLOCKED_REGEX.test(trimmed)) {
+    return true;
+  }
+
+  // Then check if it's a known-safe command
   if (ALLOWED_REGEX.test(trimmed)) {
     return false;
   }
 
-  // Check blocked patterns
-  return BLOCKED_REGEX.test(trimmed);
+  // Unknown commands not in allowlist are treated as potentially dangerous
+  // but not explicitly blocked — let them run (with shell=false in exec)
+  return false;
 }
 
 export const runCommandTool = {

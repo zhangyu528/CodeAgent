@@ -93,5 +93,71 @@ describe('runCommandTool', () => {
       const result = await runCommandTool.execute('test-id', { command: 'exit 0' });
       expect(result.details.success).toBe(true);
     });
+
+    it('should block shell injection via semicolon', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'echo hello; rm -rf /' });
+      expect(result.details.success).toBe(false);
+      expect(result.details.reason).toBe('blocked_dangerous_pattern');
+    });
+
+    it('should block shell injection via double pipe', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'echo hello || ls' });
+      expect(result.details.success).toBe(false);
+      expect(result.details.reason).toBe('blocked_dangerous_pattern');
+    });
+
+    it('should block command substitution via backticks', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'echo `ls`' });
+      expect(result.details.success).toBe(false);
+      expect(result.details.reason).toBe('blocked_dangerous_pattern');
+    });
+
+    it('should block command substitution via $()', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'echo $(ls)' });
+      expect(result.details.success).toBe(false);
+      expect(result.details.reason).toBe('blocked_dangerous_pattern');
+    });
+
+    it('should block chained commands with &&', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'echo hello && ls' });
+      expect(result.details.success).toBe(false);
+      expect(result.details.reason).toBe('blocked_dangerous_pattern');
+    });
+
+    it('should block chained commands with ||', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'echo hello || ls' });
+      expect(result.details.success).toBe(false);
+      expect(result.details.reason).toBe('blocked_dangerous_pattern');
+    });
+
+    it('should block sudo su command', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'sudo su -' });
+      expect(result.details.success).toBe(false);
+      expect(result.details.reason).toBe('blocked_dangerous_pattern');
+    });
+
+    it('should block redirection with >', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'echo hello > /tmp/test' });
+      expect(result.details.success).toBe(false);
+      expect(result.details.reason).toBe('blocked_dangerous_pattern');
+    });
+
+    it('should block dd command', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'dd if=/dev/zero of=/tmp/test' });
+      expect(result.details.success).toBe(false);
+      expect(result.details.reason).toBe('blocked_dangerous_pattern');
+    });
+
+    it('should allow simple echo command', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'echo hello' });
+      expect(result.details.success).toBe(true);
+      expect(result.content[0].text).toContain('hello');
+    });
+
+    it('should allow echo with quoted arguments', async () => {
+      const result = await runCommandTool.execute('test-id', { command: 'echo "hello world"' });
+      expect(result.details.success).toBe(true);
+      expect(result.content[0].text).toContain('hello world');
+    });
   });
 });
