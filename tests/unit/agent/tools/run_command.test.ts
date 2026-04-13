@@ -53,6 +53,7 @@ describe('runCommandTool', () => {
     });
 
     it('should return failure result for non-zero exit code', async () => {
+      // 'exit' is a shell builtin - non-allowlisted, uses exec with shell:true
       const result = await runCommandTool.execute('test-id', { command: 'exit 1' });
       expect(result.details.command).toBe('exit 1');
       expect(result.details.success).toBe(false);
@@ -70,7 +71,9 @@ describe('runCommandTool', () => {
       expect(result.content[0].text).toBe('test argument');
     });
 
-    it('should handle piped commands', async () => {
+    it('should handle piped commands via shell', async () => {
+      // With shell hardening, piped commands are not allowlisted (no shell:false execFile)
+      // so they fall through to exec() which does run them with shell=true
       const result = await runCommandTool.execute('test-id', { command: 'echo "hello world" | tr "[:lower:]" "[:upper:]"' });
       expect(result.details.success).toBe(true);
       expect(result.content[0].text).toContain('HELLO WORLD');
@@ -89,8 +92,9 @@ describe('runCommandTool', () => {
     });
 
     it('should handle timeout gracefully', async () => {
-      // Baseline test: verify execute returns a failure result for exit 0 (not timing out here)
-      const result = await runCommandTool.execute('test-id', { command: 'exit 0' });
+      // Baseline test: verify execute returns success for a simple command (not timing out here)
+      // Note: 'exit' is a shell builtin not available via execFile (shell:false)
+      const result = await runCommandTool.execute('test-id', { command: 'true' });
       expect(result.details.success).toBe(true);
     });
 
