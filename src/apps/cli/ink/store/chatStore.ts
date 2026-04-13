@@ -14,6 +14,9 @@ import { sessionManager, SessionInfo, SessionStatus } from '../../../../agent/se
 import { ChatSessionInfo, ChatMessage } from '../pages/types.js';
 import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
 
+// Debounce delay for persistCurrentSession to avoid hammering filesystem
+const DEBOUNCE_MS = 500;
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -95,38 +98,58 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     return history;
   },
 
-  persistCurrentSession: (status: SessionStatus = 'completed', messages?: any[]) => {
-    const { activeSessionId, currentSession } = get();
-    if (!activeSessionId) return;
+  persistCurrentSession: (() => {
+    // Debounce ref stored outside the store function to persist across calls
+    let saveTimer: ReturnType<typeof setTimeout> | null = null;
+    let pendingStatus: SessionStatus = 'completed';
+    let pendingMessages: any[] | undefined;
 
-    const agent = getAgent();
-    agent.sessionId = activeSessionId;
+    return (status: SessionStatus = 'completed', messages?: any[]) => {
+      const { activeSessionId, currentSession } = get();
+      if (!activeSessionId) return;
 
-    const title = currentSession?.id === activeSessionId ? currentSession.title : null;
-    const messagesToUse = messages || [];
+      // Capture current values for the deferred save
+      pendingStatus = status;
+      pendingMessages = messages;
 
-    set(prev => ({
-      currentSession: prev.activeSessionId === activeSessionId && prev.currentSession ? {
-        ...prev.currentSession,
-        status,
-        updatedAt: Date.now(),
-        messageCount: messagesToUse.length,
-        title: prev.currentSession.title || extractSessionTitle(messagesToUse[0]?.content || ''),
-      } : prev.currentSession,
-    }));
+      // Clear any pending save and schedule a new one (true debounce)
+      if (saveTimer !== null) {
+        clearTimeout(saveTimer);
+      }
 
-    void sessionManager
-      .saveSession(activeSessionId, agent.state.messages, {
-        status,
-        model: agent.state.model?.id,
-        provider: agent.state.model?.provider,
-        ...(title ? { title } : {}),
-      })
-      .then(() => {
-        void get().refreshHistory();
-      })
-      .catch((err) => console.error('Failed to persist session:', err));
-  },
+      saveTimer = setTimeout(() => {
+        saveTimer = null;
+        const sid = activeSessionId;
+        const agent = getAgent();
+        agent.sessionId = sid;
+
+        const title = currentSession?.id === sid ? currentSession.title : null;
+        const messagesToUse = pendingMessages || [];
+
+        set(prev => ({
+          currentSession: prev.activeSessionId === sid && prev.currentSession ? {
+            ...prev.currentSession,
+            status: pendingStatus,
+            updatedAt: Date.now(),
+            messageCount: messagesToUse.length,
+            title: prev.currentSession.title || extractSessionTitle(messagesToUse[0]?.content || ''),
+          } : prev.currentSession,
+        }));
+
+        void sessionManager
+          .saveSession(sid, agent.state.messages, {
+            status: pendingStatus,
+            model: agent.state.model?.id,
+            provider: agent.state.model?.provider,
+            ...(title ? { title } : {}),
+          })
+          .then(() => {
+            void get().refreshHistory();
+          })
+          .catch((err) => console.error('Failed to persist session:', err));
+      }, DEBOUNCE_MS);
+    };
+  })(),
 
   restoreSessionById: async (sessionId: string) => {
     const record = await sessionManager.loadSession(sessionId);
