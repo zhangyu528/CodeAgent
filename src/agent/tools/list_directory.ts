@@ -41,8 +41,9 @@ export const listDirectoryTool = {
       const lines = files.map(f => `${f.isDirectory() ? '[DIR]' : '[FILE]'} ${f.name}`);
       const output = lines.length > 0 ? lines.join('\n') : '(empty)';
       return { content: [{ type: 'text', text: output }], details: { directoryPath, success: true } };
-    } catch (error: any) {
-      return { content: [{ type: 'text', text: `Error: ${error.message}` }], details: { directoryPath, success: false } };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { content: [{ type: 'text', text: `Error: ${message}` }], details: { directoryPath, success: false } };
     }
   },
 };

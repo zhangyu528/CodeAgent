@@ -48,8 +48,9 @@ export const readFileTool = {
       }
       const content = await fs.readFile(resolvedPath, 'utf-8');
       return { content: [{ type: 'text', text: content }], details: { filePath, success: true, size: stats.size } };
-    } catch (error: any) {
-      return { content: [{ type: 'text', text: `Error: ${error.message}` }], details: { filePath, success: false } };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { content: [{ type: 'text', text: `Error: ${message}` }], details: { filePath, success: false } };
     }
   },
 };

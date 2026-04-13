@@ -70,8 +70,9 @@ export const writeFileTool = {
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(pathValidation.resolvedPath!, content, 'utf-8');
       return { content: [{ type: 'text', text: `File written successfully: ${pathValidation.resolvedPath}` }], details: { filePath: pathValidation.resolvedPath, success: true } };
-    } catch (error: any) {
-      return { content: [{ type: 'text', text: `Error: ${error.message}` }], details: { filePath, success: false } };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { content: [{ type: 'text', text: `Error: ${message}` }], details: { filePath: pathValidation.resolvedPath, success: false } };
     }
   },
 };

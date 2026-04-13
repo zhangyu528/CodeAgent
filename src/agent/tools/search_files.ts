@@ -154,8 +154,9 @@ export const searchFilesTool = {
         content: [{ type: 'text', text: `Found ${matches.length} matches:\n\n${output}` }], 
         details: { pattern, directoryPath, matches: matches.length } 
       };
-    } catch (error: any) {
-      return { content: [{ type: 'text', text: `Error: ${error.message}` }], details: { success: false } };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { content: [{ type: 'text', text: `Error: ${message}` }], details: { success: false } };
     }
   },
 };
