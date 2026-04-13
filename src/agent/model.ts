@@ -2,13 +2,15 @@
  * Model Resolution (internal to agent)
  */
 import { getModel, getModels } from '@mariozechner/pi-ai';
+import type { Model, KnownProvider, Api } from '@mariozechner/pi-ai';
 
 class ModelResolver {
   private overrides: Record<string, { baseUrl?: string; api?: string }> = {
     minimax: {},
   };
 
-  resolve(): any {
+  /** Returns resolved model config with env overrides applied, or null if no provider configured */
+  resolve(): Model<Api> | null {
     const provider = this.resolveEnvProvider();
     if (!provider) return null;
 
@@ -19,7 +21,7 @@ class ModelResolver {
 
     if (!resolved) return null;
 
-    const override = this.overrides[provider];
+    const override = this.overrides[provider as KnownProvider];
     const withOverrides = override
       ? { ...resolved, api: override.api || resolved.api, baseUrl: override.baseUrl || resolved.baseUrl }
       : resolved;
@@ -36,16 +38,24 @@ class ModelResolver {
     return process.env[envModelKey] || null;
   }
 
-  private resolveModelFromEnv(provider: string, modelId: string) {
-    return getModel(provider as any, modelId as any);
+  private resolveModelFromEnv(provider: string, modelId: string): Model<Api> | null {
+    try {
+      return getModel(provider as KnownProvider, modelId as Parameters<typeof getModel>[1]);
+    } catch {
+      return null;
+    }
   }
 
-  private resolveFallbackModel(provider: string) {
-    const models = getModels(provider as any);
-    return models.length > 0 ? models[0]! : null;
+  private resolveFallbackModel(provider: string): Model<Api> | null {
+    try {
+      const models = getModels(provider as KnownProvider);
+      return models.length > 0 ? models[0]! : null;
+    } catch {
+      return null;
+    }
   }
 
-  private applyEnvOverrides(model: any, provider: string) {
+  private applyEnvOverrides(model: Model<Api>, provider: string): Model<Api> {
     const providerUpper = provider.toUpperCase().replace(/-/g, '_');
     const envBaseUrl = process.env[`${providerUpper}_BASE_URL`];
     const envApi = process.env[`${providerUpper}_API`];
