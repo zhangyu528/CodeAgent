@@ -1,0 +1,9 @@
+{
+  "files": [
+    {
+      "path": "dist/apps/cli/index.js",
+      "maxSize": "7MB",
+      "compression": "none"
+    }
+  ]
+}
