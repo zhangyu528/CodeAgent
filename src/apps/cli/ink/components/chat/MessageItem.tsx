@@ -105,48 +105,54 @@ function renderBlock(message: ChatMessage, block: ChatMessageBlock, isDimmed: bo
   );
 }
 
-export const MessageItem = memo(function MessageItem({ message }: MessageItemProps) {
-  const totalTextLength = message.blocks.reduce((sum, block) => sum + block.text.length, 0);
-  const isWaiting = message.status === 'streaming' && totalTextLength === 0;
-  const isGenerating = message.status === 'streaming';
-  const isStreaming = message.status === 'streaming';
+export const MessageItem = memo(
+  function MessageItem({ message }: MessageItemProps) {
+    const totalTextLength = message.blocks.reduce((sum, block) => sum + block.text.length, 0);
+    const isWaiting = message.status === 'streaming' && totalTextLength === 0;
+    const isGenerating = message.status === 'streaming';
 
-  const color = roleColor(message.role);
-  const isUser = message.role === 'user';
+    const color = roleColor(message.role);
+    const isUser = message.role === 'user';
 
-  return (
-    <Box
-      flexDirection="column"
-      marginBottom={1}
-      marginRight={3}
-      borderStyle="bold"
-      borderLeft={true}
-      borderLeftColor={color}
-      borderTop={false}
-      borderRight={false}
-      borderBottom={false}
-    >
-      <Box backgroundColor={isUser ? '#383838' : undefined} paddingLeft={2} paddingRight={2} paddingY={1}>
-        <Box flexDirection="column" justifyContent="center" flexGrow={1}>
-          <TypingIndicator isThinking={isWaiting} isGenerating={isGenerating && !isWaiting} />
-          {message.blocks.map((block, index) => {
-            const prevBlock = index > 0 ? message.blocks[index - 1] : null;
-            const nextBlock = index < message.blocks.length - 1 ? message.blocks[index + 1] : null;
-            const isTextBetweenTexts = block.kind === 'text' && prevBlock?.kind === 'text' && nextBlock?.kind === 'text';
+    return (
+      <Box
+        flexDirection="column"
+        marginBottom={1}
+        marginRight={3}
+        borderStyle="bold"
+        borderLeft={true}
+        borderLeftColor={color}
+        borderTop={false}
+        borderRight={false}
+        borderBottom={false}
+      >
+        <Box backgroundColor={isUser ? '#383838' : undefined} paddingLeft={2} paddingRight={2} paddingY={1}>
+          <Box flexDirection="column" justifyContent="center" flexGrow={1}>
+            <TypingIndicator isThinking={isWaiting} isGenerating={isGenerating && !isWaiting} />
+            {message.blocks.map((block, index) => {
+              const prevBlock = index > 0 ? message.blocks[index - 1] : null;
+              const nextBlock = index < message.blocks.length - 1 ? message.blocks[index + 1] : null;
+              const isTextBetweenTexts = block.kind === 'text' && prevBlock?.kind === 'text' && nextBlock?.kind === 'text';
 
-            return (
-              <Box key={`${message.id}-${index}`} flexDirection="column">
-                {isTextBetweenTexts && (
-                  <Box>
-                    <Text color="gray" dimColor>───</Text>
-                  </Box>
-                )}
-                {renderBlock(message, block, false, `${message.id}-${index}`)}
-              </Box>
-            );
-          })}
+              return (
+                <Box key={`${message.id}-${index}`} flexDirection="column">
+                  {isTextBetweenTexts && (
+                    <Box>
+                      <Text color="gray" dimColor>───</Text>
+                    </Box>
+                  )}
+                  {renderBlock(message, block, false, `${message.id}-${index}`)}
+                </Box>
+              );
+            })}
+          </Box>
         </Box>
       </Box>
-    </Box>
-  );
-});
+    );
+  },
+  // Custom comparison: re-render only when id, status, or block content changes
+  (prevProps, nextProps) =>
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.status === nextProps.message.status &&
+    prevProps.message.blocks === nextProps.message.blocks
+);
