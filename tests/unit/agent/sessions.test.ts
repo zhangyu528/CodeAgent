@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AgentMessage } from '@mariozechner/pi-agent-core';
 
+// Test the exported functions from sessions.ts
+import { estimateTokens, loadSessionWindow, SessionWindow } from '../../../src/agent/sessions';
+
 // Mock modules - vi.mock is hoisted so we need to use factory pattern
 vi.mock('fs', () => ({
   default: {
@@ -438,6 +441,110 @@ describe('SessionManager Error Handling', () => {
       expect(result!.meta.version).toBe(1);
     });
   });
+
+describe('estimateTokens()', () => {
+  it('should return 0 for empty messages', () => {
+    expect(estimateTokens([])).toBe(0);
+  });
+
+  it('should estimate tokens using char/4 for string content', () => {
+    const messages: AgentMessage[] = [
+      { id: '1', role: 'user', content: 'Hello world' },
+    ];
+    // 'Hello world' = 11 chars, 11/4 = 2.75, ceil = 3
+    expect(estimateTokens(messages)).toBe(3);
+  });
+
+  it('should handle array content with text parts', () => {
+    const messages: AgentMessage[] = [
+      { id: '1', role: 'user', content: [{ type: 'text', text: 'Test message' }] },
+    ];
+    // 'Test message' = 12 chars, 12/4 = 3, ceil = 3
+    expect(estimateTokens(messages)).toBe(3);
+  });
+
+  it('should handle object content with text property', () => {
+    const messages: AgentMessage[] = [
+      { id: '1', role: 'user', content: { text: 'Object text' } },
+    ];
+    // 'Object text' = 11 chars, 11/4 = 2.75, ceil = 3
+    expect(estimateTokens(messages)).toBe(3);
+  });
+
+  it('should sum tokens across multiple messages', () => {
+    const messages: AgentMessage[] = [
+      { id: '1', role: 'user', content: 'Short' },       // 5 chars / 4 = 2
+      { id: '2', role: 'assistant', content: 'Also short' }, // 11 chars / 4 = 3
+    ];
+    expect(estimateTokens(messages)).toBe(5);
+  });
+
+  it('should handle unicode characters', () => {
+    const messages: AgentMessage[] = [
+      { id: '1', role: 'user', content: '你好世界' },
+    ];
+    // 4 chars / 4 = 1 token (char/4 heuristic applies to Unicode too)
+    expect(estimateTokens(messages)).toBe(1);
+  });
+});
+
+describe('loadSessionWindow()', () => {
+  function makeMessages(count: number): AgentMessage[] {
+    return Array.from({ length: count }, (_, i) => ({
+      id: String(i),
+      role: 'user' as const,
+      content: `Message ${i}`,
+    }));
+  }
+
+  it('should return all messages when under MAX_MESSAGES', () => {
+    const messages = makeMessages(100);
+    const result = loadSessionWindow(messages);
+    expect(result.messages.length).toBe(100);
+    expect(result.hasMoreBefore).toBe(false);
+    expect(result.hasMoreAfter).toBe(false);
+  });
+
+  it('should cap at MAX_MESSAGES (10000) when exceeded', () => {
+    const messages = makeMessages(15000);
+    const result = loadSessionWindow(messages);
+    expect(result.messages.length).toBe(10000);
+    expect(result.totalMessages).toBe(15000);
+    expect(result.hasMoreBefore).toBe(true);
+    expect(result.hasMoreAfter).toBe(false);
+  });
+
+  it('should return most recent messages when anchor=latest', () => {
+    const messages = makeMessages(12000);
+    const result = loadSessionWindow(messages, { anchor: 'latest' });
+    expect(result.messages[0].content).toBe('Message 2000');
+    expect(result.messages[9999].content).toBe('Message 11999');
+  });
+
+  it('should respect custom maxMessages option', () => {
+    const messages = makeMessages(200);
+    const result = loadSessionWindow(messages, { maxMessages: 50 });
+    expect(result.messages.length).toBe(50);
+    expect(result.hasMoreBefore).toBe(true);
+  });
+
+  it('should center window when anchor=around', () => {
+    const messages = makeMessages(200);
+    const result = loadSessionWindow(messages, { anchor: 'around', maxMessages: 50 });
+    // 200 - 50 = 150, /2 = 75 start index
+    expect(result.messages[0].content).toBe('Message 75');
+    expect(result.hasMoreBefore).toBe(true);
+    expect(result.hasMoreAfter).toBe(true);
+  });
+
+  it('should report hasMoreAfter when centered window does not reach end', () => {
+    const messages = makeMessages(60);
+    const result = loadSessionWindow(messages, { anchor: 'around', maxMessages: 50 });
+    // (60-50)/2 = 5, startIdx=5, endIdx=55, 55 < 60 → hasMoreAfter=true
+    expect(result.hasMoreBefore).toBe(true);
+    expect(result.hasMoreAfter).toBe(true);
+  });
+});
 
   describe('extractTitle() edge cases', () => {
     it('should return null for empty messages array', () => {
