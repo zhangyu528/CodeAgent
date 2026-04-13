@@ -1,10 +1,11 @@
+import { AgentTool } from '@mariozechner/pi-agent-core';
 import { readFileTool } from './read_file.js';
 import { writeFileTool } from './write_file.js';
 import { runCommandTool } from './run_command.js';
 import { listDirectoryTool } from './list_directory.js';
 import { searchFilesTool } from './search_files.js';
 
-export const allTools = [
+export const allTools: AgentTool<any>[] = [
   readFileTool,
   writeFileTool,
   runCommandTool,
