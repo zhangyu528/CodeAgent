@@ -6,9 +6,21 @@ vi.mock('fs', () => ({
   default: {
     existsSync: vi.fn().mockReturnValue(true),
     mkdirSync: vi.fn().mockReturnValue(undefined),
+    statSync: vi.fn((path: string) => ({
+      mtimeMs: 1000,
+      isFile: () => true,
+      isDirectory: () => false,
+      isSymbolicLink: () => false,
+    })),
   },
   existsSync: vi.fn().mockReturnValue(true),
   mkdirSync: vi.fn().mockReturnValue(undefined),
+  statSync: vi.fn((path: string) => ({
+    mtimeMs: 1000,
+    isFile: () => true,
+    isDirectory: () => false,
+    isSymbolicLink: () => false,
+  })),
 }));
 
 vi.mock('fs/promises', () => ({
@@ -198,12 +210,7 @@ describe('SessionManager Error Handling', () => {
       };
 
       (fsp.access as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined); // sessions dir exists
-      (fsp.readdir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{
-        name: 'valid-session.json',
-        isFile: () => true,
-        isDirectory: () => false,
-        isSymbolicLink: () => false,
-      }]);
+      (fsp.readdir as ReturnType<typeof vi.fn>).mockResolvedValueOnce(['valid-session.json']);
       (fsp.readFile as ReturnType<typeof vi.fn>).mockResolvedValueOnce(JSON.stringify(validSession));
 
       const result = await sessionManager.getHistory();
@@ -214,10 +221,7 @@ describe('SessionManager Error Handling', () => {
 
     it('should return empty array when all session files are corrupt', async () => {
       (fsp.access as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined); // sessions dir exists
-      (fsp.readdir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-        { name: 'corrupt1.json', isFile: () => true, isDirectory: () => false, isSymbolicLink: () => false },
-        { name: 'corrupt2.json', isFile: () => true, isDirectory: () => false, isSymbolicLink: () => false },
-      ]);
+      (fsp.readdir as ReturnType<typeof vi.fn>).mockResolvedValueOnce(['corrupt1.json', 'corrupt2.json']);
       (fsp.readFile as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('EIO'));
 
       const result = await sessionManager.getHistory();
@@ -242,12 +246,7 @@ describe('SessionManager Error Handling', () => {
       }));
 
       (fsp.access as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
-      (fsp.readdir as ReturnType<typeof vi.fn>).mockResolvedValueOnce(sessions.map((_, i) => ({
-        name: `session-${i + 1}.json`,
-        isFile: () => true,
-        isDirectory: () => false,
-        isSymbolicLink: () => false,
-      })));
+      (fsp.readdir as ReturnType<typeof vi.fn>).mockResolvedValueOnce(sessions.map((_, i) => `session-${i + 1}.json`));
       (fsp.readFile as ReturnType<typeof vi.fn>).mockImplementation((file: string) => {
         const match = file.match(/session-(\d+)/);
         if (match) {
