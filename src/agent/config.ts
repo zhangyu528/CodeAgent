@@ -1,5 +1,27 @@
 /**
  * Environment Configuration Helpers
+ *
+ * Handles model config and API key persistence to .env file.
+ *
+ * ## Path Resolution
+ *
+ * This module resolves `.env` relative to `process.cwd()` (current working directory).
+ * This means the `.env` file is expected alongside the running script or in the project root
+ * where the CLI is executed. This is the **recommended approach** for CLI tools that run
+ * in a known project context, per the dotenv official documentation:
+ *
+ * @see https://github.com/motdotla/dotenv#should-i-commit-my-env-file
+ *
+ * ## Security Note
+ *
+ * `.env` files should NEVER be committed to version control. This module assumes the
+ * consuming application handles .gitignore correctly (CodeAgent does via its `.gitignore`).
+ * API keys written by `saveApiKey()` are stored in plain text on disk.
+ */
+
+/**
+ * @fileoverview
+ * Environment Configuration Helpers
  * Handles model config and API key persistence to .env file
  */
 import fs from 'fs';
@@ -9,6 +31,14 @@ const ENV_PATH = path.resolve(process.cwd(), '.env');
 
 /**
  * Save the selected provider and model to .env file for persistence
+ *
+ * Reads the existing `.env` file, updates or inserts the `DEFAULT_PROVIDER`
+ * and `{PROVIDER}_MODEL` entries, and writes back atomically via writeFileSync.
+ * Preserves all other existing environment variables in the file.
+ *
+ * @param provider - The provider name (e.g., 'minimax', 'zai'). Will be uppercased and
+ *                   hyphens replaced with underscores for the env var name.
+ * @param modelId  - The model ID to persist (e.g., 'glm-4.7', 'MiniMax-M2.7')
  */
 export function saveModelConfig(provider: string, modelId: string): void {
   const envKey = `${provider.toUpperCase().replace(/-/g, '_')}_MODEL`;
@@ -65,6 +95,9 @@ export function saveModelConfig(provider: string, modelId: string): void {
 
 /**
  * Check if API key is configured for a provider
+ *
+ * @param provider - The provider name (e.g., 'minimax', 'zai')
+ * @returns true if the {PROVIDER}_API_KEY environment variable is set
  */
 export function checkApiKeyConfigured(provider: string): boolean {
   const envVar = `${provider.toUpperCase().replace(/-/g, '_')}_API_KEY`;
@@ -73,6 +106,9 @@ export function checkApiKeyConfigured(provider: string): boolean {
 
 /**
  * Save API key to .env file for persistence
+ *
+ * @param provider - The provider name (e.g., 'minimax', 'zai')
+ * @param apiKey   - The API key to persist
  */
 export function saveApiKey(provider: string, apiKey: string): void {
   const envKey = `${provider.toUpperCase().replace(/-/g, '_')}_API_KEY`;
