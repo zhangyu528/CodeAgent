@@ -98,7 +98,7 @@ describe('searchFilesTool', () => {
     it('should handle non-existent directory gracefully', async () => {
       const result = await searchFilesTool.execute('call-id', {
         pattern: 'test',
-        directoryPath: '/non/existent/path/12345',
+        directoryPath: 'non_existent_path_12345',
         maxResults: 50,
       });
       // Should not throw, should return zero matches
@@ -106,14 +106,36 @@ describe('searchFilesTool', () => {
     });
 
     it('should skip unreadable files gracefully', async () => {
-      // Try to search in a directory with permission issues
+      // Search in src directory - readable, should return results
       const result = await searchFilesTool.execute('call-id', {
         pattern: 'test',
-        directoryPath: '/root',  // May have permission issues
+        directoryPath: 'src',
         maxResults: 10,
       });
-      // Should not throw, should return whatever is accessible or 0
+      // Should not throw, should return results or 0
       expect(typeof result.details.matches).toBe('number');
+    });
+  });
+
+  describe('Path traversal protection', () => {
+    it('should reject paths outside workspace', async () => {
+      const result = await searchFilesTool.execute('call-id', {
+        pattern: 'test',
+        directoryPath: '/non/existent/path/12345',
+        maxResults: 50,
+      });
+      // Should reject path traversal attempt
+      expect(result.details.reason).toBe('path_traversal');
+    });
+
+    it('should reject home directory paths', async () => {
+      const result = await searchFilesTool.execute('call-id', {
+        pattern: 'test',
+        directoryPath: '~/some/path',
+        maxResults: 50,
+      });
+      // Should reject home directory paths
+      expect(result.details.reason).toBe('path_traversal');
     });
   });
 

@@ -3,6 +3,11 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AgentToolResult } from '@mariozechner/pi-agent-core';
 
+// Workspace root - can be overridden via environment variable or defaults to process.cwd()
+const getWorkspaceRoot = (): string => {
+  return process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
+};
+
 export const searchFilesTool = {
   name: 'search_files',
   label: 'Searching Files',
@@ -18,6 +23,26 @@ export const searchFilesTool = {
     { pattern, directoryPath = '.', fileExtension, maxResults = 50 }: 
     { pattern: string; directoryPath?: string; fileExtension?: string; maxResults?: number }
   ): Promise<AgentToolResult<any>> => {
+    const workspaceRoot = getWorkspaceRoot();
+    const resolvedPath = path.resolve(directoryPath);
+    const normalizedWorkspace = path.resolve(workspaceRoot) + path.sep;
+
+    // Reject home directory paths (~ expansion is NOT done by Node.js path.resolve)
+    if (directoryPath.startsWith('~') || resolvedPath.includes('/~')) {
+      return {
+        content: [{ type: 'text', text: `Error: Access denied. Home directory paths are not allowed: ${directoryPath}` }],
+        details: { directoryPath, success: false, reason: 'path_traversal' }
+      };
+    }
+
+    // Check if resolved path is within workspace root
+    if (!resolvedPath.startsWith(normalizedWorkspace)) {
+      return {
+        content: [{ type: 'text', text: `Error: Access denied. Path is outside workspace: ${directoryPath}` }],
+        details: { directoryPath, success: false, reason: 'path_traversal' }
+      };
+    }
+
     try {
       const regex = new RegExp(pattern, 'gi');
       const matches: Array<{ file: string; line: number; content: string }> = [];
