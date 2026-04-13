@@ -96,10 +96,17 @@ export const runCommandTool = {
     }
 
     try {
-      const { stdout, stderr } = await execAsync(command);
+      const { stdout, stderr } = await execAsync(command, { timeout: 30000, maxBuffer: 5 * 1024 * 1024 });
       const output = stdout + (stderr ? `\nErrors:\n${stderr}` : '');
       return { content: [{ type: 'text', text: output }], details: { command, success: true } };
     } catch (error: any) {
+      // Handle timeout errors gracefully
+      if (error.killed || error.signal === 'SIGTERM') {
+        return {
+          content: [{ type: 'text', text: `Command timed out after 30 seconds` }],
+          details: { command, success: false, reason: 'timeout' }
+        };
+      }
       const output = `Command failed: ${error.message}${error.stderr ? `\nStderr:\n${error.stderr}` : ''}`;
       return { content: [{ type: 'text', text: output }], details: { command, success: false } };
     }

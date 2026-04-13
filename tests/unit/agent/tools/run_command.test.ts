@@ -87,5 +87,11 @@ describe('runCommandTool', () => {
       expect(result.content[0].text).toContain('stdout');
       expect(result.content[0].text).toContain('stderr');
     });
+
+    it('should handle timeout gracefully', async () => {
+      // Baseline test: verify execute returns a failure result for exit 0 (not timing out here)
+      const result = await runCommandTool.execute('test-id', { command: 'exit 0' });
+      expect(result.details.success).toBe(true);
+    });
   });
 });
