@@ -90,7 +90,15 @@ function parseCommand(command: string): { cmd: string; args: string[] } {
     tokens.push(current);
   }
 
-  return { cmd: tokens[0] || '', args: tokens.slice(1) };
+  const cmd = tokens[0] || '';
+
+  // Security: reject commands with path separators to prevent path injection
+  // Only allow bare command names (e.g., 'node', 'npm') not './node' or '/usr/bin/node'
+  if (cmd.includes('/') || cmd.includes('\\')) {
+    return { cmd: '', args: [] };
+  }
+
+  return { cmd, args: tokens.slice(1) };
 }
 
 export const runCommandTool = {
