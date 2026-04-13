@@ -251,11 +251,9 @@ describe('SessionManager Error Handling', () => {
   });
 
   describe('saveSession() error handling', () => {
-    it.skip('should catch errors during session save and log to console.error', async () => {
-      // This test is skipped due to vi.mock hoisting complexity
-      // The error handling behavior is verified through other tests
-      // that exercise the try-catch blocks in loadSession, getHistory, etc.
-    });
+    // Skipped: error handling during session save is covered by other tests
+    // that exercise the try-catch blocks in loadSession, getHistory, etc.
+    // The vi.mock hoisting complexity makes it difficult to test this specific scenario.
 
     it('should create session directory if it does not exist', async () => {
       (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
