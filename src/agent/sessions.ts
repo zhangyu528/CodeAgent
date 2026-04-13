@@ -8,6 +8,15 @@ const CONFIG_DIR = path.join(os.homedir(), '.codeagent');
 const SESSIONS_DIR = path.join(CONFIG_DIR, 'sessions');
 const SESSION_VERSION = 1;
 
+// Session ID must be alphanumeric, hyphen, or underscore — rejects path traversal
+const SESSION_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
+
+function isValidSessionId(id: string): boolean {
+  if (!id || typeof id !== 'string') return false;
+  if (id.length > 255) return false;
+  return SESSION_ID_REGEX.test(id);
+}
+
 export type SessionStatus = 'active' | 'completed' | 'interrupted' | 'error';
 
 export interface SessionMeta {
@@ -70,6 +79,10 @@ export class SessionManager {
       }
       await this.cleanupTempFiles();
       const filePath = this.getSessionPath(id);
+      if (!filePath) {
+        console.error(`[SessionManager] Invalid session ID: ${id}`);
+        return;
+      }
       const title = options.title || this.extractTitle(messages) || 'New Session';
       const updatedAt = Date.now();
       const document: SessionDocument = {
@@ -96,7 +109,7 @@ export class SessionManager {
 
   async loadSession(id: string): Promise<SessionRecord | null> {
     const filePath = this.getSessionPath(id);
-    if (!(await this.exists(filePath))) return null;
+    if (!filePath || !(await this.exists(filePath))) return null;
 
     try {
       const raw = await fsp.readFile(filePath, 'utf-8');
@@ -151,7 +164,8 @@ export class SessionManager {
     return latest ? latest.id : null;
   }
 
-  private getSessionPath(id: string): string {
+  private getSessionPath(id: string): string | null {
+    if (!isValidSessionId(id)) return null;
     return path.join(SESSIONS_DIR, `${id}.json`);
   }
 
