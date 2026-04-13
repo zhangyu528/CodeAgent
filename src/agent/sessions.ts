@@ -184,13 +184,16 @@ export class SessionManager {
   }
 
   private async removeFileWithRetry(target: string): Promise<void> {
+    const delays = [50, 100, 200]; // Exponential backoff: 50ms, 100ms, 200ms
     for (let i = 0; i < 3; i++) {
       try {
         await fsp.rm(target, { force: true });
         return;
       } catch (err) {
-        console.error('[SessionManager] removeFileWithRetry error:', err);
-        await new Promise(resolve => setTimeout(resolve, 10 * (i + 1)));
+        console.warn(`[SessionManager] removeFileWithRetry attempt ${i + 1} failed:`, err);
+        if (i < 2) {
+          await new Promise(resolve => setTimeout(resolve, delays[i]));
+        }
       }
     }
   }

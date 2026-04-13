@@ -6,6 +6,10 @@ import { registerBuiltInApiProviders } from '@mariozechner/pi-ai';
 import { Agent } from '@mariozechner/pi-agent-core';
 import { allTools } from './tools/index.js';
 import { modelResolver } from './model.js';
+import { runCompatibilityCheckOrExit } from './compatibilityCheck.js';
+
+// Run compatibility checks before initializing agent
+runCompatibilityCheckOrExit();
 
 // ============================================================================
 // Singleton Management
