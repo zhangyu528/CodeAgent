@@ -50,4 +50,16 @@ describe('writeFileTool', () => {
     
     expect(fs.mkdir).toHaveBeenCalledWith('/new/dir', { recursive: true });
   });
+
+  it('should reject content that exceeds 10MB limit', async () => {
+    const largeContent = 'x'.repeat(11 * 1024 * 1024); // 11MB
+    const result = await writeFileTool.execute('test-id', {
+      filePath: '/test/large.txt',
+      content: largeContent
+    });
+    
+    expect(result.details.success).toBe(false);
+    expect(result.content[0].text).toContain('Content too large');
+    expect((result.content[0] as any).text).toContain('10MB');
+  });
 });
