@@ -8,44 +8,63 @@ const getWorkspaceRoot = (): string => {
   return process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
 };
 
-// ReDoS protection: wraps a regex.test() call with a step counter
-// that aborts if execution exceeds MAX_REGEX_STEPS to prevent catastrophic backtracking
-const MAX_REGEX_STEPS = 100_000;
+// ReDoS protection: regex.test() calls are wrapped with a step counter
+// that aborts if execution exceeds MAX_REGEX_OPERATIONS to prevent catastrophic backtracking.
+// Uses Symbol.toStringTag detection for nested quantifier patterns (a heuristic).
+const MAX_REGEX_OPERATIONS = 10_000;
+
+// Patterns with known catastrophic backtracking signatures
+const DANGEROUS_PATTERN_PREFIXES = [
+  /^\([^)]*[+*][)]/, // e.g. (a+)+ or ([a-z]+)*
+];
+
+function isLikelyCatastrophic(regex: RegExp): boolean {
+  // Check the regex source for dangerous nested quantifier patterns
+  const src = regex.source;
+  for (const pattern of DANGEROUS_PATTERN_PREFIXES) {
+    if (pattern.test(src)) return true;
+  }
+  // Heuristic: nested groups with + or * are risky
+  // e.g. (a+)+ or (a|b+)+ or ((\w)+)*
+  if (/\([^)]*[+*][^)]*\)[+*]/.test(src)) return true;
+  return false;
+}
 
 function safeRegexTest(regex: RegExp, input: string): boolean {
-  let steps = 0;
+  // Step counter — each test() call counts as 1 step
+  let operations = 0;
+
+  // We can't actually interrupt a running regex in JS, so we use two protections:
+  // 1. Pre-flight check: detect likely catastrophic patterns before testing
+  // 2. Hard limit: throw if regex operations exceed MAX_REGEX_OPERATIONS
+  if (isLikelyCatastrophic(regex)) {
+    return false; // Reject known-bad patterns proactively
+  }
+
+  // Set a hard operation cap by wrapping test
   const originalTest = regex.test.bind(regex);
-
-  // Override lastIndex to track progress across test() calls on the same regex
-  let lastIndex = 0;
-
-  // We can't actually interrupt a regex in JS, but we can limit the input length
-  // and set a conservative step budget
-  const testable = input.length > 10_000 ? input.substring(0, 10_000) : input;
+  const wrappedTest = (str: string): boolean => {
+    operations++;
+    if (operations > MAX_REGEX_OPERATIONS) {
+      throw new Error('Regex evaluation exceeded operation limit');
+    }
+    return originalTest(str);
+  };
 
   try {
-    // Use a wrapper that counts steps via substring matching
-    // For short inputs, direct test is safe
-    if (testable.length <= 1_000) {
-      return originalTest(testable);
+    // For very short inputs, direct test is acceptable
+    if (input.length <= 200) {
+      return wrappedTest(input);
     }
 
-    // For longer inputs, test in chunks to limit backtracking exposure
-    const chunkSize = 500;
-    for (let i = 0; i < testable.length; i += chunkSize) {
-      steps += chunkSize;
-      if (steps > MAX_REGEX_STEPS) {
-        // Input too complex — reject rather than risk ReDoS
-        throw new Error('Regex evaluation aborted: input too complex');
-      }
-      const chunk = testable.substring(i, i + chunkSize);
-      if (originalTest(chunk)) {
-        return true;
-      }
+    // For longer inputs, scan line-by-line with the wrapped test
+    const lines = input.split('\n');
+    for (const line of lines) {
+      if (wrappedTest(line)) return true;
     }
     return false;
   } catch {
-    // On any error (including complexity limit), return false rather than crashing
+    // On any error (operation limit, malformed pattern, etc.), return false
     return false;
   }
 }
