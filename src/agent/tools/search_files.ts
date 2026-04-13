@@ -12,6 +12,7 @@ const getWorkspaceRoot = (): string => {
 // that aborts if execution exceeds MAX_REGEX_OPERATIONS to prevent catastrophic backtracking.
 // Uses Symbol.toStringTag detection for nested quantifier patterns (a heuristic).
 const MAX_REGEX_OPERATIONS = 10_000;
+const MAX_FILES = 5000;
 
 // Patterns with known catastrophic backtracking signatures
 const DANGEROUS_PATTERN_PREFIXES = [
@@ -108,9 +109,10 @@ export const searchFilesTool = {
       const regex = new RegExp(pattern, 'gi');
       const matches: Array<{ file: string; line: number; content: string }> = [];
       const MAX_DEPTH = 10;
-      
+      let filesScanned = 0;
+
       const searchDir = async function(dir: string, depth: number = 0): Promise<void> {
-        if (depth > MAX_DEPTH || matches.length >= maxResults) return;
+        if (depth > MAX_DEPTH || matches.length >= maxResults || filesScanned >= MAX_FILES) return;
         
         let entries;
         try {
@@ -120,8 +122,8 @@ export const searchFilesTool = {
         }
         
         for (const entry of entries) {
-          if (matches.length >= maxResults) break;
-          
+          if (matches.length >= maxResults || filesScanned >= MAX_FILES) break;
+
           const fullPath = path.join(dir, entry.name);
           
           // Skip node_modules, .git, dist, etc.
@@ -130,11 +132,14 @@ export const searchFilesTool = {
               await searchDir(fullPath, depth + 1);
             }
           } else if (entry.isFile()) {
+            filesScanned++;
+            if (filesScanned >= MAX_FILES) return;
+
             // Filter by extension if specified
             if (fileExtension && !entry.name.endsWith(fileExtension)) {
               continue;
             }
-            
+
             // Try to read and search the file
             try {
               const content = await fs.readFile(fullPath, 'utf-8');
