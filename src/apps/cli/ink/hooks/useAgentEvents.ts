@@ -1,12 +1,23 @@
 /**
  * useAgentEvents - Agent 事件订阅
  * 使用 useChatStore 共享消息状态
+ * 
+ * Performance: Streaming delta updates are throttled using a 150ms buffer
+ * to reduce React re-renders from high-frequency token updates.
  */
 import { useEffect, useRef, useCallback } from 'react';
 import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import { useChatStore } from '../store/index.js';
 import { ChatMessage } from '../pages/types.js';
 import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
+
+// Throttle configuration
+const THROTTLE_INTERVAL_MS = 150;
+
+interface DeltaBuffer {
+  textDeltas: string[];
+  thinkingDeltas: string[];
+}
 
 export interface UseAgentEventsOptions {
   isRawModeSupported: boolean;
@@ -22,38 +33,86 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
 
   const lastTurnStatusRef = useRef<'active' | 'completed' | 'error'>('completed');
 
+  // Throttle buffer for streaming deltas
+  const deltaBufferRef = useRef<DeltaBuffer>({ textDeltas: [], thinkingDeltas: [] });
+  const throttleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const addMessage = useChatStore(state => state.addMessage);
   const updateLastMessage = useChatStore(state => state.updateLastMessage);
   const setThinking = (thinking: boolean) => useChatStore.setState({ thinking });
   const setUsage = (usage: { input: number; output: number; cost: number }) => useChatStore.setState({ usage });
 
-  const appendTextDelta = useCallback((delta: string) => {
-    useChatStore.getState().updateLastMessage(msg => {
-      if (!msg) return msg;
-      const blockIndex = msg.blocks.findIndex(block => block.kind === 'text');
-      if (blockIndex >= 0) {
-        const nextBlocks = [...msg.blocks];
-        const textBlock = nextBlocks[blockIndex] as { kind: 'text'; text: string };
-        nextBlocks[blockIndex] = { kind: 'text', text: textBlock.text + delta };
-        return { ...msg, status: 'streaming', blocks: nextBlocks };
-      }
-      return { ...msg, status: 'streaming', blocks: [...msg.blocks, { kind: 'text', text: delta }] };
-    });
+  // Flush accumulated deltas to store
+  const flushDeltas = useCallback(() => {
+    const { textDeltas, thinkingDeltas } = deltaBufferRef.current;
+    
+    // Skip if nothing to flush
+    if (textDeltas.length === 0 && thinkingDeltas.length === 0) {
+      return;
+    }
+
+    // Batch text delta update
+    if (textDeltas.length > 0) {
+      const textDelta = textDeltas.join('');
+      useChatStore.getState().updateLastMessage(msg => {
+        if (!msg) return msg;
+        const blockIndex = msg.blocks.findIndex(block => block.kind === 'text');
+        if (blockIndex >= 0) {
+          const nextBlocks = [...msg.blocks];
+          const textBlock = nextBlocks[blockIndex] as { kind: 'text'; text: string };
+          nextBlocks[blockIndex] = { kind: 'text', text: textBlock.text + textDelta };
+          return { ...msg, status: 'streaming', blocks: nextBlocks };
+        }
+        return { ...msg, status: 'streaming', blocks: [...msg.blocks, { kind: 'text', text: textDelta }] };
+      });
+    }
+
+    // Batch thinking delta update
+    if (thinkingDeltas.length > 0) {
+      const thinkingDelta = thinkingDeltas.join('');
+      useChatStore.getState().updateLastMessage(msg => {
+        if (!msg) return msg;
+        const blockIndex = msg.blocks.findIndex(block => block.kind === 'thinking');
+        if (blockIndex >= 0) {
+          const nextBlocks = [...msg.blocks];
+          const thinkingBlock = nextBlocks[blockIndex] as { kind: 'thinking'; text: string };
+          nextBlocks[blockIndex] = { kind: 'thinking', text: thinkingBlock.text + thinkingDelta, collapsed: true };
+          return { ...msg, status: 'streaming', blocks: nextBlocks };
+        }
+        return { ...msg, status: 'streaming', blocks: [{ kind: 'thinking', text: thinkingDelta, collapsed: true }, ...msg.blocks] };
+      });
+    }
+
+    // Clear buffer after flush
+    deltaBufferRef.current = { textDeltas: [], thinkingDeltas: [] };
   }, []);
 
-  const appendThinkingDelta = useCallback((delta: string) => {
-    useChatStore.getState().updateLastMessage(msg => {
-      if (!msg) return msg;
-      const blockIndex = msg.blocks.findIndex(block => block.kind === 'thinking');
-      if (blockIndex >= 0) {
-        const nextBlocks = [...msg.blocks];
-        const thinkingBlock = nextBlocks[blockIndex] as { kind: 'thinking'; text: string };
-        nextBlocks[blockIndex] = { kind: 'thinking', text: thinkingBlock.text + delta, collapsed: true };
-        return { ...msg, status: 'streaming', blocks: nextBlocks };
-      }
-      return { ...msg, status: 'streaming', blocks: [{ kind: 'thinking', text: delta, collapsed: true }, ...msg.blocks] };
-    });
+  // Start throttle interval
+  const startThrottleInterval = useCallback(() => {
+    if (throttleIntervalRef.current === null) {
+      throttleIntervalRef.current = setInterval(flushDeltas, THROTTLE_INTERVAL_MS);
+    }
+  }, [flushDeltas]);
+
+  // Stop throttle interval
+  const stopThrottleInterval = useCallback(() => {
+    if (throttleIntervalRef.current !== null) {
+      clearInterval(throttleIntervalRef.current);
+      throttleIntervalRef.current = null;
+    }
   }, []);
+
+  // Append text delta to buffer (throttled)
+  const appendTextDelta = useCallback((delta: string) => {
+    deltaBufferRef.current.textDeltas.push(delta);
+    startThrottleInterval();
+  }, [startThrottleInterval]);
+
+  // Append thinking delta to buffer (throttled)
+  const appendThinkingDelta = useCallback((delta: string) => {
+    deltaBufferRef.current.thinkingDeltas.push(delta);
+    startThrottleInterval();
+  }, [startThrottleInterval]);
 
   const appendUserMessage = useCallback((text: string) => {
     addMessage({
@@ -100,6 +159,9 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
           break;
 
         case 'agent_end': {
+          // Flush any remaining deltas before finishing
+          flushDeltas();
+          stopThrottleInterval();
           if (isRawModeSupported) onRawModeChange(true);
           const finalStatus = lastTurnStatusRef.current === 'error' ? 'error' : 'completed';
           setThinking(false);
@@ -149,7 +211,12 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      // Cleanup throttle interval and flush remaining deltas on unmount
+      stopThrottleInterval();
+      flushDeltas();
+    };
   }, [
     agent,
     isRawModeSupported,
@@ -164,6 +231,8 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
     setUsage,
     appendTextDelta,
     appendThinkingDelta,
+    flushDeltas,
+    stopThrottleInterval,
   ]);
 
   // Return store state and actions
