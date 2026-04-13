@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Agent } from '@mariozechner/pi-agent-core';
 import { saveApiKey, saveModelConfig } from '../../../../agent/index.js';
 import { showNotice } from '../components/modals/index.js';
@@ -58,6 +58,11 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
     setLoadError(null);
   }, []);
 
+  const providers = useMemo(() => {
+    if (!configTriggered || isLoading || loadError) return null;
+    return getProviders();
+  }, [configTriggered, isLoading, loadError]);
+
   useEffect(() => {
     if (!configTriggered) return;
 
@@ -79,12 +84,12 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
       return;
     }
 
-    const providers = getProviders();
-    if (!providers || step === 'idle') return;
+    const cachedProviders = providers;
+    if (!cachedProviders || step === 'idle') return;
 
     if (step === 'selecting_provider') {
       showProviderSelection(
-        providers,
+        cachedProviders,
         (provider) => {
           if (!checkApiKeyConfigured(provider)) {
             setSelectedProvider(provider);
