@@ -67,20 +67,12 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
     if (!configTriggered) return;
 
     if (isLoading) {
-      showNotice(
-        'Model Configuration',
-        'Loading available providers and models...',
-        'Esc Cancel',
-      );
+      showNotice({ title: 'Model Configuration', message: 'Loading available providers and models...', footer: 'Esc Cancel' });
       return;
     }
 
     if (loadError) {
-      showNotice(
-        'Model Configuration',
-        `Failed to load providers.\n${loadError}`,
-        'Esc Close',
-      );
+      showNotice({ title: 'Model Configuration', message: `Failed to load providers.\n${loadError}`, footer: 'Esc Close' });
       return;
     }
 
@@ -100,7 +92,7 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
           // Directly show model selection - no need to wait for useEffect
           const models = getModels(provider);
           if (!models || models.length === 0) {
-            showNotice('Model Configuration', `No models available for ${provider.toUpperCase()}.`, 'Esc Close');
+            showNotice({ title: 'Model Configuration', message: `No models available for ${provider.toUpperCase()}.`, footer: 'Esc Close' });
             return;
           }
 
@@ -115,11 +107,7 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
                 setCurrentModel(selectedModel.id);
               } catch (error) {
                 // 显示错误消息在同一个 modal 上
-                showNotice(
-                  'Model Configuration',
-                  `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`,
-                  'Esc Close'
-                );
+                showNotice({ title: 'Model Configuration', message: `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`, footer: 'Esc Close' });
               }
             },
             cancelConfig
@@ -137,7 +125,7 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
           saveApiKey(selectedProvider, apiKey);
           const models = getModels(selectedProvider);
           if (!models || models.length === 0) {
-            showNotice('Model Configuration', `No models available for ${selectedProvider.toUpperCase()}.`, 'Esc Close');
+            showNotice({ title: 'Model Configuration', message: `No models available for ${selectedProvider.toUpperCase()}.`, footer: 'Esc Close' });
             return;
           }
 
@@ -151,7 +139,7 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
                 saveModelConfig(selectedProvider, selectedModel.id);
                 setCurrentModel(selectedModel.id);
               } catch (error) {
-                showNotice('Model Configuration', `Failed to set model: ${error instanceof Error ? error.message : String(error)}`, 'Esc Close');
+                showNotice({ title: 'Model Configuration', message: `Failed to set model: ${error instanceof Error ? error.message : String(error)}`, footer: 'Esc Close' });
                 return;
               }
               cancelConfig();
@@ -176,11 +164,7 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
             saveModelConfig(selectedModel.provider, selectedModel.id);
             setCurrentModel(selectedModel.id);
           } catch (error) {
-            showNotice(
-              'Model Configuration',
-              `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`,
-              'Esc Close'
-            );
+            showNotice({ title: 'Model Configuration', message: `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`, footer: 'Esc Close' });
             return;
           }
           cancelConfig();

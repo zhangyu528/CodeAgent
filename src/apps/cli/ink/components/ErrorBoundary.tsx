@@ -66,7 +66,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (hasError && error) {
       // If a custom fallback is provided, use it
       if (fallback) {
-        return <>{fallback(error, errorInfo || { componentStack: '', error: null })}</>;
+        return <>{fallback(error, errorInfo || { componentStack: '' })}</>;
       }
 
       // Default error UI using Ink components

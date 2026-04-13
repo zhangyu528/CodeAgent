@@ -87,7 +87,7 @@ export function showModelSelection(
   onCancel: () => void
 ): void {
   if (!models || models.length === 0) {
-    showNotice('Model Configuration', `No models available for ${provider.toUpperCase()}.`, 'Esc Close');
+    showNotice({ title: 'Model Configuration', message: `No models available for ${provider.toUpperCase()}.`, footer: 'Esc Close' });
     return;
   }
 
@@ -126,7 +126,7 @@ export function showApiKeyInput(
     footer: 'Type to edit • Enter Save • Esc Cancel',
     onSubmit: (value) => {
       if (!value.trim()) {
-        showNotice('Model Configuration', 'API key cannot be empty.', 'Esc Close');
+        showNotice({ title: 'Model Configuration', message: 'API key cannot be empty.', footer: 'Esc Close' });
         return;
       }
       onSubmit(value.trim());

@@ -37,7 +37,7 @@ const COMMAND_TIMEOUTS: Record<string, number> = {
 
 function getTimeout(command: string): number {
   const cmd = command.split(/\s+/)[0] ?? 'default';
-  return COMMAND_TIMEOUTS[cmd] ?? COMMAND_TIMEOUTS.default;
+  return COMMAND_TIMEOUTS[cmd] ?? 30000;
 }
 
 function isCommandBlocked(command: string): boolean {

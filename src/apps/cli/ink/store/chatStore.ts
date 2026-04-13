@@ -229,7 +229,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   updateLastMessage: (update) => set((state) => {
     if (state.messages.length === 0) return state;
     const newMessages = [...state.messages];
-    newMessages[newMessages.length - 1] = update(newMessages[newMessages.length - 1]);
+    const last = newMessages[newMessages.length - 1];
+    if (!last) return state;
+    newMessages[newMessages.length - 1] = update(last);
     return { messages: newMessages };
   }),
 
