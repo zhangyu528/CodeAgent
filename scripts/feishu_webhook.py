@@ -302,7 +302,7 @@ def card_task_preview(
 
     task_count_text = f"**{total}** 个任务" if total > 0 else "无任务"
 
-    header = f"**📋 {title}**\n---\n⏰ **预览时间** | {now}\n📋 **任务数量** | {task_count_text}\n---\n**待执行任务：**\n{tasks}\n\n---\n⏳ 确认后开始执行..."
+    header = f"**📋 {title}**\n---\n⏰ **预览时间** | {now}\n📋 **任务数量** | {task_count_text}\n---\n**待执行任务：**\n{tasks}"
     return [{"tag": "markdown", "content": header}]
 
 
