@@ -47,19 +47,7 @@ const ALLOWED_PATTERNS = [
   /^exit\s+/i,              // exit is safe
 ];
 
-// Warn once when security bypass is active
-let unsafeBypassWarned = false;
-
 function isCommandBlocked(command: string): boolean {
-  // Allow override via environment variable (for trusted environments)
-  if (process.env.RUN_COMMAND_UNSAFE === '1') {
-    if (!unsafeBypassWarned) {
-      console.warn('[run_command] WARNING: RUN_COMMAND_UNSAFE=1 is set — all security checks are bypassed. This is not recommended for untrusted environments.');
-      unsafeBypassWarned = true;
-    }
-    return false;
-  }
-
   const trimmed = command.trim();
 
   // Check if it's a known-safe command first (allows common tools)
@@ -90,7 +78,7 @@ export const runCommandTool = {
     // Security check: block dangerous patterns
     if (isCommandBlocked(command)) {
       return {
-        content: [{ type: 'text', text: `Command blocked for security reasons: potentially dangerous pattern detected. Set RUN_COMMAND_UNSAFE=1 to bypass (not recommended).` }],
+        content: [{ type: 'text', text: `Command blocked for security reasons: potentially dangerous pattern detected.` }],
         details: { command, success: false, reason: 'blocked_dangerous_pattern' },
       };
     }
