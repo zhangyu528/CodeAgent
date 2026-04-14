@@ -9,6 +9,6 @@ export { getAgent } from './agent.js';
 // Config helpers
 export { saveModelConfig, saveApiKey, checkApiKeyConfigured } from './config.js';
 
-// Sessions
-export { sessionManager } from './sessions.js';
-export type { SessionInfo, SessionRecord, SessionStatus } from './sessions.js';
+// Sessions — backward-compat re-export of sessionRepository
+export { sessionRepository as sessionManager } from './sessionRepository.js';
+export type { SessionInfo, SessionRecord, SessionStatus } from './sessionRepository.js';
