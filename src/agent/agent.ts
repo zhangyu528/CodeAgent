@@ -35,6 +35,10 @@ function initAgent(): Agent {
     },
   });
 
+  // TODO: Replace 'as any' with proper typed AgentTool<Schema> array.
+  // Requires @mariozechner/pi-agent-core to export the full AgentTool type
+  // with { label, execute } fields, or a shared ToolDefinition interface.
+  // Currently 'as any' is safe because setTools() accepts unknown[] internally.
   agentInstance.setTools(allTools as any);
 
   const model = modelResolver.resolve();
