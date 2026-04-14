@@ -19,16 +19,15 @@ export const readFileTool = {
   }),
   execute: async (toolCallId: string, { filePath }: { filePath: string }): Promise<AgentToolResult<any>> => {
     const workspaceRoot = getWorkspaceRoot();
-    const resolvedPath = path.resolve(filePath);
-    const normalizedWorkspace = path.resolve(workspaceRoot) + path.sep;
-
-    // Reject home directory paths (~ expansion is NOT done by Node.js path.resolve)
+    // Expand ~ to home directory (Node.js path.resolve doesn't do this automatically)
+    let resolvedPath = path.resolve(filePath);
     if (filePath.startsWith('~') || resolvedPath.includes('/~')) {
-      return {
-        content: [{ type: 'text', text: `Error: Access denied. Home directory paths are not allowed: ${filePath}` }],
-        details: { filePath, success: false, reason: 'path_traversal' }
-      };
+      const homeDir = process.env.HOME || process.env.USERPROFILE || '/';
+      const expandedPath = filePath.replace(/^~/, homeDir);
+      resolvedPath = path.resolve(expandedPath);
     }
+
+    const normalizedWorkspace = path.resolve(workspaceRoot) + path.sep;
 
     // Check if resolved path is within workspace root
     if (!resolvedPath.startsWith(normalizedWorkspace)) {
