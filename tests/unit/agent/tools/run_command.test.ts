@@ -52,17 +52,24 @@ describe('runCommandTool', () => {
       expect(result.content[0].text).toContain('Errors:');
     });
 
-    it('should return failure result for non-zero exit code', async () => {
-      // 'exit' is a shell builtin - non-allowlisted, uses exec with shell:true
+    it('should return failure for non-zero exit code', async () => {
+      // 'exit' IS in the allowlist (ALLOWED_REGEX), but execFile() fails because
+      // 'exit' is a shell builtin — not available as a standalone executable.
+      // execFile() throws ENOENT which is caught and returns success:false, reason:undefined.
       const result = await runCommandTool.execute('test-id', { command: 'exit 1' });
       expect(result.details.command).toBe('exit 1');
       expect(result.details.success).toBe(false);
+      // reason is undefined because ENOENT is caught but doesn't set a specific reason
+      expect(result.details.reason).toBeUndefined();
     });
 
-    it('should return failure for nonexistent command', async () => {
+    it('should reject unknown commands not in the allowlist', async () => {
+      // SECURITY: Unknown commands without shell metacharacters are now REJECTED
+      // (previously fell through to exec() with shell=true — a security gap)
       const result = await runCommandTool.execute('test-id', { command: 'nonexistent_command_12345' });
       expect(result.details.success).toBe(false);
-      expect(result.content[0].text).toContain('Command failed:');
+      expect(result.details.reason).toBe('command_not_allowed');
+      expect(result.content[0].text).toContain('not in the approved command list');
     });
 
     it('should handle commands with arguments', async () => {

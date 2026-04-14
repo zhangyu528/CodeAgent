@@ -24,6 +24,11 @@ dist/
 coverage/
 
 /temp
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
 # Python
 .venv/
 *.pyc

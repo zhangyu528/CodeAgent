@@ -21,7 +21,8 @@ const SHELL_METACHAR_REGEX = /[|&;()<>`]/;
 
 // Compiled regex: ALLOWED commands (returns first capturing group = command name)
 // Expanded to include common developer commands
-const ALLOWED_REGEX = /^(?:(echo|cat|head|tail|grep|wc|ls|pwd|true|false|printf|touch|mkdir|cd|export|exit|git|npm|bun|pnpm|yarn|node|python|python3|ruby|go|cargo|rustc|make|cmake|gcc|g\+\+|curl|wget|tar|gzip|gunzip|zip|unzip|chmod|chown|find|stat|diff|cp|mv|rm)\s+)/i;
+// \s* allows both `command args` and bare `command` (no arguments)
+const ALLOWED_REGEX = /^(?:(echo|cat|head|tail|grep|wc|ls|pwd|true|false|printf|touch|mkdir|cd|export|exit|git|npm|bun|pnpm|yarn|node|python|python3|ruby|go|cargo|rustc|make|cmake|gcc|g\+\+|curl|wget|tar|gzip|gunzip|zip|unzip|chmod|chown|find|stat|diff|cp|mv|rm)(?:\s+.*)?$)/i;
 
 // Commands that need glob pre-expansion (shell features in arguments)
 const GLOB_COMMANDS = new Set(['ls', 'cp', 'rm']);
@@ -166,8 +167,10 @@ export const runCommandTool = {
       }
     }
 
-    // Non-allowlisted commands without shell metacharacters — use exec with shell=true
-    // Security: blocklist still applies
+    // SECURITY FIX: Non-allowlisted commands without shell metacharacters are now REJECTED.
+    // Previously this fell through to exec() with shell=true, creating a silent fallback
+    // where unknown commands were permitted — a security gap that allowed arbitrary execution.
+    // Unknown commands must be explicitly allowlisted.
     if (isCommandBlocked(trimmed)) {
       return {
         content: [{ type: 'text', text: `Command blocked for security reasons: potentially dangerous pattern detected.` }],
@@ -175,21 +178,10 @@ export const runCommandTool = {
       };
     }
 
-    const timeout = getTimeout(command);
-    try {
-      const { stdout, stderr } = await execAsync(command, { timeout, maxBuffer: MAX_BUFFER_SIZE });
-      const output = stdout + (stderr ? `\nErrors:\n${stderr}` : '');
-      return { content: [{ type: 'text', text: output }], details: { command, success: true } };
-    } catch (error: unknown) {
-      const err = error as {killed?: boolean; signal?: string; message?: string; stderr?: string; timedOut?: boolean};
-      if (err.killed || err.signal === 'SIGTERM' || err.timedOut) {
-        return {
-          content: [{ type: 'text', text: `Command timed out after ${timeout / 1000} seconds` }],
-          details: { command, success: false, reason: 'timeout' }
-        };
-      }
-      const output = `Command failed: ${err.message || String(error)}${err.stderr ? `\nStderr:\n${err.stderr}` : ''}`;
-      return { content: [{ type: 'text', text: output }], details: { command, success: false } };
-    }
+    // Unknown command — reject it rather than silently executing via exec()
+    return {
+      content: [{ type: 'text', text: `Command not allowed: '${trimmed.split(/\s+/)[0]}' is not in the approved command list. If you need this command, it must be explicitly allowlisted.` }],
+      details: { command, success: false, reason: 'command_not_allowed' },
+    };
   },
 };

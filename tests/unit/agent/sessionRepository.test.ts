@@ -81,9 +81,10 @@ describe('JsonSessionRepository', () => {
     mockFsExistsSync.mockReturnValue(true);
     mockFsMkdirSync.mockReturnValue(undefined);
     mockFspAccess.mockResolvedValue(undefined);
+    // IMPORTANT: mockReset() clears mockImplementation AND mockResolvedValue
+    // This prevents test pollution from prior tests' mockImplementation settings
+    mockFspReadFile.mockReset();
     mockFspReadFile.mockResolvedValue('{}');
-    // Reset mock implementations from previous tests
-    // (vi.clearAllMocks() only resets call history, NOT implementations)
     mockFspReaddir.mockReset();
     mockFspReaddir.mockResolvedValue([]);
     mockFspStat.mockReset();
@@ -208,8 +209,8 @@ describe('JsonSessionRepository', () => {
         { isFile: () => true, isDirectory: () => false, name: 's1.json' } as any,
         { isFile: () => true, isDirectory: () => false, name: 's2.json' } as any,
       ]);
-      // Use mockImplementation so return value depends on the actual path
-      // (Promise.all resolves all stats simultaneously, so queue order is unreliable)
+      // Use mockImplementation for both stat AND readFile to ensure path-based routing
+      // mockResolvedValueOnce is unreliable with Promise.all (all async calls in parallel)
       mockFspStat.mockImplementation(
         async (p: string) => {
           if (p.includes('s1.json')) return { mtimeMs: now - 100 } as any;
@@ -217,9 +218,13 @@ describe('JsonSessionRepository', () => {
           return { mtimeMs: Date.now() } as any;
         }
       );
-      mockFspReadFile
-        .mockResolvedValueOnce(JSON.stringify(s1))
-        .mockResolvedValueOnce(JSON.stringify(s2));
+      mockFspReadFile.mockImplementation(
+        async (p: string) => {
+          if (p.includes('s1.json')) return JSON.stringify(s1);
+          if (p.includes('s2.json')) return JSON.stringify(s2);
+          return '{}';
+        }
+      );
 
       const result = await sessionRepository.list();
       expect(result[0].id).toBe('s2');
@@ -234,14 +239,23 @@ describe('JsonSessionRepository', () => {
           ({ isFile: () => true, isDirectory: () => false, name: `s${i}.json` } as any)
         )
       );
-      for (let i = 0; i < 5; i++) {
-        mockFspStat.mockResolvedValueOnce({ mtimeMs: now - i * 10 } as any);
-        mockFspReadFile.mockResolvedValueOnce(JSON.stringify({
-          version: 1,
-          meta: { id: `s${i}`, title: `S${i}`, updatedAt: now - i * 10, messageCount: 1, model: 'm', provider: 'p', status: 'completed', version: 1 },
-          messages: [],
-        }));
-      }
+      // Use mockImplementation for both stat and readFile (no queue pollution)
+      mockFspStat.mockImplementation(
+        async (p: string) => {
+          const idx = parseInt(p.match(/s(\d+)\.json/)?.[1] ?? '0', 10);
+          return { mtimeMs: now - idx * 10 } as any;
+        }
+      );
+      mockFspReadFile.mockImplementation(
+        async (p: string) => {
+          const idx = parseInt(p.match(/s(\d+)\.json/)?.[1] ?? '0', 10);
+          return JSON.stringify({
+            version: 1,
+            meta: { id: `s${idx}`, title: `S${idx}`, updatedAt: now - idx * 10, messageCount: 1, model: 'm', provider: 'p', status: 'completed', version: 1 },
+            messages: [],
+          });
+        }
+      );
 
       const result = await sessionRepository.list(3);
       expect(result).toHaveLength(3);
@@ -267,19 +281,26 @@ describe('JsonSessionRepository', () => {
   describe('latestId', () => {
     it('returns most recent session ID', async () => {
       const now = Date.now();
+      const sessionDoc = {
+        version: 1,
+        meta: { id: 'session-new', title: 'New', updatedAt: now, messageCount: 1, model: 'm', provider: 'p', status: 'completed', version: 1 },
+        messages: [],
+      };
       mockFsExistsSync.mockReturnValue(true);
       mockFspReaddir.mockResolvedValue([
         { isFile: () => true, isDirectory: () => false, name: 'session-new.json' } as any,
       ]);
-      // Single session with mtime = now
+      // Use mockImplementation for stat (mockReset does not clear mockImplementation)
       mockFspStat.mockImplementation(
         async (p: string) => ({ mtimeMs: now } as any)
       );
-      mockFspReadFile.mockResolvedValueOnce(JSON.stringify({
-        version: 1,
-        meta: { id: 'session-new', title: 'New', updatedAt: now, messageCount: 1, model: 'm', provider: 'p', status: 'completed', version: 1 },
-        messages: [],
-      }));
+      // Use mockImplementation for readFile too (to be safe against prior test's mockImplementation)
+      mockFspReadFile.mockImplementation(
+        async (p: string) => {
+          if (p.includes('session-new.json')) return JSON.stringify(sessionDoc);
+          return '{}';
+        }
+      );
 
       const result = await sessionRepository.latestId();
       expect(result).toBe('session-new');

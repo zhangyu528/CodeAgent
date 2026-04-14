@@ -2,7 +2,7 @@
  * useModelConfig 单元测试
  * 测试 useModelConfig hook 的核心类型和逻辑
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // 测试 ConfigStep 类型
 describe('ConfigStep', () => {
