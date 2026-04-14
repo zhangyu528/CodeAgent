@@ -9,7 +9,6 @@
 import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
-import os from 'os';
 import { AgentMessage } from '@mariozechner/pi-agent-core';
 import { CONFIG_DIR, SESSIONS_DIR, SESSION_VERSION } from './constants.js';
 
