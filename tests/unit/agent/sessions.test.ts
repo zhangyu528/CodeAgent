@@ -602,3 +602,40 @@ describe('loadSessionWindow()', () => {
     });
   });
 });
+
+describe('Session Performance Benchmarks', () => {
+  function makeMessages(count: number): AgentMessage[] {
+    return Array.from({ length: count }, (_, i) => ({
+      id: String(i),
+      role: 'user' as const,
+      content: `Message ${i} with some text content for token estimation`,
+    }));
+  }
+
+  it('should load session with 10000 messages in under 200ms', () => {
+    const messages = makeMessages(10000);
+    const start = performance.now();
+    const result = loadSessionWindow(messages, { anchor: 'latest' });
+    const elapsed = performance.now() - start;
+
+    expect(result.messages.length).toBe(10000);
+    expect(elapsed).toBeLessThan(200); // Must complete in under 200ms
+  });
+
+  it('should handle exactly MAX_MESSAGES without flags', () => {
+    // Test at boundary: exactly 10000 messages
+    const messages = makeMessages(10000);
+    const result = loadSessionWindow(messages);
+    expect(result.messages.length).toBe(10000);
+    expect(result.hasMoreBefore).toBe(false);
+    expect(result.hasMoreAfter).toBe(false);
+  });
+
+  it('should estimate tokens accurately for large messages', () => {
+    const messages = makeMessages(1000);
+    const result = loadSessionWindow(messages);
+    // Each message ~52 chars, 52/4 = 13 tokens per message, 1000 * 13 = 13000
+    expect(result.totalTokens).toBeGreaterThan(12000);
+    expect(result.totalTokens).toBeLessThan(15000);
+  });
+});
