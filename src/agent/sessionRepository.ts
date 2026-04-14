@@ -11,12 +11,7 @@ import fsp from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { AgentMessage } from '@mariozechner/pi-agent-core';
-
-// ─── Constants ─────────────────────────────────────────────────────────────────
-
-const CONFIG_DIR = path.join(os.homedir(), '.codeagent');
-const SESSIONS_DIR = path.join(CONFIG_DIR, 'sessions');
-const SESSION_VERSION = 1;
+import { CONFIG_DIR, SESSIONS_DIR, SESSION_VERSION } from './constants.js';
 
 // Session ID must be alphanumeric, hyphen, or underscore — rejects path traversal
 const SESSION_ID_REGEX = /^[a-zA-Z0-9_-]+$/;

@@ -3,29 +3,7 @@ import fsp from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { AgentMessage } from '@mariozechner/pi-agent-core';
-
-const CONFIG_DIR = path.join(os.homedir(), '.codeagent');
-const SESSIONS_DIR = path.join(CONFIG_DIR, 'sessions');
-const SESSION_VERSION = 1;
-
-// ─── Session Storage Interface (N4 Roadmap) ──────────────────────────────────
-// TODO(N4): Extract ISessionStore interface to allow pluggable storage backends.
-// Current implementation is SQLite-only (via file-system JSON files).
-// Planned adapters: SQLite, PostgreSQL, Redis, in-memory (tests).
-//
-// interface ISessionStore {
-//   list(): Promise<SessionMeta[]>;
-//   get(id: string): Promise<SessionRecord | null>;
-//   save(id: string, record: SessionRecord): Promise<void>;
-//   delete(id: string): Promise<void>;
-//   search(query: string): Promise<SessionMeta[]>;
-// }
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─── Memory Protection Constants ─────────────────────────────────────────────────
-
-/** Maximum messages to load from a single session to prevent unbounded memory consumption */
-const MAX_MESSAGES = 10000;
+import { CONFIG_DIR, SESSIONS_DIR, SESSION_VERSION, MAX_MESSAGES } from './constants.js';
 
 // ─── Token Estimation ──────────────────────────────────────────────────────────
 
