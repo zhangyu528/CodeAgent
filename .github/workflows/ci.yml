@@ -25,10 +25,29 @@ jobs:
       - run: bun install
       - run: npx tsc --noEmit
 
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun pm scan
+
+  bundlesize:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun run build
+      - run: bun run audit:size
+
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    needs: [lint, typecheck]
+    needs: [lint, typecheck, audit, bundlesize]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
