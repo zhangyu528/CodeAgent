@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { randomUUID } from 'crypto';
 import { getAgent } from '../../../../agent/index.js';
 import { sessionManager, SessionInfo, SessionRecord, SessionStatus } from '../../../../agent/sessions.js';
-import { ChatSessionInfo } from '../pages/types.js';
+import { ChatSessionInfo, ChatMessage } from '../pages/types.js';
 import { useMessageStore } from './messageStore.js';
 import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
 
@@ -43,7 +43,7 @@ interface SessionStore {
 
   // Actions
   refreshHistory: (limit?: number) => Promise<SessionInfo[]>;
-  persistCurrentSession: (status?: SessionStatus, messages?: any[]) => void;
+  persistCurrentSession: (status?: SessionStatus, messages?: ChatMessage[]) => void;
   restoreSessionById: (sessionId: string) => Promise<boolean>;
   clearSession: () => void;
   ensureSessionForPrompt: (userInput: string) => string;
@@ -63,7 +63,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     return history;
   },
 
-  persistCurrentSession: (status: SessionStatus = 'completed', messages?: any[]) => {
+  persistCurrentSession: (status: SessionStatus = 'completed', messages?: ChatMessage[]) => {
     const { activeSessionId, currentSession } = get();
     if (!activeSessionId) return;
 

@@ -53,7 +53,7 @@ interface ChatStore {
 
   // Session Actions
   refreshHistory: (limit?: number) => Promise<SessionInfo[]>;
-  persistCurrentSession: (status?: SessionStatus, messages?: any[]) => void;
+  persistCurrentSession: (status?: SessionStatus, messages?: ChatMessage[]) => void;
   restoreSessionById: (sessionId: string) => Promise<boolean>;
   ensureSessionForPrompt: (userInput: string) => string;
 
@@ -102,9 +102,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     // Debounce ref stored outside the store function to persist across calls
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
     let pendingStatus: SessionStatus = 'completed';
-    let pendingMessages: any[] | undefined;
+    let pendingMessages: ChatMessage[] | undefined;
 
-    return (status: SessionStatus = 'completed', messages?: any[]) => {
+    return (status: SessionStatus = 'completed', messages?: ChatMessage[]) => {
       const { activeSessionId, currentSession } = get();
       if (!activeSessionId) return;
 
