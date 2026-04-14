@@ -3,25 +3,13 @@
  * Replaces useSession with direct sessionManager calls for persistence.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { randomUUID } from 'crypto';
 import { getAgent } from '../../../../agent/index.js';
 import { sessionManager, SessionInfo, SessionRecord, SessionStatus } from '../../../../agent/sessions.js';
 import { ChatSessionInfo } from '../pages/types.js';
 import { useAppStore } from '../store/uiStore.js';
+import { createSessionId, extractSessionTitle } from '../utils/sessionUtils.js';
 
-export function createSessionId(): string {
-  try {
-    return randomUUID();
-  } catch {
-    return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  }
-}
-
-function extractSessionTitle(text: string): string {
-  const normalized = (text || '').trim();
-  if (!normalized) return 'New Session';
-  return normalized.length > 40 ? `${normalized.slice(0, 40)}...` : normalized;
-}
+export { createSessionId, extractSessionTitle };
 
 function toSessionView(record: SessionRecord): ChatSessionInfo {
   return {
