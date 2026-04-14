@@ -6,7 +6,7 @@ interface ChatHeaderProps {
   session: ChatSessionInfo | null | undefined;
 }
 
-export function ChatHeader({ session }: ChatHeaderProps) {
+export const ChatHeader = React.memo(function ChatHeader({ session }: ChatHeaderProps) {
   return (
     <Box flexShrink={0}>
       <Text color="cyan" bold>{session?.title || 'No Session'}</Text>
@@ -15,4 +15,4 @@ export function ChatHeader({ session }: ChatHeaderProps) {
       <Text color="gray">  • {session?.messageCount || 0} msgs</Text>
     </Box>
   );
-}
+});
