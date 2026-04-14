@@ -5,12 +5,13 @@
 
 import { checkApiKeyConfigured } from '../../../../agent/index.js';
 import { showNotice, showSelectOne, showAsk } from '../components/modals/index.js';
+import type { Api, Model } from '@mariozechner/pi-ai';
 
 // 延迟加载 pi-ai 模块，避免启动时加载 13896 行的 models.generated.js
 // 懒加载缓存
 type AllowedProvider = 'zai' | 'minimax-cn';
 let providersCache: AllowedProvider[] | null = null;
-let modelsByProviderCache: Record<string, any[]> | null = null;
+let modelsByProviderCache: Record<string, Model<Api>[]> | null = null;
 let isLoadingCache = false;
 
 // 同步获取 providers（如果已缓存）
@@ -19,7 +20,7 @@ export function getProviders(): string[] | null {
 }
 
 // 同步获取 models by provider（如果已缓存）
-export function getModels(provider: string): any[] | null {
+export function getModels(provider: string): Model<Api>[] | null {
   if (!modelsByProviderCache) return null;
   return modelsByProviderCache[provider] || null;
 }
@@ -82,8 +83,8 @@ export function showProviderSelection(
 // 显示 Model 选择对话框
 export function showModelSelection(
   provider: string,
-  models: any[],
-  onSelect: (model: any) => void,
+  models: Model<Api>[],
+  onSelect: (model: Model<Api>) => void,
   onCancel: () => void
 ): void {
   if (!models || models.length === 0) {
@@ -91,7 +92,7 @@ export function showModelSelection(
     return;
   }
 
-  const modelChoices = models.map((model: any) => ({
+  const modelChoices = models.map((model) => ({
     value: model.id,
     label: model.id,
   }));
@@ -103,7 +104,7 @@ export function showModelSelection(
     footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
     emptyLabel: 'No models available',
     onSubmit: (modelChoice) => {
-      const selectedModel = models.find((model: any) => model.id === modelChoice.value);
+      const selectedModel = models.find((model) => model.id === modelChoice.value);
       if (!selectedModel) {
         onCancel();
         return;
