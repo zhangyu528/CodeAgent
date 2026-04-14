@@ -81,9 +81,9 @@ describe('SessionManager 集成测试', () => {
     });
 
     it('应该正确处理无效的 JSON 数据', async () => {
-      // 这个测试验证 loadSession 不会崩溃
+      // 空字符串不是有效的 session ID，应返回 null
       const result = await sessionManager.loadSession('');
-      expect(result === null || result !== undefined).toBe(true);
+      expect(result).toBeNull();
     });
   });
 
@@ -139,8 +139,10 @@ describe('SessionManager 集成测试', () => {
       const sessionId = 'test-session-title-' + Date.now();
       await sessionManager.saveSession(sessionId, userMessages);
       
-      // 标题提取是异步的，我们验证保存不报错
-      expect(true).toBe(true);
+      // 标题从第一条用户消息中提取，前40字符作为标题
+      const record = await sessionManager.loadSession(sessionId);
+      expect(record).not.toBeNull();
+      expect(record!.meta.title).toBe('This is a test message');
     });
 
     it('应该处理复杂的 content 格式', async () => {
