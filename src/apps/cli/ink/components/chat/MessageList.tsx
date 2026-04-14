@@ -60,18 +60,21 @@ function buildMessageSignature(messages: ChatMessage[]): string {
   return messages
     .map(message => {
       const blockSignature = message.blocks
-        .map(block => `${block.kind}:${block.text.length}:${'collapsed' in block ? String(block.collapsed !== false) : 'na'}`)
+        .map(
+          block =>
+            `${block.kind}:${block.text.length}:${'collapsed' in block ? String(block.collapsed !== false) : 'na'}`
+        )
         .join('|');
       return `${message.id}:${message.status || 'none'}:${blockSignature}`;
     })
     .join('::');
 }
 
-export function MessageList({
+export const MessageList = React.memo(function MessageList({
   messages,
   scrollEnabled = true,
   availableRows,
-  isModalOpen = false,  // 默认 false
+  isModalOpen = false, // 默认 false
 }: MessageListProps) {
   const { stdout } = useStdout();
   const scrollRef = useRef<ScrollViewRef>(null);
@@ -154,71 +157,74 @@ export function MessageList({
     }
   }, [messageSignature]);
 
-  useInput((input, key) => {
-    if (isModalOpen || !scrollEnabled || !scrollRef.current) return;
+  useInput(
+    (input, key) => {
+      if (isModalOpen || !scrollEnabled || !scrollRef.current) return;
 
-    // Handle mouse scroll events
-    if (typeof input === 'string') {
-      const scrollMatch = input.match(/\[<(\d+);(\d+);(\d+)M/);
-      if (scrollMatch) {
-        const button = Number(scrollMatch[1]);
-        if (button === 64 || button === 65) {
-          const step = Math.max(1, Math.floor(scrollRef.current.getViewportHeight() / 3));
+      // Handle mouse scroll events
+      if (typeof input === 'string') {
+        const scrollMatch = input.match(/\[<(\d+);(\d+);(\d+)M/);
+        if (scrollMatch) {
+          const button = Number(scrollMatch[1]);
+          if (button === 64 || button === 65) {
+            const step = Math.max(1, Math.floor(scrollRef.current.getViewportHeight() / 3));
 
-          if (button === 64) {
-            scrollRef.current.scrollBy(-step);
-          } else {
-            const currentOffset = scrollRef.current.getScrollOffset();
-            const bottomOffset = scrollRef.current.getBottomOffset();
-            const maxScroll = Math.min(step, bottomOffset - currentOffset);
-            if (maxScroll > 0) {
-              scrollRef.current.scrollBy(maxScroll);
+            if (button === 64) {
+              scrollRef.current.scrollBy(-step);
+            } else {
+              const currentOffset = scrollRef.current.getScrollOffset();
+              const bottomOffset = scrollRef.current.getBottomOffset();
+              const maxScroll = Math.min(step, bottomOffset - currentOffset);
+              if (maxScroll > 0) {
+                scrollRef.current.scrollBy(maxScroll);
+              }
             }
+            syncPinnedState();
           }
-          syncPinnedState();
+          return;
         }
+      }
+
+      const step = Math.max(1, Math.floor(scrollRef.current.getViewportHeight() / 3));
+
+      if (key.upArrow) {
+        scrollRef.current.scrollBy(-step);
+        syncPinnedState();
         return;
       }
-    }
 
-    const step = Math.max(1, Math.floor(scrollRef.current.getViewportHeight() / 3));
+      if (key.downArrow) {
+        const currentOffset = scrollRef.current.getScrollOffset();
+        const bottomOffset = scrollRef.current.getBottomOffset();
+        if (currentOffset >= bottomOffset) return;
 
-    if (key.upArrow) {
-      scrollRef.current.scrollBy(-step);
-      syncPinnedState();
-      return;
-    }
-
-    if (key.downArrow) {
-      const currentOffset = scrollRef.current.getScrollOffset();
-      const bottomOffset = scrollRef.current.getBottomOffset();
-      if (currentOffset >= bottomOffset) return;
-
-      const maxScroll = Math.min(step, bottomOffset - currentOffset);
-      if (maxScroll > 0) {
-        scrollRef.current.scrollBy(maxScroll);
+        const maxScroll = Math.min(step, bottomOffset - currentOffset);
+        if (maxScroll > 0) {
+          scrollRef.current.scrollBy(maxScroll);
+        }
+        syncPinnedState();
+        return;
       }
-      syncPinnedState();
-      return;
-    }
 
-    if (key.pageUp) {
-      scrollRef.current.scrollBy(-step * 3);
-      syncPinnedState();
-      return;
-    }
-
-    if (key.pageDown) {
-      const currentOffset = scrollRef.current.getScrollOffset();
-      const bottomOffset = scrollRef.current.getBottomOffset();
-      const maxScroll = Math.min(step * 3, bottomOffset - currentOffset);
-      if (maxScroll > 0) {
-        scrollRef.current.scrollBy(maxScroll);
+      if (key.pageUp) {
+        scrollRef.current.scrollBy(-step * 3);
+        syncPinnedState();
+        return;
       }
-      syncPinnedState();
-      return;
-    }
-  }, { isActive: !isModalOpen });
+
+      if (key.pageDown) {
+        const currentOffset = scrollRef.current.getScrollOffset();
+        const bottomOffset = scrollRef.current.getBottomOffset();
+        const maxScroll = Math.min(step * 3, bottomOffset - currentOffset);
+        if (maxScroll > 0) {
+          scrollRef.current.scrollBy(maxScroll);
+        }
+        syncPinnedState();
+        return;
+      }
+    },
+    { isActive: !isModalOpen }
+  );
 
   if (messages.length === 0) {
     return (
@@ -253,7 +259,7 @@ export function MessageList({
           {groupedMessages.map((group, groupIndex) => (
             <Box key={`group-${groupIndex}`} flexDirection="column">
               <DateDivider label={group.dateLabel} />
-              {group.messages.map((message) => (
+              {group.messages.map(message => (
                 <MessageItem key={message.id} message={message} />
               ))}
             </Box>
@@ -271,4 +277,4 @@ export function MessageList({
       />
     </Box>
   );
-}
+});
