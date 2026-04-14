@@ -105,12 +105,34 @@ export function checkApiKeyConfigured(provider: string): boolean {
 }
 
 /**
+ * Validates an API key before writing to .env.
+ * Rejects keys that contain control characters (newlines, tabs, etc.)
+ * which could be used to inject additional .env variables.
+ */
+function validateApiKey(apiKey: string): void {
+  if (!apiKey || typeof apiKey !== 'string') {
+    throw new Error('API key must be a non-empty string');
+  }
+  if (apiKey.length < 8) {
+    throw new Error('API key is too short (minimum 8 characters)');
+  }
+  // Reject control characters that could allow .env injection:
+  // \x00-\x1F are control chars (including \n, \r, \t)
+  // \x7F is DEL
+  if (/[\x00-\x1F\x7F]/.test(apiKey)) {
+    throw new Error('API key contains invalid control characters');
+  }
+}
+
+/**
  * Save API key to .env file for persistence
  *
  * @param provider - The provider name (e.g., 'minimax', 'zai')
  * @param apiKey   - The API key to persist
  */
 export function saveApiKey(provider: string, apiKey: string): void {
+  validateApiKey(apiKey);
+
   const envKey = `${provider.toUpperCase().replace(/-/g, '_')}_API_KEY`;
 
   // Read existing .env content

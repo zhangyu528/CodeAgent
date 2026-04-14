@@ -119,10 +119,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
       saveTimer = setTimeout(() => {
         saveTimer = null;
-        const sid = activeSessionId;
+        // Read sessionId from store AT timeout time, not from outer closure,
+        // to avoid saving to a stale session if the user switched sessions
+        // during the debounce window (500ms).
+        const { activeSessionId: sid } = get();
+        if (!sid) return;
         const agent = getAgent();
         agent.sessionId = sid;
 
+        const { currentSession } = get();
         const title = currentSession?.id === sid ? currentSession.title : null;
         const messagesToUse = pendingMessages || [];
 

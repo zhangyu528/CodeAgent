@@ -11,6 +11,12 @@ import fsp from 'fs/promises';
 import path from 'path';
 import { AgentMessage } from '@mariozechner/pi-agent-core';
 import { CONFIG_DIR, SESSIONS_DIR, SESSION_VERSION } from './constants.js';
+import {
+  removeFileWithRetry,
+  atomicWriteJson,
+  fileExists,
+  ensureDir,
+} from './sessionUtils.js';
 
 // Session ID must be alphanumeric, hyphen, or underscore — rejects path traversal
 const SESSION_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
@@ -169,7 +175,7 @@ export class JsonSessionRepository implements ISessionRepository {
     }
   }
 
-  async list(limit?: number): Promise<SessionMeta[]> {
+  async list(limit: number = 50): Promise<SessionMeta[]> {
     if (!(await this.exists(SESSIONS_DIR))) return [];
 
     const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: true });
@@ -187,9 +193,9 @@ export class JsonSessionRepository implements ISessionRepository {
 
     entriesWithStat.sort((a, b) => b.mtimeMs - a.mtimeMs);
 
-    const entriesToRead = typeof limit === 'number'
-      ? entriesWithStat.slice(0, limit)
-      : entriesWithStat;
+    // Apply limit to avoid unbounded O(n) file reads when limit is not specified.
+    // Default limit of 50 balances completeness with performance for session lists.
+    const entriesToRead = entriesWithStat.slice(0, limit);
 
     if (entriesToRead.length === 0) return [];
 
@@ -233,7 +239,7 @@ export class JsonSessionRepository implements ISessionRepository {
     return path.join(SESSIONS_DIR, `${id}.json`);
   }
 
-  private async atomicWriteJson(filePath: string, data: unknown): Promise<void> {
+  protected async atomicWriteJson(filePath: string, data: unknown): Promise<void> {
     const payload = JSON.stringify(data, null, 2);
     const tmpPath = `${filePath}.tmp`;
     let handle: fsp.FileHandle | null = null;
@@ -265,7 +271,7 @@ export class JsonSessionRepository implements ISessionRepository {
     }
   }
 
-  private async removeFileWithRetry(target: string): Promise<void> {
+  protected async removeFileWithRetry(target: string): Promise<void> {
     const delays = [50, 100, 200];
     for (let i = 0; i < 3; i++) {
       try {
@@ -279,7 +285,7 @@ export class JsonSessionRepository implements ISessionRepository {
     }
   }
 
-  private async cleanupTempFiles(): Promise<void> {
+  protected async cleanupTempFiles(): Promise<void> {
     try {
       const files = await fsp.readdir(SESSIONS_DIR);
       const tmpFiles = files.filter(file => file.endsWith('.tmp'));
@@ -289,7 +295,7 @@ export class JsonSessionRepository implements ISessionRepository {
     }
   }
 
-  private normalize(doc: SessionDocument): SessionRecord | null {
+  protected normalize(doc: SessionDocument): SessionRecord | null {
     if (!doc || typeof doc !== 'object') return null;
     if (!doc.meta || !Array.isArray(doc.messages)) return null;
 
@@ -313,7 +319,7 @@ export class JsonSessionRepository implements ISessionRepository {
     };
   }
 
-  private extractTitle(messages: AgentMessage[]): string | null {
+  protected extractTitle(messages: AgentMessage[]): string | null {
     if (messages.length === 0) return null;
     const firstUserMsg = messages.find(m => m.role === 'user');
     const content = this.extractMessageText((firstUserMsg as any)?.content);
@@ -357,4 +363,28 @@ export class JsonSessionRepository implements ISessionRepository {
 
 // ─── Singleton ─────────────────────────────────────────────────────────────────
 
-export const sessionRepository = new JsonSessionRepository();
+const _repo = new JsonSessionRepository();
+
+/**
+ * LegacySessionManager — wraps JsonSessionRepository with the old SessionManager interface
+ * (getHistory/saveSession/loadSession) so that existing consumers don't break.
+ */
+class LegacySessionManager extends JsonSessionRepository {
+  getHistory(limit?: number): Promise<SessionMeta[]> {
+    return this.list(limit);
+  }
+
+  saveSession(
+    id: string,
+    messages: Parameters<JsonSessionRepository['save']>[1],
+    options?: Parameters<JsonSessionRepository['save']>[2]
+  ): Promise<void> {
+    return this.save(id, messages, options);
+  }
+
+  loadSession(id: string): Promise<SessionRecord | null> {
+    return this.load(id);
+  }
+}
+
+export const sessionRepository: LegacySessionManager = new LegacySessionManager();

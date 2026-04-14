@@ -13,7 +13,10 @@ const MAX_BUFFER_SIZE = 5 * 1024 * 1024;
 // Checked FIRST to prevent allowlist short-circuiting
 // Combined into single RegExp for performance
 // ReDoS verified: no nested quantifiers (all quantifiers apply only to [\s], not to [.w+/])
-const BLOCKED_REGEX = /\$\(|[^`]`|\|\||&&|;\s*rm|^rm\s+-rf\s+\/\s*$|^dd\s+|^mkfs|^format\s+|^fdisk|^sfdisk|^parted|sudo\s+su|^su\s+-|[<>]\s*[\w\/]/i;
+// NOTE: Backtick command substitution `command` is matched by `\`[^\`]*\`` — a backtick,
+// followed by any non-backtick chars, followed by a closing backtick. This replaces the
+// broken `[^\`]`` character-class pattern which only matched a single non-backtick char.
+const BLOCKED_REGEX = /\$\(|\`[^\`]*\`|\|\||&&|;\s*rm|^rm\s+-rf\s+\/\s*$|^dd\s+|^mkfs|^format\s+|^fdisk|^sfdisk|^parted|sudo\s+su|^su\s+-|[<>]\s*[\w\/]/i;
 
 // Shell metacharacters that require shell=true to work
 // If any of these appear, the command must go through exec() with shell=true
