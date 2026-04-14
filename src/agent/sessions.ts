@@ -3,6 +3,7 @@ import fsp from 'fs/promises';
 import path from 'path';
 import { AgentMessage } from '@mariozechner/pi-agent-core';
 import { CONFIG_DIR, SESSIONS_DIR, SESSION_VERSION, MAX_MESSAGES } from './constants.js';
+import { extractMessageText, isValidSessionId } from './sessionUtils.js';
 
 // ─── Token Estimation ──────────────────────────────────────────────────────────
 
@@ -17,29 +18,6 @@ export function estimateTokens(messages: AgentMessage[]): number {
     const text = extractMessageText(msg.content);
     return sum + Math.ceil((text.length || 0) / 4);
   }, 0);
-}
-
-function extractMessageText(content: unknown): string {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((item) => {
-        if (typeof item === 'string') return item;
-        if (item && typeof (item as { text?: string }).text === 'string') return (item as { text: string }).text;
-        if (item && typeof (item as { content?: string }).content === 'string') return (item as { content: string }).content;
-        if (item && typeof (item as { input_text?: string }).input_text === 'string') return (item as { input_text: string }).input_text;
-        return '';
-      })
-      .filter(Boolean)
-      .join(' ');
-  }
-  if (content && typeof content === 'object') {
-    const obj = content as { text?: string; content?: string; input_text?: string };
-    if (typeof obj.text === 'string') return obj.text;
-    if (typeof obj.content === 'string') return obj.content;
-    if (typeof obj.input_text === 'string') return obj.input_text;
-  }
-  return '';
 }
 
 // ─── Session Window ────────────────────────────────────────────────────────────
@@ -101,15 +79,6 @@ export function loadSessionWindow(
     hasMoreBefore: startIdx > 0,
     hasMoreAfter: startIdx + maxMessages < messages.length,
   };
-}
-
-// Session ID must be alphanumeric, hyphen, or underscore — rejects path traversal
-const SESSION_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
-
-function isValidSessionId(id: string): boolean {
-  if (!id || typeof id !== 'string') return false;
-  if (id.length > 255) return false;
-  return SESSION_ID_REGEX.test(id);
 }
 
 export type SessionStatus = 'active' | 'completed' | 'interrupted' | 'error';

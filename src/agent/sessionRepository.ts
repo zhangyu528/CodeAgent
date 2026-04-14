@@ -12,18 +12,13 @@ import path from 'path';
 import { AgentMessage } from '@mariozechner/pi-agent-core';
 import { CONFIG_DIR, SESSIONS_DIR, SESSION_VERSION } from './constants.js';
 import {
+  isValidSessionId,
+  extractMessageText,
   removeFileWithRetry,
   atomicWriteJson,
   fileExists,
   ensureDir,
 } from './sessionUtils.js';
-
-// Session ID must be alphanumeric, hyphen, or underscore — rejects path traversal
-const SESSION_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
-
-function isValidSessionId(id: string): boolean {
-  return SESSION_ID_REGEX.test(id) && id.length > 0 && id.length <= 255;
-}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
