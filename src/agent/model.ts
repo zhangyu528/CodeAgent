@@ -1,5 +1,7 @@
 /**
  * Model Resolution (internal to agent)
+ *
+ * @see https://github.com/mariozechner/pi-agent-core (node_modules/@mariozechner/pi-agent-core/README.md)
  */
 import { getModel, getModels } from '@mariozechner/pi-ai';
 import type { Model, KnownProvider, Api } from '@mariozechner/pi-ai';

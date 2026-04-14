@@ -1,6 +1,8 @@
 /**
  * Agent - Singleton & Factory
  * Creates and manages the Agent singleton instance
+ *
+ * @see https://github.com/mariozechner/pi-agent-core (node_modules/@mariozechner/pi-agent-core/README.md)
  */
 import { registerBuiltInApiProviders } from '@mariozechner/pi-ai';
 import { Agent } from '@mariozechner/pi-agent-core';
