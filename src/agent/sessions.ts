@@ -24,18 +24,18 @@ function extractMessageText(content: unknown): string {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
     return content
-      .map((item: any) => {
+      .map((item) => {
         if (typeof item === 'string') return item;
-        if (item && typeof item.text === 'string') return item.text;
-        if (item && typeof item.content === 'string') return item.content;
-        if (item && typeof item.input_text === 'string') return item.input_text;
+        if (item && typeof (item as { text?: string }).text === 'string') return (item as { text: string }).text;
+        if (item && typeof (item as { content?: string }).content === 'string') return (item as { content: string }).content;
+        if (item && typeof (item as { input_text?: string }).input_text === 'string') return (item as { input_text: string }).input_text;
         return '';
       })
       .filter(Boolean)
       .join(' ');
   }
   if (content && typeof content === 'object') {
-    const obj = content as any;
+    const obj = content as { text?: string; content?: string; input_text?: string };
     if (typeof obj.text === 'string') return obj.text;
     if (typeof obj.content === 'string') return obj.content;
     if (typeof obj.input_text === 'string') return obj.input_text;
@@ -317,7 +317,7 @@ export class SessionManager {
     }
   }
 
-  private normalizeSessionRecord(_fallbackId: string, parsed: any): SessionRecord | null {
+  private normalizeSessionRecord(_fallbackId: string, parsed: unknown): SessionRecord | null {
     if (!parsed || typeof parsed !== 'object') return null;
 
     if (parsed.meta && Array.isArray(parsed.messages)) {
@@ -347,7 +347,7 @@ export class SessionManager {
   private extractTitle(messages: AgentMessage[]): string | null {
     if (messages.length === 0) return null;
     const firstUserMsg = messages.find(m => m.role === 'user');
-    const content = this.extractMessageText((firstUserMsg as any)?.content);
+    const content = this.extractMessageText((firstUserMsg as AgentMessage | undefined)?.content);
     if (!content) return null;
     const text = content.trim();
     return text.length > 40 ? text.slice(0, 40) + '...' : text;
@@ -357,18 +357,18 @@ export class SessionManager {
     if (typeof content === 'string') return content;
     if (Array.isArray(content)) {
       const parts = content
-        .map((item: any) => {
+        .map((item) => {
           if (typeof item === 'string') return item;
-          if (item && typeof item.text === 'string') return item.text;
-          if (item && typeof item.content === 'string') return item.content;
-          if (item && typeof item.input_text === 'string') return item.input_text;
+          if (item && typeof (item as { text?: string }).text === 'string') return (item as { text: string }).text;
+          if (item && typeof (item as { content?: string }).content === 'string') return (item as { content: string }).content;
+          if (item && typeof (item as { input_text?: string }).input_text === 'string') return (item as { input_text: string }).input_text;
           return '';
         })
         .filter(Boolean);
       return parts.join(' ');
     }
     if (content && typeof content === 'object') {
-      const obj = content as any;
+      const obj = content as { text?: string; content?: string; input_text?: string };
       if (typeof obj.text === 'string') return obj.text;
       if (typeof obj.content === 'string') return obj.content;
       if (typeof obj.input_text === 'string') return obj.input_text;
