@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 const config = tseslint.config(
   {
@@ -10,7 +11,7 @@ const config = tseslint.config(
       parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
       globals: { console: 'readonly', process: 'readonly' },
     },
-    plugins: { '@typescript-eslint': tseslint.plugin },
+    plugins: { '@typescript-eslint': tseslint.plugin, 'react-hooks': reactHooks },
     rules: {
       ...tseslint.configs.recommended.rules,
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
@@ -18,6 +19,8 @@ const config = tseslint.config(
       'prefer-const': 'error',
       'no-var': 'error',
       'no-console': 'warn',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
   { ignores: ['dist/', 'node_modules/', 'coverage/', 'tests/'] },
