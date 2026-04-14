@@ -132,7 +132,10 @@ export const MessageItem = memo(
             {message.blocks.map((block, index) => {
               const prevBlock = index > 0 ? message.blocks[index - 1] : null;
               const nextBlock = index < message.blocks.length - 1 ? message.blocks[index + 1] : null;
-              const isTextBetweenTexts = block.kind === 'text' && prevBlock?.kind === 'text' && nextBlock?.kind === 'text';
+              // Only compute isTextBetweenTexts when block is text (prev/next blocks exist)
+              const isTextBetweenTexts = block.kind === 'text'
+                && prevBlock !== null && prevBlock.kind === 'text'
+                && nextBlock !== null && nextBlock.kind === 'text';
 
               return (
                 <Box key={`${message.id}-${index}`} flexDirection="column">
