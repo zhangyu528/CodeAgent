@@ -12,6 +12,7 @@ const MAX_BUFFER_SIZE = 5 * 1024 * 1024;
 // Compiled regex: BLOCKED patterns — dangerous command injections and destructive operations
 // Checked FIRST to prevent allowlist short-circuiting
 // Combined into single RegExp for performance
+// ReDoS verified: no nested quantifiers (all quantifiers apply only to [\s], not to [.w+/])
 const BLOCKED_REGEX = /\$\(|[^`]`|\|\||&&|;\s*rm|^rm\s+-rf\s+\/\s*$|^dd\s+|^mkfs|^format\s+|^fdisk|^sfdisk|^parted|sudo\s+su|^su\s+-|[<>]\s*[\w\/]/i;
 
 // Shell metacharacters that require shell=true to work
