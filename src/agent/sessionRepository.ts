@@ -178,23 +178,29 @@ export class JsonSessionRepository implements ISessionRepository {
   async list(limit?: number): Promise<SessionMeta[]> {
     if (!(await this.exists(SESSIONS_DIR))) return [];
 
-    const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: false });
+    const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: true });
     const jsonEntries = entries
-      .filter(e => e.endsWith('.json'))
-      .sort((a, b) => {
-        const aStat = fs.statSync(path.join(SESSIONS_DIR, a));
-        const bStat = fs.statSync(path.join(SESSIONS_DIR, b));
-        return (bStat.mtimeMs ?? 0) - (aStat.mtimeMs ?? 0);
-      });
+      .filter(e => e.isFile() && e.name.endsWith('.json'))
+      .map(e => e.name);
+
+    // Batch-stat all files in parallel — eliminates N blocking statSync calls
+    const entriesWithStat = await Promise.all(
+      jsonEntries.map(async (entry) => {
+        const stat = await fsp.stat(path.join(SESSIONS_DIR, entry));
+        return { entry, mtimeMs: stat.mtimeMs ?? 0 };
+      })
+    );
+
+    entriesWithStat.sort((a, b) => b.mtimeMs - a.mtimeMs);
 
     const entriesToRead = typeof limit === 'number'
-      ? jsonEntries.slice(0, limit)
-      : jsonEntries;
+      ? entriesWithStat.slice(0, limit)
+      : entriesWithStat;
 
     if (entriesToRead.length === 0) return [];
 
     const sessions = await Promise.all(
-      entriesToRead.map(async entry => {
+      entriesToRead.map(async ({ entry }) => {
         try {
           const raw = await fsp.readFile(path.join(SESSIONS_DIR, entry), 'utf-8');
           const parsed = JSON.parse(raw) as SessionDocument;
