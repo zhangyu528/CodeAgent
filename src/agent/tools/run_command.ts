@@ -122,8 +122,9 @@ export const runCommandTool = {
         };
       }
 
+      const timeout = getTimeout(command);
       try {
-        const { stdout, stderr } = await execAsync(command, { timeout: 30000, maxBuffer: 5 * 1024 * 1024 });
+        const { stdout, stderr } = await execAsync(command, { timeout, maxBuffer: 5 * 1024 * 1024 });
         const output = stdout + (stderr ? `\nErrors:\n${stderr}` : '');
         return { content: [{ type: 'text', text: output }], details: { command, success: true } };
       } catch (error: unknown) {
@@ -170,15 +171,16 @@ export const runCommandTool = {
       };
     }
 
+    const timeout = getTimeout(command);
     try {
-      const { stdout, stderr } = await execAsync(command, { timeout: 30000, maxBuffer: 5 * 1024 * 1024 });
+      const { stdout, stderr } = await execAsync(command, { timeout, maxBuffer: 5 * 1024 * 1024 });
       const output = stdout + (stderr ? `\nErrors:\n${stderr}` : '');
       return { content: [{ type: 'text', text: output }], details: { command, success: true } };
     } catch (error: unknown) {
       const err = error as {killed?: boolean; signal?: string; message?: string; stderr?: string; timedOut?: boolean};
       if (err.killed || err.signal === 'SIGTERM' || err.timedOut) {
         return {
-          content: [{ type: 'text', text: `Command timed out after 30 seconds` }],
+          content: [{ type: 'text', text: `Command timed out after ${timeout / 1000} seconds` }],
           details: { command, success: false, reason: 'timeout' }
         };
       }
