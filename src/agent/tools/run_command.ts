@@ -6,6 +6,9 @@ import { AgentToolResult } from '@mariozechner/pi-agent-core';
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
+// Output buffer size limit (5MB) — prevents unbounded memory consumption from command output
+const MAX_BUFFER_SIZE = 5 * 1024 * 1024;
+
 // Compiled regex: BLOCKED patterns — dangerous command injections and destructive operations
 // Checked FIRST to prevent allowlist short-circuiting
 // Combined into single RegExp for performance
@@ -124,14 +127,14 @@ export const runCommandTool = {
 
       const timeout = getTimeout(command);
       try {
-        const { stdout, stderr } = await execAsync(command, { timeout, maxBuffer: 5 * 1024 * 1024 });
+        const { stdout, stderr } = await execAsync(command, { timeout, maxBuffer: MAX_BUFFER_SIZE });
         const output = stdout + (stderr ? `\nErrors:\n${stderr}` : '');
         return { content: [{ type: 'text', text: output }], details: { command, success: true } };
       } catch (error: unknown) {
         const err = error as {killed?: boolean; signal?: string; message?: string; stderr?: string; timedOut?: boolean};
         if (err.killed || err.signal === 'SIGTERM' || err.timedOut) {
           return {
-            content: [{ type: 'text', text: `Command timed out after 30 seconds` }],
+            content: [{ type: 'text', text: `Command timed out after ${timeout / 1000} seconds` }],
             details: { command, success: false, reason: 'timeout' }
           };
         }
@@ -146,7 +149,7 @@ export const runCommandTool = {
       const { cmd, args } = parseCommand(command);
       const timeout = getTimeout(command);
       try {
-        const { stdout, stderr } = await execFileAsync(cmd, args, { timeout, maxBuffer: 5 * 1024 * 1024 });
+        const { stdout, stderr } = await execFileAsync(cmd, args, { timeout, maxBuffer: MAX_BUFFER_SIZE });
         const output = stdout + (stderr ? `\nErrors:\n${stderr}` : '');
         return { content: [{ type: 'text', text: output }], details: { command, success: true } };
       } catch (error: unknown) {
@@ -173,7 +176,7 @@ export const runCommandTool = {
 
     const timeout = getTimeout(command);
     try {
-      const { stdout, stderr } = await execAsync(command, { timeout, maxBuffer: 5 * 1024 * 1024 });
+      const { stdout, stderr } = await execAsync(command, { timeout, maxBuffer: MAX_BUFFER_SIZE });
       const output = stdout + (stderr ? `\nErrors:\n${stderr}` : '');
       return { content: [{ type: 'text', text: output }], details: { command, success: true } };
     } catch (error: unknown) {
