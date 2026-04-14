@@ -87,7 +87,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   pendingPrompt: null,
 
   // Initial Message State
-  messages: [],
+  messages: [] as any[],
   thinking: false,
   usage: null,
 
@@ -132,7 +132,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             status: pendingStatus,
             updatedAt: Date.now(),
             messageCount: messagesToUse.length,
-            title: prev.currentSession.title || extractSessionTitle(messagesToUse[0]?.content || ''),
+            title: prev.currentSession.title || extractSessionTitle((messagesToUse[0] as any)?.content || ''),
           } : prev.currentSession,
         }));
 

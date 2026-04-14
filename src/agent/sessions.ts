@@ -320,10 +320,11 @@ export class SessionManager {
   private normalizeSessionRecord(_fallbackId: string, parsed: unknown): SessionRecord | null {
     if (!parsed || typeof parsed !== 'object') return null;
 
-    if (parsed.meta && Array.isArray(parsed.messages)) {
-      const meta = parsed.meta as SessionMeta;
+    const p = parsed as Record<string, unknown>;
+    if (p.meta && Array.isArray(p.messages)) {
+      const meta = p.meta as SessionMeta;
       if (!meta.id || !meta.title || !meta.updatedAt) return null;
-      const messages = parsed.messages as AgentMessage[];
+      const messages = p.messages as AgentMessage[];
       return {
         id: meta.id,
         title: meta.title || 'New Session',

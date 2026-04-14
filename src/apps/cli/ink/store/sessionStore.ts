@@ -79,7 +79,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         status,
         updatedAt: Date.now(),
         messageCount: messagesToUse.length,
-        title: prev.currentSession.title || extractSessionTitle(messagesToUse[0]?.content || ''),
+        title: prev.currentSession.title || extractSessionTitle((messagesToUse[0] as any)?.content || ''),
       } : prev.currentSession,
     }));
 

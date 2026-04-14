@@ -28,7 +28,7 @@ export function ChatPage() {
     isRawModeSupported: false,
     onRawModeChange: () => {},
     onTurnSettled: (status) => {
-      useChatStore.getState().persistCurrentSession(status, agent.state.messages);
+      useChatStore.getState().persistCurrentSession(status, agent.state.messages as any);
     },
   });
 

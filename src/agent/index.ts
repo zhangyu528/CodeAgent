@@ -11,4 +11,4 @@ export { saveModelConfig, saveApiKey, checkApiKeyConfigured } from './config.js'
 
 // Sessions — backward-compat re-export of sessionRepository
 export { sessionRepository as sessionManager } from './sessionRepository.js';
-export type { SessionInfo, SessionRecord, SessionStatus } from './sessionRepository.js';
+export type { SessionInfo, SessionRecord, SessionStatus } from './sessions.js';
