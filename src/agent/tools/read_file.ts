@@ -5,10 +5,9 @@ import { AgentToolResult } from '@mariozechner/pi-agent-core';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-// Workspace root - can be overridden via environment variable or defaults to process.cwd()
-const getWorkspaceRoot = (): string => {
-  return process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
-};
+// Workspace root - cached at module load time to avoid repeated process.env lookups
+// Can be overridden via CODEAGENT_WORKSPACE_ROOT before the module is first imported
+const WORKSPACE_ROOT = process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
 
 export const readFileTool = {
   name: 'read_file',
@@ -18,7 +17,7 @@ export const readFileTool = {
     filePath: z.string().describe('The path to the file to read.'),
   }),
   execute: async (toolCallId: string, { filePath }: { filePath: string }): Promise<AgentToolResult<any>> => {
-    const workspaceRoot = getWorkspaceRoot();
+    const workspaceRoot = WORKSPACE_ROOT;
     // Expand ~ to home directory (Node.js path.resolve doesn't do this automatically)
     let resolvedPath = path.resolve(filePath);
     if (filePath.startsWith('~') || resolvedPath.includes('/~')) {

@@ -35,6 +35,8 @@ function initAgent(): Agent {
     },
   });
 
+  // Register all tools so the agent can execute them during conversations
+  agentInstance.setTools(allTools);
 
   const model = modelResolver.resolve();
   if (model) {

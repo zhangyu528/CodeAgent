@@ -63,8 +63,8 @@ export function saveModelConfig(provider: string, modelId: string): void {
       continue;
     }
     
-    const [key, ...valueParts] = line.split('=');
-    const value = valueParts.join('='); // handle values containing =
+    const eqIdx = line.indexOf('=');
+    const key = eqIdx >= 0 ? line.slice(0, eqIdx) : line;
     
     if (key === 'DEFAULT_PROVIDER') {
       newLines.push(`DEFAULT_PROVIDER=${provider}`);
@@ -132,7 +132,8 @@ export function saveApiKey(provider: string, apiKey: string): void {
       continue;
     }
 
-    const [key, ...valueParts] = line.split('=');
+    const eqIdx = line.indexOf('=');
+    const key = eqIdx >= 0 ? line.slice(0, eqIdx) : line;
 
     if (key === envKey) {
       newLines.push(`${envKey}=${apiKey}`);

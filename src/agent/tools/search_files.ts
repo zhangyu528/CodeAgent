@@ -3,10 +3,9 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AgentToolResult } from '@mariozechner/pi-agent-core';
 
-// Workspace root - can be overridden via environment variable or defaults to process.cwd()
-const getWorkspaceRoot = (): string => {
-  return process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
-};
+// Workspace root - cached at module load time to avoid repeated process.env lookups
+// Can be overridden via CODEAGENT_WORKSPACE_ROOT before the module is first imported
+const WORKSPACE_ROOT = process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
 
 // ReDoS protection: regex.test() calls are wrapped with a step counter
 // that aborts if execution exceeds MAX_REGEX_OPERATIONS to prevent catastrophic backtracking.
@@ -85,7 +84,7 @@ export const searchFilesTool = {
     { pattern, directoryPath = '.', fileExtension, maxResults = 50 }: 
     { pattern: string; directoryPath?: string; fileExtension?: string; maxResults?: number }
   ): Promise<AgentToolResult<any>> => {
-    const workspaceRoot = getWorkspaceRoot();
+    const workspaceRoot = WORKSPACE_ROOT;
     const resolvedPath = path.resolve(directoryPath);
     const normalizedWorkspace = path.resolve(workspaceRoot) + path.sep;
 

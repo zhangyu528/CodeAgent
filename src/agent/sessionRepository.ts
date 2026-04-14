@@ -277,7 +277,7 @@ export class JsonSessionRepository implements ISessionRepository {
       try {
         await fsp.rm(target, { force: true });
         return;
-      } catch (err) {
+      } catch {
         if (i < 2) {
           await new Promise(resolve => setTimeout(resolve, delays[i]));
         }
