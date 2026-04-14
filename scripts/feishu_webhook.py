@@ -14,29 +14,103 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-def send_card(webhook_url: str, card: dict) -> dict:
+def send_card(webhook_url: str, card: list, header: dict = None) -> dict:
     """
     发送 Interactive Card 到飞书 webhook
 
     Args:
         webhook_url: 飞书机器人的 webhook URL
         card: 卡片元素列表
+        header: 可选 header dict，包含 title, title_color, background_color
 
     Returns:
         API 响应字典
     """
+    card_body = {
+        "config": {"wide_screen_mode": True},
+        "elements": card
+    }
+    if header:
+        card_body["header"] = {
+            "title": {"tag": "plain_text", "content": header["title"]},
+            "template": header.get("template", "blue"),  # blue / purple / red / orange / green / indigo / grey
+        }
+
     payload = {
         "msg_type": "interactive",
-        "card": {
-            "config": {"wide_screen_mode": True},
-            "elements": card
-        }
+        "card": card_body
     }
 
     headers = {"Content-Type": "application/json"}
 
     response = requests.post(webhook_url, headers=headers, data=json.dumps(payload), timeout=10)
     return response.json()
+
+
+# ─── Header 颜色常量 ─────────────────────────────────────────────────────────
+
+AUTONOMY_HEADER = {"title": "🤖 CodeAgent 自主优化", "template": "blue"}      # 蓝色系 — 系统性分析/改进
+IDEAS_HEADER    = {"title": "💡 CodeAgent 新功能提案", "template": "purple"} # 紫色系 — 创意提案
+ERROR_HEADER    = {"title": "🚨 CodeAgent 执行异常", "template": "red"}     # 红色系 — 错误
+COMMIT_HEADER   = {"title": "📝 CodeAgent Commit 报告", "template": "green"}  # 绿色系 — commit 通知
+
+
+def card_idea_report(
+    title: str,
+    problem_statement: str,
+    recommended_direction: str,
+    mvp_scope: str = "",
+    idea_file: str = ""
+) -> list:
+    """
+    新功能提案卡片 — codeagent-ideas job 专用
+
+    Args:
+        title: 提案标题
+        problem_statement: 问题陈述
+        recommended_direction: 推荐方向
+        mvp_scope: MVP 范围
+        idea_file: 提案文件路径
+
+    Returns:
+        卡片 elements 列表
+    """
+    from datetime import datetime
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    content = f"""**💡 {title}**
+---
+⏰ **提案时间** | {now}
+---
+**Problem Statement**
+{problem_statement}
+---
+**Recommended Direction**
+{recommended_direction}"""
+    if mvp_scope:
+        content += f"\n---\n**MVP Scope**\n{mvp_scope}"
+    if idea_file:
+        content += f"\n---\n📄 **文件** | `{idea_file}`"
+
+    return [{"tag": "markdown", "content": content}]
+
+
+def card_no_idea() -> list:
+    """
+    无新提案卡片 — codeagent-ideas job 本次无提案时发送
+
+    Returns:
+        卡片 elements 列表
+    """
+    from datetime import datetime
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    return [
+        {
+            "tag": "markdown",
+            "content": f"**⏭️ 本次无新提案**\n---\n⏰ **时间** | {now}\n---\n本次扫描后认为暂无值得提案的新方向。"
+        }
+    ]
 
 
 def send_text_message(webhook_url: str, text: str) -> dict:
