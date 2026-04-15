@@ -316,33 +316,10 @@ export class SessionManager {
   private extractTitle(messages: AgentMessage[]): string | null {
     if (messages.length === 0) return null;
     const firstUserMsg = messages.find(m => m.role === 'user');
-    const content = this.extractMessageText((firstUserMsg as AgentMessage | undefined)?.content);
+    const content = extractMessageText((firstUserMsg as AgentMessage | undefined)?.content);
     if (!content) return null;
     const text = content.trim();
     return text.length > 40 ? text.slice(0, 40) + '...' : text;
-  }
-
-  private extractMessageText(content: unknown): string {
-    if (typeof content === 'string') return content;
-    if (Array.isArray(content)) {
-      const parts = content
-        .map((item) => {
-          if (typeof item === 'string') return item;
-          if (item && typeof (item as { text?: string }).text === 'string') return (item as { text: string }).text;
-          if (item && typeof (item as { content?: string }).content === 'string') return (item as { content: string }).content;
-          if (item && typeof (item as { input_text?: string }).input_text === 'string') return (item as { input_text: string }).input_text;
-          return '';
-        })
-        .filter(Boolean);
-      return parts.join(' ');
-    }
-    if (content && typeof content === 'object') {
-      const obj = content as { text?: string; content?: string; input_text?: string };
-      if (typeof obj.text === 'string') return obj.text;
-      if (typeof obj.content === 'string') return obj.content;
-      if (typeof obj.input_text === 'string') return obj.input_text;
-    }
-    return '';
   }
 
   private async exists(target: string): Promise<boolean> {

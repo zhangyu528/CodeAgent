@@ -14,10 +14,6 @@ import { CONFIG_DIR, SESSIONS_DIR, SESSION_VERSION } from './constants.js';
 import {
   isValidSessionId,
   extractMessageText,
-  removeFileWithRetry,
-  atomicWriteJson,
-  fileExists,
-  ensureDir,
 } from './sessionUtils.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
