@@ -207,7 +207,7 @@ def send_markdown_message(webhook_url: str, content: str) -> dict:
 
 # ─── Interactive Card 构建函数 ────────────────────────────────────────────────
 
-def card_start(title: str, subtitle: str, from_name: str = "CodeAgent 自主优化") -> list:
+def card_start(title: str, subtitle: str = "", from_name: str = "CodeAgent 自主优化") -> list:
     """
     启动卡片 — cron 触发后发送，表示开始分析
 
@@ -222,10 +222,11 @@ def card_start(title: str, subtitle: str, from_name: str = "CodeAgent 自主优�
     from datetime import datetime
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    subtitle_md = f"\n🔍 *{subtitle}*" if subtitle else ""
     return [
         {
             "tag": "markdown",
-            "content": f"**🚀 {title}**\n---\n⏰ **开始时间** | {now}\n📍 **目标** | CodeAgent 项目\n---\n🔍 *{subtitle}*"
+            "content": f"**🚀 {title}**{subtitle_md}\n---\n⏰ **开始时间** | {now}\n📍 **目标** | CodeAgent 项目"
         }
     ]
 
@@ -233,6 +234,7 @@ def card_start(title: str, subtitle: str, from_name: str = "CodeAgent 自主优�
 def card_analysis_report(
     title: str,
     report_content: str,
+    subtitle: str = "",
     branch: str = "main",
     commit: str = ""
 ) -> list:
@@ -242,16 +244,18 @@ def card_analysis_report(
     Args:
         title: 卡片标题
         report_content: 分析报告正文（markdown 格式）
+        subtitle: 副标题/状态描述
         branch: 当前分支名
         commit: 最新 commit hash + message
 
     Returns:
         卡片 elements 列表
     """
+    subtitle_md = f"\n🔍 *{subtitle}*" if subtitle else ""
     return [
         {
             "tag": "markdown",
-            "content": f"**📊 {title}**\n---\n📍 **分支** | `{branch}`\n📝 **最新提交** | `{commit}`\n---\n{report_content}"
+            "content": f"**📊 {title}**{subtitle_md}\n---\n📍 **分支** | `{branch}`\n📝 **最新提交** | `{commit}`\n---\n{report_content}"
         }
     ]
 
@@ -372,6 +376,7 @@ def card_feature_report(
 def card_task_preview(
     title: str,
     tasks: str,
+    subtitle: str = "",
     total: int = 0,
     from_name: str = "CodeAgent 自主优化"
 ) -> list:
@@ -381,6 +386,7 @@ def card_task_preview(
     Args:
         title: 卡片标题
         tasks: 任务列表（markdown 格式，每行一个任务）
+        subtitle: 副标题/状态描述
         total: 任务总数
         from_name: 来源名称
 
@@ -391,8 +397,9 @@ def card_task_preview(
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     task_count_text = f"**{total}** 个任务" if total > 0 else "无任务"
+    subtitle_md = f"\n🔍 *{subtitle}*" if subtitle else ""
 
-    header = f"**📋 {title}**\n---\n⏰ **预览时间** | {now}\n📋 **任务数量** | {task_count_text}\n---\n**待执行任务：**\n{tasks}"
+    header = f"**📋 {title}**{subtitle_md}\n---\n⏰ **预览时间** | {now}\n📋 **任务数量** | {task_count_text}\n---\n**待执行任务：**\n{tasks}"
     return [{"tag": "markdown", "content": header}]
 
 
