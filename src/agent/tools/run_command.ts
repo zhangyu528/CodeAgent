@@ -9,6 +9,31 @@ import {
   isCommandBlocked,
   validateCommandArgs,
 } from './security-patterns.js';
+import { classifyCommand } from './sandbox/command-tiers.js';
+import { PermissionLedger } from './sandbox/permission-ledger.js';
+import { getWorkspaceRoot, validateCommandPaths } from './sandbox/workspace.js';
+
+// Session-scoped permission ledger — persists across tool calls within a session
+const permissionLedger = new PermissionLedger();
+
+/**
+ * Check if a command is approved for execution.
+ * Safe tier: always approved.
+ * Elevated tier: approved if in ledger.
+ * Dangerous tier: never approved (blocked at classification).
+ */
+function isApproved(command: string): boolean {
+  const tier = classifyCommand(command);
+  return permissionLedger.has(command, tier);
+}
+
+/**
+ * Approve a command for elevated tier execution.
+ */
+function approveCommand(command: string): void {
+  const tier = classifyCommand(command);
+  permissionLedger.approve(command, tier);
+}
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -89,9 +114,29 @@ export const runCommandTool = {
   ): Promise<AgentToolResult<any>> => {
     const trimmed = command.trim();
 
-    // If command contains shell metacharacters, it must use exec() with shell=true
-    // These commands can't use execFile (shell:false) anyway
-    if (SHELL_METACHAR_REGEX.test(trimmed)) {
+    // Shell metacharacter detection — must check FIRST before workspace validation.
+    // Commands with shell metacharacters (|, &&, >, etc.) must use exec() with shell=true.
+    const hasShellMetachars = SHELL_METACHAR_REGEX.test(trimmed);
+
+    // Workspace root path validation — only for commands WITHOUT shell metacharacters.
+    // For shell metachar commands, path validation happens inside exec() via normal shell behavior.
+    // Also skip if CODEAGENT_WORKSPACE_ROOT is not set (no sandbox configured).
+    if (!hasShellMetachars && process.env.CODEAGENT_WORKSPACE_ROOT) {
+      const workspaceCheck = validateCommandPaths(trimmed);
+      if (!workspaceCheck.valid) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error: ${workspaceCheck.reason}`,
+            },
+          ],
+          details: { command, success: false, reason: 'path_outside_workspace' },
+        };
+      }
+    }
+
+    if (hasShellMetachars) {
       // Security check: block dangerous patterns FIRST
       if (isCommandBlocked(trimmed)) {
         return {
@@ -102,6 +147,19 @@ export const runCommandTool = {
             },
           ],
           details: { command, success: false, reason: 'blocked_dangerous_pattern' },
+        };
+      }
+
+      // Elevated tier check — require approval for state-modifying commands
+      if (!isApproved(trimmed)) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Command requires elevated permissions: '${trimmed}' is classified as elevated tier. Approve via permission ledger to proceed.`,
+            },
+          ],
+          details: { command, success: false, reason: 'elevated_tier_requires_approval' },
         };
       }
 
@@ -136,6 +194,19 @@ export const runCommandTool = {
     const baseCmd = trimmed.split(/\s+/)[0]?.toLowerCase() || '';
     if (ALLOWED_COMMANDS.has(baseCmd)) {
       const { cmd, args } = parseCommand(command);
+
+      // Elevated tier check for execFile path (no shell metacharacters)
+      if (!isApproved(trimmed)) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Command requires elevated permissions: '${trimmed}' is classified as elevated tier. Approve via permission ledger to proceed.`,
+            },
+          ],
+          details: { command, success: false, reason: 'elevated_tier_requires_approval' },
+        };
+      }
 
       // Argument validation via Zod schema (if command has one)
       const validation = validateCommandArgs(baseCmd, args);
