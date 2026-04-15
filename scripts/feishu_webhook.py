@@ -49,12 +49,26 @@ def send_card(webhook_url: str, card: list, header: dict = None) -> dict:
 
 # ─── Header 颜色常量 ─────────────────────────────────────────────────────────
 
-AUTONOMY_HEADER = {"title": "🤖 CodeAgent 自主优化", "template": "blue"}      # 蓝色系 — 系统性分析/改进
-IDEAS_HEADER    = {"title": "💡 CodeAgent 新功能提案", "template": "purple"} # 紫色系 — 创意提案
-IDEAS_EXEC_HEADER = {"title": "💡 CodeAgent 提案执行", "template": "orange"}   # 橙色系 — 提案执行开始
-SUCCESS_HEADER  = {"title": "✅ CodeAgent 执行完成", "template": "green"}     # 绿色系 — 执行完成报告
-ERROR_HEADER    = {"title": "🚨 CodeAgent 执行异常", "template": "red"}     # 红色系 — 错误
-COMMIT_HEADER   = {"title": "📝 CodeAgent Commit 报告", "template": "green"}  # 绿色系 — commit 通知
+# ─── CodeAgent 自主优化 Job Headers ─────────────────────────────────────────
+AUTONOMY_HEADER        = {"title": "🤖 CodeAgent 自主优化", "template": "blue"}
+AUTONOMY_SUCCESS_HEADER = {"title": "🤖 CodeAgent 自主优化 - ✅ 执行完成", "template": "green"}
+AUTONOMY_ERROR_HEADER   = {"title": "🤖 CodeAgent 自主优化 - 🚨 执行异常", "template": "red"}
+AUTONOMY_COMMIT_HEADER  = {"title": "🤖 CodeAgent 自主优化 - 📝 Commit 报告", "template": "green"}
+
+# ─── CodeAgent 提案执行 Job Headers ──────────────────────────────────────────
+IDEAS_EXEC_HEADER        = {"title": "💡 CodeAgent 提案执行", "template": "orange"}
+IDEAS_EXEC_SUCCESS_HEADER = {"title": "💡 CodeAgent 提案执行 - ✅ 执行完成", "template": "green"}
+IDEAS_EXEC_ERROR_HEADER   = {"title": "💡 CodeAgent 提案执行 - 🚨 执行异常", "template": "red"}
+IDEAS_EXEC_COMMIT_HEADER  = {"title": "💡 CodeAgent 提案执行 - 📝 Commit 报告", "template": "green"}
+
+# ─── CodeAgent 新功能提案 Job Headers ───────────────────────────────────────
+IDEAS_HEADER        = {"title": "💡 CodeAgent 新功能提案", "template": "purple"}
+IDEAS_SUCCESS_HEADER = {"title": "💡 CodeAgent 新功能提案 - ✅ 提案完成", "template": "green"}
+IDEAS_ERROR_HEADER   = {"title": "💡 CodeAgent 新功能提案 - 🚨 提案异常", "template": "red"}
+
+# ─── 通用 Headers ─────────────────────────────────────────────────────────────
+COMMIT_HEADER = {"title": "📝 CodeAgent Commit 报告", "template": "green"}  # 绿色系 — commit 通知
+ERROR_HEADER  = {"title": "🚨 CodeAgent 执行异常", "template": "red"}     # 红色系 — 错误
 
 
 def card_idea_report(
