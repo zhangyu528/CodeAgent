@@ -18,6 +18,7 @@ import {
 import {
   extractTitle,
 } from './sessionService.js';
+import { SessionIndexCache, type SessionIndexEntry } from './sessionIndexCache.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,15 @@ export interface ISessionRepository {
 // ─── JSON Implementation ────────────────────────────────────────────────────────
 
 export class JsonSessionRepository implements ISessionRepository {
+  private _indexCache: SessionIndexCache | null = null;
+
+  private get indexCache(): SessionIndexCache {
+    if (!this._indexCache) {
+      this._indexCache = new SessionIndexCache();
+    }
+    return this._indexCache;
+  }
+
   constructor() {
     if (!fs.existsSync(SESSIONS_DIR)) {
       fs.mkdirSync(SESSIONS_DIR, { recursive: true });
@@ -149,8 +159,31 @@ export class JsonSessionRepository implements ISessionRepository {
       };
 
       await this.atomicWriteJson(filePath, document);
+
+      // Update session index
+      await this.updateIndexAfterSave(id, title, messages.length, updatedAt);
     } catch (err) {
       console.error(`[JsonSessionRepository] Failed to save session "${id}":`, err);
+    }
+  }
+
+  private async updateIndexAfterSave(
+    id: string,
+    title: string,
+    messageCount: number,
+    updatedAt: number
+  ): Promise<void> {
+    try {
+      const entry: SessionIndexEntry = {
+        id,
+        mtimeMs: updatedAt,
+        title,
+        messageCount,
+        updatedAt,
+      };
+      await this.indexCache.updateIndex(entry);
+    } catch (err) {
+      console.warn(`[JsonSessionRepository] Failed to update session index:`, err);
     }
   }
 
@@ -170,6 +203,67 @@ export class JsonSessionRepository implements ISessionRepository {
   }
 
   async list(limit: number = 50): Promise<SessionMeta[]> {
+    // Try to use index for fast listing
+    const index = await this.indexCache.readIndex();
+    if (index.sessions.length > 0) {
+      // Index available — return from index (fast path)
+      const entries = index.sessions
+        .sort((a, b) => b.mtimeMs - a.mtimeMs)
+        .slice(0, limit);
+
+      return entries.map(entry => ({
+        id: entry.id,
+        title: entry.title,
+        updatedAt: entry.updatedAt,
+        messageCount: entry.messageCount,
+        model: 'unknown',
+        provider: 'unknown',
+        status: 'completed' as const,
+        version: SESSION_VERSION,
+      }));
+    }
+
+    // Index empty or missing — use fallback and trigger async rebuild
+    const result = await this.listFallback(limit);
+    void this.scheduleIndexRebuild();
+    return result;
+  }
+
+  private _rebuildScheduled = false;
+
+  private async scheduleIndexRebuild(): Promise<void> {
+    if (this._rebuildScheduled) return;
+    this._rebuildScheduled = true;
+    // Rebuild index asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        if (!(await this.indexCache.readIndex()).sessions.length) {
+          // Only rebuild if still empty (another save may have populated it)
+          await this.rebuildIndexFromFiles();
+        }
+      } catch (err) {
+        console.warn('[JsonSessionRepository] Index rebuild failed:', err);
+      } finally {
+        this._rebuildScheduled = false;
+      }
+    });
+  }
+
+  private async rebuildIndexFromFiles(): Promise<void> {
+    try {
+      if (!(await this.exists(SESSIONS_DIR))) return;
+      const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: true });
+      const sessionFiles = entries
+        .filter(e => e.isFile() && e.name.endsWith('.json') && e.name !== 'index.json')
+        .map(e => ({ name: e.name, mtimeMs: e.mtimeMs }));
+
+      await this.indexCache.rebuildIndex(sessionFiles);
+    } catch (err) {
+      console.warn('[JsonSessionRepository] rebuildIndexFromFiles failed:', err);
+    }
+  }
+
+  private async listFallback(limit: number = 50): Promise<SessionMeta[]> {
     if (!(await this.exists(SESSIONS_DIR))) return [];
 
     const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: true });
@@ -216,6 +310,8 @@ export class JsonSessionRepository implements ISessionRepository {
     if (!filePath) return;
     try {
       await fsp.rm(filePath, { force: true });
+      // Remove from index
+      await this.indexCache.removeFromIndex(id);
     } catch (err) {
       console.error(`[JsonSessionRepository] Failed to delete session "${id}":`, err);
     }
