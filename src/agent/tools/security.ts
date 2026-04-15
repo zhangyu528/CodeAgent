@@ -2,9 +2,31 @@
  * Security Validation Module
  * Shared validation functions for path traversal prevention,
  * session ID validation, and command allowlisting.
+ *
+ * @deprecated All security patterns are now centralized in security-patterns.ts.
+ * This module re-exports those patterns for backward compatibility.
+ * New code should import directly from security-patterns.ts.
  */
 
 import * as path from 'path';
+import {
+  BLOCKED_REGEX,
+  ALLOWED_COMMANDS,
+  isCommandBlocked,
+  isCommandAllowed,
+  SHELL_METACHAR_REGEX,
+  hasShellMetacharacters,
+} from './security-patterns.js';
+
+// Re-export for backward compatibility
+export {
+  BLOCKED_REGEX,
+  ALLOWED_COMMANDS,
+  isCommandBlocked,
+  isCommandAllowed,
+  SHELL_METACHAR_REGEX,
+  hasShellMetacharacters,
+};
 
 // ─── Path Validation ──────────────────────────────────────────────────────────
 
@@ -22,13 +44,10 @@ export function validatePath(inputPath: string, workspaceRoot: string): string |
   } else {
     resolvedPath = path.resolve(inputPath);
   }
-
   const normalizedWorkspace = path.resolve(workspaceRoot) + path.sep;
-
   if (!resolvedPath.startsWith(normalizedWorkspace)) {
     return null;
   }
-
   return resolvedPath;
 }
 
@@ -48,31 +67,17 @@ export function validateSessionId(id: string): boolean {
   return SESSION_ID_REGEX.test(id);
 }
 
-// ─── Command Allowlist ─────────────────────────────────────────────────────────
-
-// Blocked command patterns — checked FIRST before allowlist
-const BLOCKED_REGEX = /\$\(|`|[|&;()<>]|rm\s+-rf|dd\s+|mkfs|format\s+|fdisk|sfdisk|parted|sudo\s+su|su\s+-|chmod\s+777|chown\s+/i;
-
-// Known-safe commands (expanded developer set)
-const ALLOWED_COMMANDS = new Set([
-  'echo', 'cat', 'head', 'tail', 'grep', 'wc', 'ls', 'pwd', 'true', 'false',
-  'printf', 'touch', 'mkdir', 'cd', 'export', 'exit', 'git', 'npm', 'bun',
-  'pnpm', 'yarn', 'node', 'python', 'python3', 'ruby', 'go', 'cargo', 'rustc',
-  'make', 'cmake', 'gcc', 'g++', 'curl', 'wget', 'tar', 'gzip', 'gunzip',
-  'zip', 'unzip', 'chmod', 'chown', 'find', 'stat', 'diff', 'cp', 'mv', 'rm',
-]);
+// ─── Command Allowlist (legacy API) ──────────────────────────────────────────
 
 /**
  * Checks if a command is allowed to execute.
  * Returns { allowed: true } for safe commands.
  * Returns { allowed: false, reason: string } for blocked or unknown commands.
  *
- * Unknown commands (not in allowlist, no shell metacharacters) are now REJECTED
- * to close the silent fallback security gap.
+ * @deprecated Use isCommandBlocked() and isCommandAllowed() from security-patterns.ts directly.
  */
 export function checkCommandAllowed(command: string): { allowed: boolean; reason?: string } {
   const trimmed = command.trim();
-
   // Check blocked patterns first
   if (BLOCKED_REGEX.test(trimmed)) {
     return { allowed: false, reason: 'blocked_dangerous_pattern' };
@@ -80,7 +85,6 @@ export function checkCommandAllowed(command: string): { allowed: boolean; reason
 
   // Extract the base command
   const baseCmd = trimmed.split(/\s+/)[0]?.toLowerCase() || '';
-
   // Check if it's in the allowlist
   if (ALLOWED_COMMANDS.has(baseCmd)) {
     return { allowed: true };

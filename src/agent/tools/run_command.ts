@@ -2,30 +2,18 @@ import { z } from 'zod';
 import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { AgentToolResult } from '@mariozechner/pi-agent-core';
+import {
+  BLOCKED_REGEX,
+  SHELL_METACHAR_REGEX,
+  ALLOWED_COMMANDS,
+  isCommandBlocked,
+} from './security-patterns.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 // Output buffer size limit (5MB) — prevents unbounded memory consumption from command output
 const MAX_BUFFER_SIZE = 5 * 1024 * 1024;
-
-// Compiled regex: BLOCKED patterns — dangerous command injections and destructive operations
-// Checked FIRST to prevent allowlist short-circuiting
-// Combined into single RegExp for performance
-// ReDoS verified: no nested quantifiers (all quantifiers apply only to [\s], not to [.w+/])
-// NOTE: Backtick command substitution `command` is matched by `\`[^\`]*\`` — a backtick,
-// followed by any non-backtick chars, followed by a closing backtick. This replaces the
-// broken `[^\`]`` character-class pattern which only matched a single non-backtick char.
-const BLOCKED_REGEX = /\$\(|\`[^\`]*\`|\|\||&&|;\s*rm|^rm\s+-rf\s+\/\s*$|^dd\s+|^mkfs|^format\s+|^fdisk|^sfdisk|^parted|sudo\s+su|^su\s+-|[<>]\s*[\w\/]/i;
-
-// Shell metacharacters that require shell=true to work
-// If any of these appear, the command must go through exec() with shell=true
-const SHELL_METACHAR_REGEX = /[|&;()<>`]/;
-
-// Compiled regex: ALLOWED commands (returns first capturing group = command name)
-// Expanded to include common developer commands
-// \s* allows both `command args` and bare `command` (no arguments)
-const ALLOWED_REGEX = /^(?:(echo|cat|head|tail|grep|wc|ls|pwd|true|false|printf|touch|mkdir|cd|export|exit|git|npm|bun|pnpm|yarn|node|python|python3|ruby|go|cargo|rustc|make|cmake|gcc|g\+\+|curl|wget|tar|gzip|gunzip|zip|unzip|chmod|chown|find|stat|diff|cp|mv|rm)(?:\s+.*)?$)/i;
 
 // Per-command timeout in ms (default 30s, longer for package managers)
 const COMMAND_TIMEOUTS: Record<string, number> = {
@@ -43,25 +31,6 @@ const COMMAND_TIMEOUTS: Record<string, number> = {
 function getTimeout(command: string): number {
   const cmd = command.split(/\s+/)[0] ?? 'default';
   return COMMAND_TIMEOUTS[cmd] ?? 30000;
-}
-
-function isCommandBlocked(command: string): boolean {
-  const trimmed = command.trim();
-
-  // Check blocked patterns FIRST — this prevents allowlist short-circuiting
-  // e.g. "echo hello; rm -rf /" must be blocked even though "echo" is allowlisted
-  if (BLOCKED_REGEX.test(trimmed)) {
-    return true;
-  }
-
-  // Then check if it's a known-safe command
-  if (ALLOWED_REGEX.test(trimmed)) {
-    return false;
-  }
-
-  // Unknown commands not in allowlist are treated as potentially dangerous
-  // but not explicitly blocked — let them run (with shell=true)
-  return false;
 }
 
 // Parse command string into [cmd, ...args] for execFile
@@ -146,8 +115,8 @@ export const runCommandTool = {
     }
 
     // No shell metacharacters — use shell-isolated execFile for allowlisted commands
-    const match = command.match(ALLOWED_REGEX);
-    if (match) {
+    const baseCmd = trimmed.split(/\s+/)[0]?.toLowerCase() || '';
+    if (ALLOWED_COMMANDS.has(baseCmd)) {
       const { cmd, args } = parseCommand(command);
       const timeout = getTimeout(command);
       try {
@@ -180,7 +149,7 @@ export const runCommandTool = {
 
     // Unknown command — reject it rather than silently executing via exec()
     return {
-      content: [{ type: 'text', text: `Command not allowed: '${trimmed.split(/\s+/)[0]}' is not in the approved command list. If you need this command, it must be explicitly allowlisted.` }],
+      content: [{ type: 'text', text: `Command not allowed: '${baseCmd}' is not in the approved command list. If you need this command, it must be explicitly allowlisted.` }],
       details: { command, success: false, reason: 'command_not_allowed' },
     };
   },
