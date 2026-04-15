@@ -2,41 +2,19 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AgentToolResult } from '@mariozechner/pi-agent-core';
+import { emitToolCallStart, emitToolCallEnd, emitToolCallError } from '../trajectory.js';
+import { ToolExecutionContext } from './sandbox/context.js';
 
 const MAX_CONTENT_SIZE = 10 * 1024 * 1024; // 10MB
 
-/**
- * Get the workspace root for path validation.
- * Supports CODEAGENT_WORKSPACE_ROOT env var, falls back to process.cwd().
- */
-function getWorkspaceRoot(): string {
-  return process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
-}
+// Module-level context — initialized once per module load (not per call)
+let _sandboxCtx: ToolExecutionContext | null = null;
 
-/**
- * Validate that the resolved file path is within the workspace root.
- * Prevents path traversal attacks and arbitrary file writes.
- */
-function validatePath(filePath: string): { valid: boolean; resolvedPath?: string; reason?: string } {
-  // Expand ~ to home directory (Node.js path.resolve doesn't do this)
-  let expandedPath = filePath;
-  if (filePath.startsWith('~/') || filePath === '~') {
-    expandedPath = path.join(process.env.HOME || process.env.USERPROFILE || '/', filePath.slice(1));
+function getSandbox(): ToolExecutionContext {
+  if (!_sandboxCtx) {
+    _sandboxCtx = new ToolExecutionContext();
   }
-
-  const resolvedPath = path.resolve(expandedPath);
-  const workspaceRoot = path.resolve(getWorkspaceRoot());
-
-  // Check if path tries to escape workspace (e.g., /a/../b/../c)
-  if (!resolvedPath.startsWith(workspaceRoot + path.sep) && resolvedPath !== workspaceRoot) {
-    return {
-      valid: false,
-      resolvedPath,
-      reason: `Path outside workspace: ${filePath} resolves to ${resolvedPath}, workspace is ${workspaceRoot}`
-    };
-  }
-
-  return { valid: true, resolvedPath };
+  return _sandboxCtx;
 }
 
 export const writeFileTool = {
@@ -47,32 +25,61 @@ export const writeFileTool = {
     filePath: z.string().describe('The path to the file to write to.'),
     content: z.string().describe('The content to write.'),
   }),
-  execute: async (toolCallId: string, { filePath, content }: { filePath: string; content: string }): Promise<AgentToolResult<any>> => {
+  execute: async (
+    toolCallId: string,
+    { filePath, content }: { filePath: string; content: string }
+  ): Promise<AgentToolResult<any>> => {
+    emitToolCallStart('write_file', toolCallId, {
+      filePath,
+      contentSize: Buffer.byteLength(content, 'utf-8'),
+    });
+    const startTime = Date.now();
+
     // Check content size limit
     if (Buffer.byteLength(content, 'utf-8') > MAX_CONTENT_SIZE) {
-      return {
-        content: [{ type: 'text', text: `Error: Content too large (>${Math.round(MAX_CONTENT_SIZE/1024/1024)}MB limit)` }],
-        details: { filePath, success: false, reason: 'content_too_large' }
+      const result = {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Error: Content too large (>${Math.round(MAX_CONTENT_SIZE / 1024 / 1024)}MB limit)`,
+          },
+        ],
+        details: { filePath, success: false, reason: 'content_too_large' },
       };
+      emitToolCallEnd('write_file', toolCallId, { success: false }, Date.now() - startTime);
+      return result;
     }
 
-    // Validate path is within workspace
-    const pathValidation = validatePath(filePath);
-    if (!pathValidation.valid) {
-      return {
-        content: [{ type: 'text', text: `Error: ${pathValidation.reason}` }],
-        details: { filePath, success: false, reason: 'path_outside_workspace' }
+    // Use sandbox context for path validation
+    const ctx = getSandbox();
+    const resolvedPath = ctx.validatePath(filePath);
+
+    if (!resolvedPath) {
+      const result = {
+        content: [{ type: 'text' as const, text: `Error: Path outside workspace: ${filePath}` }],
+        details: { filePath, success: false, reason: 'path_outside_workspace' },
       };
+      emitToolCallEnd('write_file', toolCallId, { success: false }, Date.now() - startTime);
+      return result;
     }
 
     try {
-      const dir = path.dirname(pathValidation.resolvedPath!);
+      const dir = path.dirname(resolvedPath);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(pathValidation.resolvedPath!, content, 'utf-8');
-      return { content: [{ type: 'text', text: `File written successfully: ${pathValidation.resolvedPath}` }], details: { filePath: pathValidation.resolvedPath, success: true } };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      return { content: [{ type: 'text', text: `Error: ${message}` }], details: { filePath: pathValidation.resolvedPath, success: false } };
+      await fs.writeFile(resolvedPath, content, 'utf-8');
+      const result = {
+        content: [{ type: 'text' as const, text: `File written successfully: ${resolvedPath}` }],
+        details: { filePath: resolvedPath, success: true },
+      };
+      emitToolCallEnd('write_file', toolCallId, { success: true }, Date.now() - startTime);
+      return result;
+    } catch (error: any) {
+      const result = {
+        content: [{ type: 'text' as const, text: `Error: ${error.message}` }],
+        details: { filePath, success: false },
+      };
+      emitToolCallError('write_file', toolCallId, error.message, Date.now() - startTime);
+      return result;
     }
   },
 };

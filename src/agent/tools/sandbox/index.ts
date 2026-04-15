@@ -1,6 +1,6 @@
 /**
  * Sandbox Module — Unified Export
- * 
+ *
  * Workspace-scoped tool execution sandbox with permission ledger.
  */
 
@@ -12,3 +12,4 @@ export {
   type CommandTier as TierFromClassify,
 } from './command-tiers.js';
 export { getWorkspaceRoot, validateCommandPaths } from './workspace.js';
+export { ToolExecutionContext } from './context.js';
