@@ -37,8 +37,8 @@
   "homepage": "https://github.com/zhangyu528/CodeAgent#readme",
   "dependencies": {
     "@byteland/ink-scroll-bar": "^1.0.0",
-    "@mariozechner/pi-agent-core": "^0.61.1",
-    "@mariozechner/pi-ai": "^0.61.1",
+    "@mariozechner/pi-agent-core": "0.61.1",
+    "@mariozechner/pi-ai": "0.61.1",
     "dotenv": "^17.3.1",
     "ink": "~6.8.0",
     "ink-scroll-view": "^0.3.6",

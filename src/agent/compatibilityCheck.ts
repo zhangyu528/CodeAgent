@@ -23,6 +23,75 @@ function checkZodCompatibility(): { ok: boolean; message: string } {
   };
 }
 
+/**
+ * Known issues registry for pi-agent-core versions
+ * Maps version string to issue details and workaround
+ */
+export const KNOWN_ISSUES: Record<string, { version: string; issue: string; workaround: string }> =
+  {
+    '0.62.0': {
+      version: '0.62.0',
+      issue: 'AgentMessage.content changed from string to ContentBlock[]',
+      workaround: 'Pin to 0.61.1 until fix is released',
+    },
+  };
+
+/**
+ * Compatibility error details for API surface mismatches
+ */
+export interface CompatibilityError {
+  pkg: string;
+  api: string;
+  expectedVersion: string;
+  workaround?: string;
+}
+
+/**
+ * Verify pi-agent-core Agent API surface
+ * Ensures Agent.setModel and Agent.setTools are available
+ */
+function verifyAgentAPIs(): { ok: boolean; errors: CompatibilityError[] } {
+  const errors: CompatibilityError[] = [];
+
+  try {
+    // Dynamic import to avoid hard coupling — only check when actually used
+    const { Agent } = require('@mariozechner/pi-agent-core') as {
+      Agent: { new (opts: { getApiKey: (provider: string) => string | undefined }): unknown };
+    };
+
+    const agent = new Agent({ getApiKey: () => undefined });
+
+    // Verify Agent.setModel
+    if (typeof (agent as Record<string, unknown>).setModel !== 'function') {
+      errors.push({
+        pkg: 'pi-agent-core',
+        api: 'Agent.setModel',
+        expectedVersion: '0.61.1',
+        workaround: 'Check pi-agent-core version or rollback to 0.61.1',
+      });
+    }
+
+    // Verify Agent.setTools
+    if (typeof (agent as Record<string, unknown>).setTools !== 'function') {
+      errors.push({
+        pkg: 'pi-agent-core',
+        api: 'Agent.setTools',
+        expectedVersion: '0.61.1',
+        workaround: 'Check pi-agent-core version or rollback to 0.61.1',
+      });
+    }
+  } catch (err) {
+    errors.push({
+      pkg: 'pi-agent-core',
+      api: 'Agent constructor',
+      expectedVersion: '0.61.1',
+      workaround: `Import failed: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
 export interface CompatibilityResult {
   ok: boolean;
   checks: Array<{ name: string; ok: boolean; message: string }>;
@@ -42,10 +111,32 @@ export function runCompatibilityCheck(): CompatibilityResult {
   if (nodeMajor >= 18) {
     checks.push({ name: 'Node.js Version', ok: true, message: `Node.js ${nodeVersion} (OK)` });
   } else {
-    checks.push({ name: 'Node.js Version', ok: false, message: `Node.js ${nodeVersion} — expected >=18` });
+    checks.push({
+      name: 'Node.js Version',
+      ok: false,
+      message: `Node.js ${nodeVersion} — expected >=18`,
+    });
   }
 
-  const allOk = checks.every((c) => c.ok);
+  // Check pi-agent-core API surface
+  const apiCheck = verifyAgentAPIs();
+  if (apiCheck.ok) {
+    checks.push({
+      name: 'pi-agent-core API',
+      ok: true,
+      message: 'Agent.setModel and Agent.setTools verified',
+    });
+  } else {
+    for (const err of apiCheck.errors) {
+      checks.push({
+        name: `pi-agent-core API: ${err.api}`,
+        ok: false,
+        message: `Missing ${err.api} — ${err.workaround}`,
+      });
+    }
+  }
+
+  const allOk = checks.every(c => c.ok);
   return { ok: allOk, checks };
 }
 
@@ -54,12 +145,14 @@ export function runCompatibilityCheckOrExit(): void {
   const result = runCompatibilityCheck();
   if (!result.ok) {
     console.error('[CompatibilityCheck] FAILED:');
-    result.checks.forEach((c) => {
+    result.checks.forEach(c => {
       if (!c.ok) {
         console.error(`  - ${c.name}: ${c.message}`);
       }
     });
-    console.error('[CompatibilityCheck] Exiting. Set CONTINUE_WITH_COMPATIBILITY_ISSUES=1 to ignore.');
+    console.error(
+      '[CompatibilityCheck] Exiting. Set CONTINUE_WITH_COMPATIBILITY_ISSUES=1 to ignore.'
+    );
     if (!process.env.CONTINUE_WITH_COMPATIBILITY_ISSUES) {
       process.exit(1);
     }
