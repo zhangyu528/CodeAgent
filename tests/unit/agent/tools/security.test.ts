@@ -67,6 +67,23 @@ describe('validatePath', () => {
     }
   });
 
+  it('should reject tilde paths when HOME is undefined (falls back to /)', () => {
+    // When HOME is undefined and USERPROFILE is also undefined,
+    // the function falls back to '/' — so ~/file.txt becomes /file.txt
+    // which is outside the workspace and correctly returns null.
+    const originalHome = process.env.HOME;
+    const originalProfile = process.env.USERPROFILE;
+    try {
+      delete process.env.HOME;
+      delete process.env.USERPROFILE;
+      const result = validatePath('~/file.txt', projectRoot);
+      expect(result).toBeNull();
+    } finally {
+      process.env.HOME = originalHome;
+      process.env.USERPROFILE = originalProfile;
+    }
+  });
+
   it('should return normalized path for subdirectory inside workspace', () => {
     const result = validatePath(path.join(projectRoot, 'src', 'app.ts'), projectRoot);
     expect(result).toBe(path.join(projectRoot, 'src', 'app.ts'));
