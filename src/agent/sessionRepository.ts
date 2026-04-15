@@ -247,14 +247,14 @@ export class JsonSessionRepository implements ISessionRepository {
         await fsp.rename(tmpPath, filePath);
         renamed = true;
       } catch (err) {
-        console.error('[JsonSessionRepository] atomicWriteJson rename error:', err);
+        console.warn('[JsonSessionRepository] atomicWriteJson rename error:', err);
         await fsp.rm(filePath, { force: true });
         await fsp.rename(tmpPath, filePath);
         renamed = true;
       }
     } finally {
       if (handle) {
-        await handle.close().catch((err) => console.error('Failed to close handle:', err));
+        await handle.close().catch((err) => console.warn('Failed to close handle:', err));
       }
       if (!renamed) {
         await this.removeFileWithRetry(tmpPath);

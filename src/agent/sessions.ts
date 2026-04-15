@@ -132,7 +132,7 @@ export class SessionManager {
       await Promise.all(tmpFiles.map(file => fsp.rm(path.join(SESSIONS_DIR, file), { force: true })));
     } catch (err) {
       // Ignore cleanup failures to avoid impacting CLI startup.
-      console.error('[SessionManager] cleanupTempFiles error:', err);
+      console.warn('[SessionManager] cleanupTempFiles error:', err);
     }
   }
   async saveSession(id: string, messages: AgentMessage[], options: SaveSessionOptions = {}): Promise<void> {
@@ -255,14 +255,14 @@ export class SessionManager {
         await fsp.rename(tmpPath, filePath);
         renamed = true;
       } catch (err) {
-        console.error('[SessionManager] atomicWriteJson rename error:', err);
+        console.warn('[SessionManager] atomicWriteJson rename error:', err);
         await fsp.rm(filePath, { force: true });
         await fsp.rename(tmpPath, filePath);
         renamed = true;
       }
     } finally {
       if (handle) {
-        await handle.close().catch((err) => console.error('Failed to close handle:', err));
+        await handle.close().catch((err) => console.warn('Failed to close handle:', err));
       }
       if (!renamed) {
         await this.removeFileWithRetry(tmpPath);
