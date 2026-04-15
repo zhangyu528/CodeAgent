@@ -66,14 +66,18 @@ describe('runCommandTool', () => {
     it('should reject unknown commands not in the allowlist', async () => {
       // SECURITY: Unknown commands without shell metacharacters are now REJECTED
       // (previously fell through to exec() with shell=true — a security gap)
-      const result = await runCommandTool.execute('test-id', { command: 'nonexistent_command_12345' });
+      const result = await runCommandTool.execute('test-id', {
+        command: 'nonexistent_command_12345',
+      });
       expect(result.details.success).toBe(false);
       expect(result.details.reason).toBe('command_not_allowed');
       expect(result.content[0].text).toContain('not in the approved command list');
     });
 
     it('should handle commands with arguments', async () => {
-      const result = await runCommandTool.execute('test-id', { command: 'echo -n "test argument"' });
+      const result = await runCommandTool.execute('test-id', {
+        command: 'echo -n "test argument"',
+      });
       expect(result.details.success).toBe(true);
       expect(result.content[0].text).toBe('test argument');
     });
@@ -81,7 +85,9 @@ describe('runCommandTool', () => {
     it('should handle piped commands via shell', async () => {
       // With shell hardening, piped commands are not allowlisted (no shell:false execFile)
       // so they fall through to exec() which does run them with shell=true
-      const result = await runCommandTool.execute('test-id', { command: 'echo "hello world" | tr "[:lower:]" "[:upper:]"' });
+      const result = await runCommandTool.execute('test-id', {
+        command: 'echo "hello world" | tr "[:lower:]" "[:upper:]"',
+      });
       expect(result.details.success).toBe(true);
       expect(result.content[0].text).toContain('HELLO WORLD');
     });
@@ -92,7 +98,9 @@ describe('runCommandTool', () => {
     });
 
     it('should handle command producing combined stdout and stderr', async () => {
-      const result = await runCommandTool.execute('test-id', { command: '(echo stdout; echo stderr >&2)' });
+      const result = await runCommandTool.execute('test-id', {
+        command: '(echo stdout; echo stderr >&2)',
+      });
       expect(result.details.success).toBe(true);
       expect(result.content[0].text).toContain('stdout');
       expect(result.content[0].text).toContain('stderr');
@@ -154,7 +162,9 @@ describe('runCommandTool', () => {
     });
 
     it('should block dd command', async () => {
-      const result = await runCommandTool.execute('test-id', { command: 'dd if=/dev/zero of=/tmp/test' });
+      const result = await runCommandTool.execute('test-id', {
+        command: 'dd if=/dev/zero of=/tmp/test',
+      });
       expect(result.details.success).toBe(false);
       expect(result.details.reason).toBe('blocked_dangerous_pattern');
     });
@@ -221,6 +231,75 @@ describe('runCommandTool', () => {
       // less is now in ALLOWED_COMMANDS
       const result = await runCommandTool.execute('test-id', { command: 'less --version' });
       expect(result.details.reason).not.toBe('command_not_allowed');
+    });
+  });
+
+  // ─── Zod Schema Argument Validation ─────────────────────────────────────────
+
+  describe('Zod schema argument validation (COMMAND_ALLOWLIST)', () => {
+    // Validation failures — commands rejected BEFORE reaching execFile.
+    describe('rejections (invalid subcommands)', () => {
+      it('rejects git unknown-subcmd', async () => {
+        // "unknown-subcmd" is NOT in the git cmd enum
+        const result = await runCommandTool.execute('test-id', { command: 'git unknown-subcmd' });
+        expect(result.details.success).toBe(false);
+        expect(result.details.reason).toBe('invalid_arguments');
+        // content[0] is an object like { text: '...' }, check the text property
+        expect(result.content[0].text).toMatch(/invalid arguments/i);
+      });
+
+      it('rejects npm unknown-cmd', async () => {
+        // "unknown-cmd" is NOT in the npm command enum
+        const result = await runCommandTool.execute('test-id', { command: 'npm unknown-cmd' });
+        expect(result.details.success).toBe(false);
+        expect(result.details.reason).toBe('invalid_arguments');
+        expect(result.content[0].text).toMatch(/invalid arguments/i);
+      });
+
+      it('rejects bun unknown-cmd', async () => {
+        // "unknown-cmd" is NOT in the bun command enum
+        const result = await runCommandTool.execute('test-id', { command: 'bun unknown-cmd' });
+        expect(result.details.success).toBe(false);
+        expect(result.details.reason).toBe('invalid_arguments');
+        expect(result.content[0].text).toMatch(/invalid arguments/i);
+      });
+
+      it('rejects pnpm unknown-cmd', async () => {
+        const result = await runCommandTool.execute('test-id', { command: 'pnpm unknown-cmd' });
+        expect(result.details.success).toBe(false);
+        expect(result.details.reason).toBe('invalid_arguments');
+      });
+
+      it('rejects yarn unknown-cmd', async () => {
+        const result = await runCommandTool.execute('test-id', { command: 'yarn unknown-cmd' });
+        expect(result.details.success).toBe(false);
+        expect(result.details.reason).toBe('invalid_arguments');
+      });
+    });
+
+    // Validation successes — commands pass allowlist + schema checks.
+    // Note: BLOCKED_REGEX may still block some flags (e.g. git commit -m "...").
+    describe('allowances (valid subcommands)', () => {
+      it('allows git status (git subcommand is valid)', async () => {
+        const result = await runCommandTool.execute('test-id', { command: 'git status' });
+        expect(result.details.success).toBe(true);
+        expect(result.details.reason).toBeUndefined();
+      });
+
+      it('allows npm run build (run is valid npm command)', async () => {
+        const result = await runCommandTool.execute('test-id', { command: 'npm run build' });
+        expect(result.details.success).toBe(true);
+      });
+
+      it('allows bun run build (run is valid bun command)', async () => {
+        const result = await runCommandTool.execute('test-id', { command: 'bun run build' });
+        expect(result.details.success).toBe(true);
+      });
+
+      it('allows ls with arbitrary args (no schema = always allowed)', async () => {
+        const result = await runCommandTool.execute('test-id', { command: 'ls -la /tmp' });
+        expect(result.details.success).toBe(true);
+      });
     });
   });
 
