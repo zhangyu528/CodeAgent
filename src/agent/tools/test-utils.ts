@@ -84,22 +84,6 @@ export interface MockFsOptions {
   mkdirErrors?: Record<string, Error>;
 }
 
-function makeFileEntry(name: string): FileEntry {
-  return {
-    name,
-    isDirectory: () => false,
-    isFile: () => true,
-  };
-}
-
-function makeDirEntry(name: string): FileEntry {
-  return {
-    name,
-    isDirectory: () => true,
-    isFile: () => false,
-  };
-}
-
 export function createMockFs(options: MockFsOptions = {}) {
   const {
     files = {},

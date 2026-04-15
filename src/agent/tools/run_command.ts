@@ -27,9 +27,6 @@ const SHELL_METACHAR_REGEX = /[|&;()<>`]/;
 // \s* allows both `command args` and bare `command` (no arguments)
 const ALLOWED_REGEX = /^(?:(echo|cat|head|tail|grep|wc|ls|pwd|true|false|printf|touch|mkdir|cd|export|exit|git|npm|bun|pnpm|yarn|node|python|python3|ruby|go|cargo|rustc|make|cmake|gcc|g\+\+|curl|wget|tar|gzip|gunzip|zip|unzip|chmod|chown|find|stat|diff|cp|mv|rm)(?:\s+.*)?$)/i;
 
-// Commands that need glob pre-expansion (shell features in arguments)
-const GLOB_COMMANDS = new Set(['ls', 'cp', 'rm']);
-
 // Per-command timeout in ms (default 30s, longer for package managers)
 const COMMAND_TIMEOUTS: Record<string, number> = {
   npm: 120000,

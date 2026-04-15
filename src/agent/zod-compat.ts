@@ -16,14 +16,12 @@ import { resolve } from 'path';
 export function getZodVersion(): string {
   try {
     // Zod 4: version is in package.json, not on the main export
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const pkg = JSON.parse(readFileSync(resolve(require.resolve('zod'), '..', 'package.json'), 'utf-8')) as { version?: string };
     return pkg.version ?? 'unknown';
   } catch {
     // Fallback for Zod 3 which has z.version on the export
     try {
       // Dynamic import to avoid hard coupling
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const { z } = require('zod') as { z: { version?: string } };
       return z.version ?? 'unknown';
     } catch {
