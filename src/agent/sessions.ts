@@ -4,6 +4,17 @@ import path from 'path';
 import { AgentMessage } from '@mariozechner/pi-agent-core';
 import { CONFIG_DIR, SESSIONS_DIR, SESSION_VERSION, MAX_MESSAGES } from './constants.js';
 import { extractMessageText, isValidSessionId } from './sessionUtils.js';
+import { runMigrations } from './sessionMigrations.js';
+import {
+  buildSessionDocument,
+  normalizeSessionRecord,
+  extractTitle,
+  type SessionStatus,
+  type SessionMeta,
+  type SessionInfo,
+  type SessionRecord,
+  type SaveSessionOptions,
+} from './sessionService.js';
 
 // ─── Token Estimation ──────────────────────────────────────────────────────────
 
@@ -20,7 +31,7 @@ export function estimateTokens(messages: AgentMessage[]): number {
   }, 0);
 }
 
-// ─── Session Window ────────────────────────────────────────────────────────────
+// ─── Session Window ───────────────────────────────────────────────────────────
 
 export interface SessionWindow {
   messages: AgentMessage[];
@@ -81,40 +92,10 @@ export function loadSessionWindow(
   };
 }
 
-export type SessionStatus = 'active' | 'completed' | 'interrupted' | 'error';
+// Re-export shared types from sessionService
+export type { SessionStatus, SessionMeta, SessionInfo, SessionRecord, SaveSessionOptions };
 
-export interface SessionMeta {
-  id: string;
-  title: string;
-  updatedAt: number;
-  messageCount: number;
-  model: string;
-  provider: string;
-  status: SessionStatus;
-  version: number;
-}
-
-export interface SessionInfo extends SessionMeta {}
-
-export interface SessionRecord {
-  id: string;
-  title: string;
-  messages: AgentMessage[];
-  meta: SessionMeta;
-}
-
-interface SessionDocument {
-  version: number;
-  meta: SessionMeta;
-  messages: AgentMessage[];
-}
-
-interface SaveSessionOptions {
-  status?: SessionStatus;
-  model?: string;
-  provider?: string;
-  title?: string;
-}
+// ─── SessionManager ───────────────────────────────────────────────────────────
 
 export class SessionManager {
   constructor() {
@@ -123,7 +104,6 @@ export class SessionManager {
     }
     void this.cleanupTempFiles();
   }
-
 
   private async cleanupTempFiles(): Promise<void> {
     try {
@@ -135,9 +115,9 @@ export class SessionManager {
       console.warn('[SessionManager] cleanupTempFiles error:', err);
     }
   }
+
   async saveSession(id: string, messages: AgentMessage[], options: SaveSessionOptions = {}): Promise<void> {
     try {
-      // Ensure sessions directory exists before writing
       if (!fs.existsSync(SESSIONS_DIR)) {
         fs.mkdirSync(SESSIONS_DIR, { recursive: true });
       }
@@ -147,23 +127,7 @@ export class SessionManager {
         console.error(`[SessionManager] Invalid session ID: ${id}`);
         return;
       }
-      const title = options.title || this.extractTitle(messages) || 'New Session';
-      const updatedAt = Date.now();
-      const document: SessionDocument = {
-        version: SESSION_VERSION,
-        meta: {
-          id,
-          title,
-          updatedAt,
-          messageCount: messages.length,
-          model: options.model || 'unknown',
-          provider: options.provider || 'unknown',
-          status: options.status || 'completed',
-          version: SESSION_VERSION,
-        },
-        messages,
-      };
-
+      const document = buildSessionDocument(id, messages, options);
       await this.atomicWriteJson(filePath, document);
     } catch (err) {
       // Gracefully handle session save failures to avoid crashing the CLI.
@@ -178,7 +142,8 @@ export class SessionManager {
     try {
       const raw = await fsp.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(raw);
-      return this.normalizeSessionRecord(id, parsed);
+      const migrated = runMigrations(parsed);
+      return normalizeSessionRecord(id, migrated);
     } catch (err) {
       console.error('[SessionManager] Failed to load session:', err);
       return null;
@@ -214,7 +179,8 @@ export class SessionManager {
         try {
           const raw = await fsp.readFile(path.join(SESSIONS_DIR, entry), 'utf-8');
           const parsed = JSON.parse(raw);
-          const record = this.normalizeSessionRecord(path.basename(entry, '.json'), parsed);
+          const migrated = runMigrations(parsed);
+          const record = normalizeSessionRecord(path.basename(entry, '.json'), migrated);
           return record?.meta || null;
         } catch (err) {
           console.error('[SessionManager] Failed to read session file:', err);
@@ -285,53 +251,14 @@ export class SessionManager {
     }
   }
 
-  private normalizeSessionRecord(_fallbackId: string, parsed: unknown): SessionRecord | null {
-    if (!parsed || typeof parsed !== 'object') return null;
-
-    const p = parsed as Record<string, unknown>;
-    if (p.meta && Array.isArray(p.messages)) {
-      const meta = p.meta as SessionMeta;
-      if (!meta.id || !meta.title || !meta.updatedAt) return null;
-      const messages = p.messages as AgentMessage[];
-      return {
-        id: meta.id,
-        title: meta.title || 'New Session',
-        messages,
-        meta: {
-          id: meta.id,
-          title: meta.title || 'New Session',
-          updatedAt: meta.updatedAt,
-          messageCount: typeof meta.messageCount === 'number' ? meta.messageCount : messages.length,
-          model: meta.model || 'unknown',
-          provider: meta.provider || 'unknown',
-          status: meta.status || 'completed',
-          version: meta.version || SESSION_VERSION,
-        },
-      };
-    }
-
-    return null;
-  }
-
-  private extractTitle(messages: AgentMessage[]): string | null {
-    if (messages.length === 0) return null;
-    const firstUserMsg = messages.find(m => m.role === 'user');
-    const content = extractMessageText((firstUserMsg as AgentMessage | undefined)?.content);
-    if (!content) return null;
-    const text = content.trim();
-    return text.length > 40 ? text.slice(0, 40) + '...' : text;
-  }
-
   private async exists(target: string): Promise<boolean> {
     try {
       await fsp.access(target);
       return true;
     } catch (err) {
-      console.error('[SessionManager] exists check error:', err);
       return false;
     }
   }
 }
 
 export const sessionManager = new SessionManager();
-

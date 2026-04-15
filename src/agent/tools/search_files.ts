@@ -2,7 +2,7 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AgentToolResult } from '@mariozechner/pi-agent-core';
-import { validatePath } from './security.js';
+import { validatePath } from './security-patterns.js';
 
 // Workspace root - resolved dynamically from environment each time
 // NOTE: This must be a function call (not a cached constant) because tests set

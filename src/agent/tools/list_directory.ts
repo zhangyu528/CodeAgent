@@ -2,7 +2,7 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AgentToolResult } from '@mariozechner/pi-agent-core';
-import { validatePath } from './security.js';
+import { validatePath } from './security-patterns.js';
 
 // Workspace root - can be overridden via environment variable or defaults to process.cwd()
 const getWorkspaceRoot = (): string => {
