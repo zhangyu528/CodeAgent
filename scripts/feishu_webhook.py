@@ -50,19 +50,19 @@ def send_card(webhook_url: str, card: list, header: dict = None) -> dict:
 # ─── Header 颜色常量 ─────────────────────────────────────────────────────────
 
 # ─── CodeAgent 自主优化 Job Headers ─────────────────────────────────────────
-AUTONOMY_HEADER        = {"title": "🤖 CodeAgent 自主优化", "template": "blue"}
+AUTONOMY_HEADER        = {"title": "🤖 CodeAgent 自主优化 - 🔍 开始分析", "template": "blue"}
 AUTONOMY_SUCCESS_HEADER = {"title": "🤖 CodeAgent 自主优化 - ✅ 执行完成", "template": "green"}
 AUTONOMY_ERROR_HEADER   = {"title": "🤖 CodeAgent 自主优化 - 🚨 执行异常", "template": "red"}
 AUTONOMY_COMMIT_HEADER  = {"title": "🤖 CodeAgent 自主优化 - 📝 Commit 报告", "template": "green"}
 
 # ─── CodeAgent 提案执行 Job Headers ──────────────────────────────────────────
-IDEAS_EXEC_HEADER        = {"title": "💡 CodeAgent 提案执行", "template": "orange"}
+IDEAS_EXEC_HEADER        = {"title": "💡 CodeAgent 提案执行 - 🚀 开始实现", "template": "orange"}
 IDEAS_EXEC_SUCCESS_HEADER = {"title": "💡 CodeAgent 提案执行 - ✅ 执行完成", "template": "green"}
 IDEAS_EXEC_ERROR_HEADER   = {"title": "💡 CodeAgent 提案执行 - 🚨 执行异常", "template": "red"}
 IDEAS_EXEC_COMMIT_HEADER  = {"title": "💡 CodeAgent 提案执行 - 📝 Commit 报告", "template": "green"}
 
 # ─── CodeAgent 新功能提案 Job Headers ───────────────────────────────────────
-IDEAS_HEADER        = {"title": "💡 CodeAgent 新功能提案", "template": "purple"}
+IDEAS_HEADER        = {"title": "💡 CodeAgent 新功能提案 - 🔍 开始生成", "template": "purple"}
 IDEAS_SUCCESS_HEADER = {"title": "💡 CodeAgent 新功能提案 - ✅ 提案完成", "template": "green"}
 IDEAS_ERROR_HEADER   = {"title": "💡 CodeAgent 新功能提案 - 🚨 提案异常", "template": "red"}
 
