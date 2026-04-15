@@ -29,7 +29,27 @@
       "test_required": false,
       "priority": "medium",
       "estimated_minutes": 5
+    },
+    {
+      "id": 4,
+      "title": "提交 validatePath 重构更改",
+      "description": "当前有3个文件未提交更改，已重构使用共享的 validatePath 安全模块。需要提交到 git。",
+      "file": "src/agent/tools/list_directory.ts, src/agent/tools/search_files.ts, src/agent/tools/security.ts",
+      "changes": "将重复的路径验证逻辑提取到 shared validatePath 函数，统一安全检查",
+      "test_required": true,
+      "priority": "high",
+      "estimated_minutes": 5
+    },
+    {
+      "id": 5,
+      "title": "为 validatePath 添加单元测试",
+      "description": "validatePath 是核心安全函数，目前缺少直接测试用例。需要覆盖：~展开、路径遍历检测、workspace 边界检测等场景。",
+      "file": "tests/unit/agent/tools/security.test.ts",
+      "changes": "添加 validatePath 函数的直接测试用例",
+      "test_required": true,
+      "priority": "medium",
+      "estimated_minutes": 15
     }
   ],
-  "summary": "总览：2 个高优先级，1 个中优先级"
+  "summary": "总览：3 个高优先级，2 个中优先级 | 当前分支领先 origin/main 152 commits"
 }
