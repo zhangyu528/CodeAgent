@@ -2,7 +2,7 @@
  * MessageStore - Shared message state across app
  */
 import { create } from 'zustand';
-import { ChatMessage } from '../pages/types.js';
+import { ChatMessageSchema, type ChatMessage } from './schemas.js';
 
 interface MessageStore {
   messages: ChatMessage[];
@@ -18,27 +18,28 @@ interface MessageStore {
   setUsage: (usage: { input: number; output: number; cost: number } | null) => void;
 }
 
-export const useMessageStore = create<MessageStore>((set) => ({
+export const useMessageStore = create<MessageStore>(set => ({
   messages: [],
   thinking: false,
   usage: null,
 
-  setMessages: (messages) => set({ messages }),
+  setMessages: messages => set({ messages }),
 
-  addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
+  addMessage: msg => set(state => ({ messages: [...state.messages, msg] })),
 
-  updateLastMessage: (update) => set((state) => {
-    if (state.messages.length === 0) return state;
-    const newMessages = [...state.messages];
-    const last = newMessages[newMessages.length - 1];
-    if (!last) return state;
-    newMessages[newMessages.length - 1] = update(last);
-    return { messages: newMessages };
-  }),
+  updateLastMessage: update =>
+    set(state => {
+      if (state.messages.length === 0) return state;
+      const newMessages = [...state.messages];
+      const last = newMessages[newMessages.length - 1];
+      if (!last) return state;
+      newMessages[newMessages.length - 1] = update(last);
+      return { messages: newMessages };
+    }),
 
   clearMessages: () => set({ messages: [], thinking: false, usage: null }),
 
-  setThinking: (thinking) => set({ thinking }),
+  setThinking: thinking => set({ thinking }),
 
-  setUsage: (usage) => set({ usage }),
+  setUsage: usage => set({ usage }),
 }));

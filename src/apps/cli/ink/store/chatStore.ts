@@ -1,6 +1,6 @@
 /**
  * ChatStore - Unified store for session and message state
- * 
+ *
  * Session and Messages are part of the same aggregate (a Session contains Messages).
  * Keeping them in one store:
  * - Eliminates cross-store coordination
@@ -11,7 +11,12 @@ import { create } from 'zustand';
 import { randomUUID } from 'crypto';
 import { getAgent } from '../../../../agent/index.js';
 import { sessionManager, SessionInfo, SessionStatus } from '../../../../agent/sessions.js';
-import { ChatSessionInfo, ChatMessage } from '../pages/types.js';
+import {
+  ChatMessageSchema,
+  ChatSessionInfoSchema,
+  type ChatMessage,
+  type ChatSessionInfo,
+} from './schemas.js';
 import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
 
 // Debounce delay for persistCurrentSession to avoid hammering filesystem
@@ -87,7 +92,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   pendingPrompt: null,
 
   // Initial Message State
-  messages: [] as any[],
+  messages: [] as ChatMessage[],
   thinking: false,
   usage: null,
 
@@ -132,13 +137,18 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         const messagesToUse = pendingMessages || [];
 
         set(prev => ({
-          currentSession: prev.activeSessionId === sid && prev.currentSession ? {
-            ...prev.currentSession,
-            status: pendingStatus,
-            updatedAt: Date.now(),
-            messageCount: messagesToUse.length,
-            title: prev.currentSession.title || extractSessionTitle((messagesToUse[0] as any)?.content || ''),
-          } : prev.currentSession,
+          currentSession:
+            prev.activeSessionId === sid && prev.currentSession
+              ? {
+                  ...prev.currentSession,
+                  status: pendingStatus,
+                  updatedAt: Date.now(),
+                  messageCount: messagesToUse.length,
+                  title:
+                    prev.currentSession.title ||
+                    extractSessionTitle((messagesToUse[0] as any)?.content || ''),
+                }
+              : prev.currentSession,
         }));
 
         void sessionManager
@@ -151,7 +161,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           .then(() => {
             void get().refreshHistory();
           })
-          .catch((err) => console.error('Failed to persist session:', err));
+          .catch(err => console.error('Failed to persist session:', err));
       }, DEBOUNCE_MS);
     };
   })(),
@@ -227,20 +237,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   // Message Actions
-  setMessages: (messages) => set({ messages }),
+  setMessages: messages => set({ messages }),
 
-  addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
+  addMessage: msg => set(state => ({ messages: [...state.messages, msg] })),
 
-  updateLastMessage: (update) => set((state) => {
-    if (state.messages.length === 0) return state;
-    const newMessages = [...state.messages];
-    const last = newMessages[newMessages.length - 1];
-    if (!last) return state;
-    newMessages[newMessages.length - 1] = update(last);
-    return { messages: newMessages };
-  }),
+  updateLastMessage: update =>
+    set(state => {
+      if (state.messages.length === 0) return state;
+      const newMessages = [...state.messages];
+      const last = newMessages[newMessages.length - 1];
+      if (!last) return state;
+      newMessages[newMessages.length - 1] = update(last);
+      return { messages: newMessages };
+    }),
 
-  setUsage: (usage) => set({ usage }),
+  setUsage: usage => set({ usage }),
 
   // Combined Actions
   clearAll: () => {
