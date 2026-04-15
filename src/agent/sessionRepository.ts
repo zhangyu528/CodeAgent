@@ -313,33 +313,10 @@ export class JsonSessionRepository implements ISessionRepository {
   protected extractTitle(messages: AgentMessage[]): string | null {
     if (messages.length === 0) return null;
     const firstUserMsg = messages.find(m => m.role === 'user');
-    const content = this.extractMessageText((firstUserMsg as any)?.content);
+    const content = extractMessageText((firstUserMsg as any)?.content);
     if (!content) return null;
     const text = content.trim();
     return text.length > 40 ? text.slice(0, 40) + '...' : text;
-  }
-
-  private extractMessageText(content: unknown): string {
-    if (typeof content === 'string') return content;
-    if (Array.isArray(content)) {
-      const parts = content
-        .map((item: any) => {
-          if (typeof item === 'string') return item;
-          if (item && typeof item.text === 'string') return item.text;
-          if (item && typeof item.content === 'string') return item.content;
-          if (item && typeof item.input_text === 'string') return item.input_text;
-          return '';
-        })
-        .filter(Boolean);
-      return parts.join(' ');
-    }
-    if (content && typeof content === 'object') {
-      const obj = content as any;
-      if (typeof obj.text === 'string') return obj.text;
-      if (typeof obj.content === 'string') return obj.content;
-      if (typeof obj.input_text === 'string') return obj.input_text;
-    }
-    return '';
   }
 
   private async exists(target: string): Promise<boolean> {
