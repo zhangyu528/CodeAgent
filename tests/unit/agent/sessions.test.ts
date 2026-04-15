@@ -3,6 +3,8 @@ import { AgentMessage } from '@mariozechner/pi-agent-core';
 
 // Test the exported functions from sessions.ts
 import { estimateTokens, loadSessionWindow, SessionWindow } from '../../../src/agent/sessions';
+// normalizeSessionRecord and extractTitle are exported from sessionService, not SessionManager methods
+import { normalizeSessionRecord, extractTitle } from '../../../src/agent/sessionService';
 
 // Helper: create a Dirent object for use in readdir mocks
 function makeDirent(name: string, isFile: boolean = true): Dirent {
@@ -387,17 +389,17 @@ describe('SessionManager Error Handling', () => {
 
   describe('normalizeSessionRecord() edge cases', () => {
     it('should return null for null input', () => {
-      const result = (sessionManager as any).normalizeSessionRecord('fallback', null);
+      const result = normalizeSessionRecord('fallback', null);
       expect(result).toBeNull();
     });
 
     it('should return null for non-object input', () => {
-      const result = (sessionManager as any).normalizeSessionRecord('fallback', 'string');
+      const result = normalizeSessionRecord('fallback', 'string');
       expect(result).toBeNull();
     });
 
     it('should return null when meta is missing', () => {
-      const result = (sessionManager as any).normalizeSessionRecord('fallback', {
+      const result = normalizeSessionRecord('fallback', {
         version: 1,
         messages: [],
       });
@@ -405,7 +407,7 @@ describe('SessionManager Error Handling', () => {
     });
 
     it('should return null when messages is not an array', () => {
-      const result = (sessionManager as any).normalizeSessionRecord('fallback', {
+      const result = normalizeSessionRecord('fallback', {
         version: 1,
         meta: { id: 'test', title: 'Test', updatedAt: Date.now() },
         messages: 'not an array',
@@ -414,7 +416,7 @@ describe('SessionManager Error Handling', () => {
     });
 
     it('should return null when meta.id is missing', () => {
-      const result = (sessionManager as any).normalizeSessionRecord('fallback', {
+      const result = normalizeSessionRecord('fallback', {
         version: 1,
         meta: { title: 'Test', updatedAt: Date.now() },
         messages: [],
@@ -423,7 +425,7 @@ describe('SessionManager Error Handling', () => {
     });
 
     it('should return null when meta.title is missing', () => {
-      const result = (sessionManager as any).normalizeSessionRecord('fallback', {
+      const result = normalizeSessionRecord('fallback', {
         version: 1,
         meta: { id: 'test', updatedAt: Date.now() },
         messages: [],
@@ -432,7 +434,7 @@ describe('SessionManager Error Handling', () => {
     });
 
     it('should return null when meta.updatedAt is missing', () => {
-      const result = (sessionManager as any).normalizeSessionRecord('fallback', {
+      const result = normalizeSessionRecord('fallback', {
         version: 1,
         meta: { id: 'test', title: 'Test' },
         messages: [],
@@ -441,7 +443,7 @@ describe('SessionManager Error Handling', () => {
     });
 
     it('should apply defaults for optional fields', () => {
-      const result = (sessionManager as any).normalizeSessionRecord('fallback', {
+      const result = normalizeSessionRecord('fallback', {
         version: 1,
         meta: {
           id: 'test',
@@ -567,7 +569,7 @@ describe('loadSessionWindow()', () => {
 
   describe('extractTitle() edge cases', () => {
     it('should return null for empty messages array', () => {
-      const result = (sessionManager as any).extractTitle([]);
+      const result = extractTitle([]);
       expect(result).toBeNull();
     });
 
@@ -575,7 +577,7 @@ describe('loadSessionWindow()', () => {
       const messages = [
         { id: '1', role: 'assistant' as const, content: 'Hello' },
       ];
-      const result = (sessionManager as any).extractTitle(messages);
+      const result = extractTitle(messages);
       expect(result).toBeNull();
     });
 
@@ -584,7 +586,7 @@ describe('loadSessionWindow()', () => {
       const messages = [
         { id: '1', role: 'user' as const, content: longText },
       ];
-      const result = (sessionManager as any).extractTitle(messages);
+      const result = extractTitle(messages);
       expect(result).toBe(longText.slice(0, 40) + '...');
     });
 
@@ -592,7 +594,7 @@ describe('loadSessionWindow()', () => {
       const messages = [
         { id: '1', role: 'user' as const, content: 'Short title' },
       ];
-      const result = (sessionManager as any).extractTitle(messages);
+      const result = extractTitle(messages);
       expect(result).toBe('Short title');
     });
 
@@ -600,7 +602,7 @@ describe('loadSessionWindow()', () => {
       const messages = [
         { id: '1', role: 'user' as const, content: [{ type: 'text', text: 'Array content' }] },
       ];
-      const result = (sessionManager as any).extractTitle(messages);
+      const result = extractTitle(messages);
       expect(result).toBe('Array content');
     });
 
@@ -608,7 +610,7 @@ describe('loadSessionWindow()', () => {
       const messages = [
         { id: '1', role: 'user' as const, content: { text: 'Object text' } },
       ];
-      const result = (sessionManager as any).extractTitle(messages);
+      const result = extractTitle(messages);
       expect(result).toBe('Object text');
     });
 
@@ -616,7 +618,7 @@ describe('loadSessionWindow()', () => {
       const messages = [
         { id: '1', role: 'user' as const, content: '' },
       ];
-      const result = (sessionManager as any).extractTitle(messages);
+      const result = extractTitle(messages);
       expect(result).toBeNull();
     });
   });
