@@ -220,7 +220,7 @@ def send_markdown_message(webhook_url: str, content: str) -> dict:
 
 # ─── Interactive Card 构建函数 ────────────────────────────────────────────────
 
-def card_start(title: str, subtitle: str = "", from_name: str = "CodeAgent 自主优化") -> list:
+def card_start(title: str = "", subtitle: str = "", from_name: str = "CodeAgent 自主优化") -> list:
     """
     启动卡片 — cron 触发后发送，表示开始分析
 
@@ -247,8 +247,8 @@ def card_start(title: str, subtitle: str = "", from_name: str = "CodeAgent 自�
 
 
 def card_analysis_report(
-    title: str,
-    report_content: str,
+    title: str = "",
+    report_content: str = "",
     subtitle: str = "",
     branch: str = "main",
     commit: str = ""
@@ -301,11 +301,11 @@ def card_execution_start(task_count: int, from_name: str = "CodeAgent 自主优�
 
 
 def card_execution_report(
-    title: str,
-    total: int,
-    success: int,
-    failed: int,
-    skipped: int,
+    title: str = "",
+    total: int = 0,
+    success: int = 0,
+    failed: int = 0,
+    skipped: int = 0,
     details: str = ""
 ) -> list:
     """
@@ -365,8 +365,8 @@ def card_execution_report(
 
 
 def card_feature_report(
-    title: str,
-    feature_content: str,
+    title: str = "",
+    feature_content: str = "",
     branch: str = "main",
     problem_statement: str = "",
     mvp_scope: str = "",
@@ -397,8 +397,8 @@ def card_feature_report(
 
 
 def card_task_preview(
-    title: str,
-    tasks: str,
+    title: str = "",
+    tasks: str = "",
     subtitle: str = "",
     total: int = 0,
     from_name: str = "CodeAgent 自主优化"
@@ -427,7 +427,7 @@ def card_task_preview(
     return [{"tag": "markdown", "content": header}]
 
 
-def card_error(title: str, error_msg: str) -> list:
+def card_error(title: str = "", error_msg: str = "") -> list:
     """
     错误卡片 — 执行过程中出错时发送
 
