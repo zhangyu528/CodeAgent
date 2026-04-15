@@ -56,7 +56,8 @@ AUTONOMY_ERROR_HEADER   = {"title": "🤖 CodeAgent 自主优化 - 🚨 执行�
 AUTONOMY_COMMIT_HEADER  = {"title": "🤖 CodeAgent 自主优化 - 📝 Commit 报告", "template": "green"}
 
 # ─── CodeAgent 提案执行 Job Headers ──────────────────────────────────────────
-IDEAS_EXEC_HEADER        = {"title": "💡 CodeAgent 提案执行 - 🚀 开始实现", "template": "orange"}
+IDEAS_EXEC_HEADER         = {"title": "💡 CodeAgent 提案执行 - 🚀 开始实现", "template": "orange"}
+IDEAS_EXEC_PREVIEW_HEADER = {"title": "💡 CodeAgent 提案执行 - 📋 任务预览", "template": "orange"}
 IDEAS_EXEC_SUCCESS_HEADER = {"title": "💡 CodeAgent 提案执行 - ✅ 执行完成", "template": "green"}
 IDEAS_EXEC_ERROR_HEADER   = {"title": "💡 CodeAgent 提案执行 - 🚨 执行异常", "template": "red"}
 IDEAS_EXEC_COMMIT_HEADER  = {"title": "💡 CodeAgent 提案执行 - 📝 Commit 报告", "template": "green"}
@@ -69,6 +70,20 @@ IDEAS_ERROR_HEADER   = {"title": "💡 CodeAgent 新功能提案 - 🚨 提案�
 # ─── 通用 Headers ─────────────────────────────────────────────────────────────
 COMMIT_HEADER = {"title": "📝 CodeAgent Commit 报告", "template": "green"}  # 绿色系 — commit 通知
 ERROR_HEADER  = {"title": "🚨 CodeAgent 执行异常", "template": "red"}     # 红色系 — 错误
+
+
+def make_header(title: str, template: str = "blue") -> dict:
+    """
+    创建动态 header，支持传入完整标题字符串。
+
+    Args:
+        title: 完整标题，如 "💡 CodeAgent 提案执行 - 📋 任务预览"
+        template: 颜色模板
+
+    Returns:
+        header dict
+    """
+    return {"title": title, "template": template}
 
 
 def card_idea_report(
@@ -94,9 +109,7 @@ def card_idea_report(
     from datetime import datetime
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    content = f"""**💡 {title}**
----
-⏰ **提案时间** | {now}
+    content = f"""⏰ **提案时间** | {now}
 ---
 **Problem Statement**
 {problem_statement}
@@ -124,7 +137,7 @@ def card_no_idea() -> list:
     return [
         {
             "tag": "markdown",
-            "content": f"**⏭️ 本次无新提案**\n---\n⏰ **时间** | {now}\n---\n本次扫描后认为暂无值得提案的新方向。"
+            "content": f"⏰ **时间** | {now}\n---\n本次扫描后认为暂无值得提案的新方向。"
         }
     ]
 
@@ -211,6 +224,8 @@ def card_start(title: str, subtitle: str = "", from_name: str = "CodeAgent 自�
     """
     启动卡片 — cron 触发后发送，表示开始分析
 
+    注意：不包含标题行，标题由 send_card 的 header 参数传入
+
     Args:
         title: 卡片标题
         subtitle: 副标题/状态描述
@@ -226,7 +241,7 @@ def card_start(title: str, subtitle: str = "", from_name: str = "CodeAgent 自�
     return [
         {
             "tag": "markdown",
-            "content": f"**🚀 {title}**{subtitle_md}\n---\n⏰ **开始时间** | {now}\n📍 **目标** | CodeAgent 项目"
+            "content": f"{subtitle_md}\n---\n⏰ **开始时间** | {now}\n📍 **目标** | CodeAgent 项目"
         }
     ]
 
@@ -241,21 +256,22 @@ def card_analysis_report(
     """
     分析报告卡片 — project-analysis 完成后发送
 
+    注意：不包含标题和副标题，统一由 header 传入
+
     Args:
-        title: 卡片标题
+        title: 废弃，传空字符串即可
         report_content: 分析报告正文（markdown 格式）
-        subtitle: 副标题/状态描述
+        subtitle: 废弃，传空字符串即可
         branch: 当前分支名
         commit: 最新 commit hash + message
 
     Returns:
         卡片 elements 列表
     """
-    subtitle_md = f"\n🔍 *{subtitle}*" if subtitle else ""
     return [
         {
             "tag": "markdown",
-            "content": f"**📊 {title}**{subtitle_md}\n---\n📍 **分支** | `{branch}`\n📝 **最新提交** | `{commit}`\n---\n{report_content}"
+            "content": f"📍 **分支** | `{branch}`\n📝 **最新提交** | `{commit}`\n---\n{report_content}"
         }
     ]
 
@@ -279,7 +295,7 @@ def card_execution_start(task_count: int, from_name: str = "CodeAgent 自主优�
     return [
         {
             "tag": "markdown",
-            "content": f"**🔧 开始执行任务**\n---\n⏰ **开始时间** | {now}\n📋 **{task_text}**\n---\n正在执行中，请稍候..."
+            "content": f"⏰ **开始时间** | {now}\n📋 **{task_text}**\n---\n正在执行中，请稍候..."
         }
     ]
 
@@ -303,7 +319,9 @@ def card_execution_report(
         success: 成功数
         failed: 失败数
         skipped: 跳过数
-        details: 任务详情（markdown 格式）
+        details: 任务详情。支持两种格式：
+            - str: 直接作为 markdown 内容追加
+            - list[dict]: 格式化为表格，每项包含 "任务"/"状态"/"说明" 三个 key
 
     Returns:
         卡片 elements 列表
@@ -313,21 +331,15 @@ def card_execution_report(
 
     # 状态汇总
     if failed > 0:
-        status_emoji = "⚠️"
         status_text = "部分失败"
     elif success == total:
-        status_emoji = "✅"
         status_text = "全部完成"
     elif skipped == total:
-        status_emoji = "⏭️"
         status_text = "全部跳过"
     else:
-        status_emoji = "⚡"
         status_text = "执行完成"
 
-    summary_md = f"**{status_emoji} {title}**\n"
-    summary_md += f"---\n"
-    summary_md += f"📋 **状态** | {status_text}\n"
+    summary_md = f"📋 **状态** | {status_text}\n"
     summary_md += f"✅ **成功** | {success} 个\n"
     summary_md += f"❌ **失败** | {failed} 个\n"
     summary_md += f"⏭️ **跳过** | {skipped} 个\n"
@@ -336,7 +348,18 @@ def card_execution_report(
     elements = [{"tag": "markdown", "content": summary_md}]
 
     if details:
-        elements.append({"tag": "markdown", "content": f"---\n{details}"})
+        # 支持 list[dict] 格式：转换为 markdown 表格
+        if isinstance(details, list):
+            table_lines = []
+            for item in details:
+                task = item.get("任务", item.get("task", ""))
+                status = item.get("状态", item.get("status", ""))
+                note = item.get("说明", item.get("note", ""))
+                table_lines.append(f"• **{task}** — {status}\n  {note}")
+            details_str = "\n".join(table_lines)
+        else:
+            details_str = str(details)
+        elements.append({"tag": "markdown", "content": f"---\n{details_str}"})
 
     return elements
 
@@ -368,7 +391,7 @@ def card_feature_report(
     return [
         {
             "tag": "markdown",
-            "content": f"**💡 {title}**\n---\n📍 **分支** | `{branch}`\n---\n{feature_content}"
+            "content": f"📍 **分支** | `{branch}`\n---\n{feature_content}"
         }
     ]
 
@@ -383,10 +406,12 @@ def card_task_preview(
     """
     执行前任务预览卡片 — 列出即将执行的任务列表
 
+    注意：不包含标题和副标题，统一由 header 传入
+
     Args:
-        title: 卡片标题
+        title: 废弃，传空字符串即可
         tasks: 任务列表（markdown 格式，每行一个任务）
-        subtitle: 副标题/状态描述
+        subtitle: 废弃，传空字符串即可
         total: 任务总数
         from_name: 来源名称
 
@@ -397,9 +422,8 @@ def card_task_preview(
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     task_count_text = f"**{total}** 个任务" if total > 0 else "无任务"
-    subtitle_md = f"\n🔍 *{subtitle}*" if subtitle else ""
 
-    header = f"**📋 {title}**{subtitle_md}\n---\n⏰ **预览时间** | {now}\n📋 **任务数量** | {task_count_text}\n---\n**待执行任务：**\n{tasks}"
+    header = f"⏰ **预览时间** | {now}\n📋 **任务数量** | {task_count_text}\n---\n**待执行任务：**\n{tasks}"
     return [{"tag": "markdown", "content": header}]
 
 
@@ -407,8 +431,10 @@ def card_error(title: str, error_msg: str) -> list:
     """
     错误卡片 — 执行过程中出错时发送
 
+    注意：不包含标题，统一由 header 传入
+
     Args:
-        title: 错误标题
+        title: 废弃，传空字符串即可
         error_msg: 错误信息
 
     Returns:
@@ -420,7 +446,7 @@ def card_error(title: str, error_msg: str) -> list:
     return [
         {
             "tag": "markdown",
-            "content": f"**🚨 {title}**\n---\n⏰ **时间** | {now}\n---\n```\n{error_msg}\n```"
+            "content": f"⏰ **时间** | {now}\n---\n```\n{error_msg}\n```"
         }
     ]
 

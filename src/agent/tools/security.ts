@@ -16,6 +16,9 @@ import {
   isCommandAllowed,
   SHELL_METACHAR_REGEX,
   hasShellMetacharacters,
+  COMMAND_ALLOWLIST,
+  getCommandSchema,
+  validateCommandArgs,
 } from './security-patterns.js';
 
 // Re-export for backward compatibility
@@ -26,6 +29,9 @@ export {
   isCommandAllowed,
   SHELL_METACHAR_REGEX,
   hasShellMetacharacters,
+  COMMAND_ALLOWLIST,
+  getCommandSchema,
+  validateCommandArgs,
 };
 
 // ─── Path Validation ──────────────────────────────────────────────────────────

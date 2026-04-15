@@ -7,6 +7,7 @@ import {
   SHELL_METACHAR_REGEX,
   ALLOWED_COMMANDS,
   isCommandBlocked,
+  validateCommandArgs,
 } from './security-patterns.js';
 
 const execAsync = promisify(exec);
@@ -135,6 +136,21 @@ export const runCommandTool = {
     const baseCmd = trimmed.split(/\s+/)[0]?.toLowerCase() || '';
     if (ALLOWED_COMMANDS.has(baseCmd)) {
       const { cmd, args } = parseCommand(command);
+
+      // Argument validation via Zod schema (if command has one)
+      const validation = validateCommandArgs(baseCmd, args);
+      if (!validation.valid) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Invalid arguments for '${baseCmd}': ${validation.error}`,
+            },
+          ],
+          details: { command, success: false, reason: 'invalid_arguments' },
+        };
+      }
+
       const timeout = getTimeout(command);
       try {
         const { stdout, stderr } = await execFileAsync(cmd, args, {
