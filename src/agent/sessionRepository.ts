@@ -15,6 +15,9 @@ import {
   isValidSessionId,
   extractMessageText,
 } from './sessionUtils.js';
+import {
+  extractTitle,
+} from './sessionService.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -311,12 +314,7 @@ export class JsonSessionRepository implements ISessionRepository {
   }
 
   protected extractTitle(messages: AgentMessage[]): string | null {
-    if (messages.length === 0) return null;
-    const firstUserMsg = messages.find(m => m.role === 'user');
-    const content = extractMessageText((firstUserMsg as any)?.content);
-    if (!content) return null;
-    const text = content.trim();
-    return text.length > 40 ? text.slice(0, 40) + '...' : text;
+    return extractTitle(messages);
   }
 
   private async exists(target: string): Promise<boolean> {
