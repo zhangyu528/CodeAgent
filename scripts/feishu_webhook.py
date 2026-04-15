@@ -51,6 +51,8 @@ def send_card(webhook_url: str, card: list, header: dict = None) -> dict:
 
 AUTONOMY_HEADER = {"title": "🤖 CodeAgent 自主优化", "template": "blue"}      # 蓝色系 — 系统性分析/改进
 IDEAS_HEADER    = {"title": "💡 CodeAgent 新功能提案", "template": "purple"} # 紫色系 — 创意提案
+IDEAS_EXEC_HEADER = {"title": "💡 CodeAgent 提案执行", "template": "orange"}   # 橙色系 — 提案执行开始
+SUCCESS_HEADER  = {"title": "✅ CodeAgent 执行完成", "template": "green"}     # 绿色系 — 执行完成报告
 ERROR_HEADER    = {"title": "🚨 CodeAgent 执行异常", "template": "red"}     # 红色系 — 错误
 COMMIT_HEADER   = {"title": "📝 CodeAgent Commit 报告", "template": "green"}  # 绿色系 — commit 通知
 
