@@ -82,7 +82,10 @@ export const runCommandTool = {
   parameters: z.object({
     command: z.string().describe('The shell command to execute.'),
   }),
-  execute: async (toolCallId: string, { command }: { command: string }): Promise<AgentToolResult<any>> => {
+  execute: async (
+    toolCallId: string,
+    { command }: { command: string }
+  ): Promise<AgentToolResult<any>> => {
     const trimmed = command.trim();
 
     // If command contains shell metacharacters, it must use exec() with shell=true
@@ -91,22 +94,36 @@ export const runCommandTool = {
       // Security check: block dangerous patterns FIRST
       if (isCommandBlocked(trimmed)) {
         return {
-          content: [{ type: 'text', text: `Command blocked for security reasons: potentially dangerous pattern detected.` }],
+          content: [
+            {
+              type: 'text',
+              text: `Command blocked for security reasons: potentially dangerous pattern detected.`,
+            },
+          ],
           details: { command, success: false, reason: 'blocked_dangerous_pattern' },
         };
       }
 
       const timeout = getTimeout(command);
       try {
-        const { stdout, stderr } = await execAsync(command, { timeout, maxBuffer: MAX_BUFFER_SIZE });
+        const { stdout, stderr } = await execAsync(command, {
+          timeout,
+          maxBuffer: MAX_BUFFER_SIZE,
+        });
         const output = stdout + (stderr ? `\nErrors:\n${stderr}` : '');
         return { content: [{ type: 'text', text: output }], details: { command, success: true } };
       } catch (error: unknown) {
-        const err = error as {killed?: boolean; signal?: string; message?: string; stderr?: string; timedOut?: boolean};
+        const err = error as {
+          killed?: boolean;
+          signal?: string;
+          message?: string;
+          stderr?: string;
+          timedOut?: boolean;
+        };
         if (err.killed || err.signal === 'SIGTERM' || err.timedOut) {
           return {
             content: [{ type: 'text', text: `Command timed out after ${timeout / 1000} seconds` }],
-            details: { command, success: false, reason: 'timeout' }
+            details: { command, success: false, reason: 'timeout' },
           };
         }
         const output = `Command failed: ${err.message || String(error)}${err.stderr ? `\nStderr:\n${err.stderr}` : ''}`;
@@ -120,15 +137,25 @@ export const runCommandTool = {
       const { cmd, args } = parseCommand(command);
       const timeout = getTimeout(command);
       try {
-        const { stdout, stderr } = await execFileAsync(cmd, args, { timeout, maxBuffer: MAX_BUFFER_SIZE });
+        const { stdout, stderr } = await execFileAsync(cmd, args, {
+          timeout,
+          maxBuffer: MAX_BUFFER_SIZE,
+          shell: false,
+        });
         const output = stdout + (stderr ? `\nErrors:\n${stderr}` : '');
         return { content: [{ type: 'text', text: output }], details: { command, success: true } };
       } catch (error: unknown) {
-        const err = error as {killed?: boolean; signal?: string; message?: string; stderr?: string; timedOut?: boolean};
+        const err = error as {
+          killed?: boolean;
+          signal?: string;
+          message?: string;
+          stderr?: string;
+          timedOut?: boolean;
+        };
         if (err.killed || err.signal === 'SIGTERM' || err.timedOut) {
           return {
             content: [{ type: 'text', text: `Command timed out after ${timeout / 1000} seconds` }],
-            details: { command, success: false, reason: 'timeout' }
+            details: { command, success: false, reason: 'timeout' },
           };
         }
         const output = `Command failed: ${err.message || String(error)}${err.stderr ? `\nStderr:\n${err.stderr}` : ''}`;
@@ -142,14 +169,24 @@ export const runCommandTool = {
     // Unknown commands must be explicitly allowlisted.
     if (isCommandBlocked(trimmed)) {
       return {
-        content: [{ type: 'text', text: `Command blocked for security reasons: potentially dangerous pattern detected.` }],
+        content: [
+          {
+            type: 'text',
+            text: `Command blocked for security reasons: potentially dangerous pattern detected.`,
+          },
+        ],
         details: { command, success: false, reason: 'blocked_dangerous_pattern' },
       };
     }
 
     // Unknown command — reject it rather than silently executing via exec()
     return {
-      content: [{ type: 'text', text: `Command not allowed: '${baseCmd}' is not in the approved command list. If you need this command, it must be explicitly allowlisted.` }],
+      content: [
+        {
+          type: 'text',
+          text: `Command not allowed: '${baseCmd}' is not in the approved command list. If you need this command, it must be explicitly allowlisted.`,
+        },
+      ],
       details: { command, success: false, reason: 'command_not_allowed' },
     };
   },
