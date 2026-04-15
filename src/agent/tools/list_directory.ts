@@ -9,22 +9,35 @@ const getWorkspaceRoot = (): string => {
   return process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
 };
 
-export const listDirectoryTool = {
+export const listDirectoryToolDefinition = {
   name: 'list_directory',
   label: 'Listing Directory',
-  description: 'List the contents of a directory.',
+  description: 'List the contents of a directory, showing files and subdirectories.',
+  category: 'file' as const,
   parameters: z.object({
     directoryPath: z.string().describe('The path to the directory to list.'),
   }),
-  execute: async (toolCallId: string, { directoryPath }: { directoryPath: string }): Promise<AgentToolResult<any>> => {
+};
+
+export const listDirectoryTool: AgentTool<any> = {
+  ...listDirectoryToolDefinition,
+  execute: async (
+    toolCallId: string,
+    { directoryPath }: { directoryPath: string }
+  ): Promise<AgentToolResult<any>> => {
     const workspaceRoot = getWorkspaceRoot();
 
     // Use shared security module for path validation
     // Pass original directoryPath (not pre-resolved) so validatePath can detect and expand ~ correctly
     if (!validatePath(directoryPath, workspaceRoot)) {
       return {
-        content: [{ type: 'text', text: `Error: Access denied. Path is outside workspace: ${directoryPath}` }],
-        details: { directoryPath, success: false, reason: 'path_traversal' }
+        content: [
+          {
+            type: 'text',
+            text: `Error: Access denied. Path is outside workspace: ${directoryPath}`,
+          },
+        ],
+        details: { directoryPath, success: false, reason: 'path_traversal' },
       };
     }
 
@@ -34,10 +47,16 @@ export const listDirectoryTool = {
       const files = await fs.readdir(resolvedPath, { withFileTypes: true });
       const lines = files.map(f => `${f.isDirectory() ? '[DIR]' : '[FILE]'} ${f.name}`);
       const output = lines.length > 0 ? lines.join('\n') : '(empty)';
-      return { content: [{ type: 'text', text: output }], details: { directoryPath, success: true } };
+      return {
+        content: [{ type: 'text', text: output }],
+        details: { directoryPath, success: true },
+      };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      return { content: [{ type: 'text', text: `Error: ${message}` }], details: { directoryPath, success: false } };
+      return {
+        content: [{ type: 'text', text: `Error: ${message}` }],
+        details: { directoryPath, success: false },
+      };
     }
   },
 };

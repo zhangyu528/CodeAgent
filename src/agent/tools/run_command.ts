@@ -101,13 +101,29 @@ function parseCommand(command: string): { cmd: string; args: string[] } {
   return { cmd, args: tokens.slice(1) };
 }
 
-export const runCommandTool = {
+export const runCommandToolDefinition = {
   name: 'run_command',
   label: 'Running Command',
-  description: 'Run a shell command.',
+  description:
+    'Run a shell command in the terminal. Supports pipes, redirects, and shell built-ins.',
+  category: 'terminal' as const,
   parameters: z.object({
     command: z.string().describe('The shell command to execute.'),
   }),
+  examples: [
+    {
+      input: { command: 'git status' },
+      description: 'Check current git repository status',
+    },
+    {
+      input: { command: 'npm install --legacy-peer-deps' },
+      description: 'Install npm dependencies with legacy peer deps flag',
+    },
+  ],
+};
+
+export const runCommandTool: AgentTool<any> = {
+  ...runCommandToolDefinition,
   execute: async (
     toolCallId: string,
     { command }: { command: string }

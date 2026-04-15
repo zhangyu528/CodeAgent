@@ -17,14 +17,20 @@ function getSandbox(): ToolExecutionContext {
   return _sandboxCtx;
 }
 
-export const writeFileTool = {
+export const writeFileToolDefinition = {
   name: 'write_file',
   label: 'Writing File',
-  description: 'Write content to a file. Overwrites if exists.',
+  description:
+    'Write content to a file. Overwrites if file exists. Creates parent directories if needed.',
+  category: 'file' as const,
   parameters: z.object({
     filePath: z.string().describe('The path to the file to write to.'),
     content: z.string().describe('The content to write.'),
   }),
+};
+
+export const writeFileTool: AgentTool<any> = {
+  ...writeFileToolDefinition,
   execute: async (
     toolCallId: string,
     { filePath, content }: { filePath: string; content: string }
