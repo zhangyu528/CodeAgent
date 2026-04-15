@@ -170,5 +170,82 @@ describe('runCommandTool', () => {
       expect(result.details.success).toBe(true);
       expect(result.content[0].text).toContain('hello world');
     });
+
+    it('should allow vim (extended allowlist)', async () => {
+      // vim is now in ALLOWED_COMMANDS — but it requires a TTY
+      // We just verify it's recognized as allowed (execFile path) not blocked
+      const result = await runCommandTool.execute('test-id', { command: 'vim --version' });
+      // vim without a TTY will fail, but it should NOT be command_not_allowed
+      expect(result.details.reason).not.toBe('command_not_allowed');
+    });
+
+    it('should allow hg (extended allowlist)', async () => {
+      // hg (Mercurial) is now in ALLOWED_COMMANDS
+      const result = await runCommandTool.execute('test-id', { command: 'hg version' });
+      // Should either succeed or fail with non-allowlist reason
+      expect(result.details.reason).not.toBe('command_not_allowed');
+    });
+
+    it('should allow man (extended allowlist)', async () => {
+      // man is now in ALLOWED_COMMANDS
+      const result = await runCommandTool.execute('test-id', { command: 'man --version' });
+      expect(result.details.reason).not.toBe('command_not_allowed');
+    });
+
+    it('should allow ssh (extended allowlist)', async () => {
+      // ssh is now in ALLOWED_COMMANDS
+      const result = await runCommandTool.execute('test-id', { command: 'ssh -V' });
+      // ssh -V outputs to stderr, but should not be command_not_allowed
+      expect(result.details.reason).not.toBe('command_not_allowed');
+    });
+
+    it('should allow scp (extended allowlist)', async () => {
+      // scp is now in ALLOWED_COMMANDS
+      const result = await runCommandTool.execute('test-id', { command: 'scp -V' });
+      expect(result.details.reason).not.toBe('command_not_allowed');
+    });
+
+    it('should allow rsync (extended allowlist)', async () => {
+      // rsync is now in ALLOWED_COMMANDS
+      const result = await runCommandTool.execute('test-id', { command: 'rsync --version' });
+      expect(result.details.reason).not.toBe('command_not_allowed');
+    });
+
+    it('should allow nano (extended allowlist)', async () => {
+      // nano is now in ALLOWED_COMMANDS
+      const result = await runCommandTool.execute('test-id', { command: 'nano --version' });
+      expect(result.details.reason).not.toBe('command_not_allowed');
+    });
+
+    it('should allow less (extended allowlist)', async () => {
+      // less is now in ALLOWED_COMMANDS
+      const result = await runCommandTool.execute('test-id', { command: 'less --version' });
+      expect(result.details.reason).not.toBe('command_not_allowed');
+    });
+  });
+
+  describe('glob expansion', () => {
+    it('should handle glob pattern with * via shell exec (current behavior)', async () => {
+      // Currently glob patterns go through exec() with shell=true
+      // The shell handles glob expansion, so this should succeed
+      const result = await runCommandTool.execute('test-id', { command: 'ls *.ts' });
+      // Goes through exec() path, reason is undefined on success
+      expect(result.details.success).toBe(true);
+      expect(result.details.reason).toBeUndefined();
+    });
+
+    it('should handle glob pattern with ? via shell exec (current behavior)', async () => {
+      // Note: ? glob matches any single char, fails if no single-char file exists
+      const result = await runCommandTool.execute('test-id', { command: 'ls README.??' });
+      // Will fail if no 2-char extension exists, which is expected
+      // The key is it goes through exec() path, not command_not_allowed
+      expect(result.details.reason).not.toBe('command_not_allowed');
+    });
+
+    it('should use execFile for non-glob ls commands', async () => {
+      // ls without glob should use execFile (shell:false)
+      const result = await runCommandTool.execute('test-id', { command: 'ls' });
+      expect(result.details.success).toBe(true);
+    });
   });
 });

@@ -31,11 +31,26 @@ export const BLOCKED_REGEX = /\$\(|\`[^\`]*\`|\|\||&&|;\s*rm|^rm\s+-rf\s+\/\s*$|
  * Commands in this list are permitted without shell metacharacter restrictions.
  */
 export const ALLOWED_COMMANDS = new Set([
-  'echo', 'cat', 'head', 'tail', 'grep', 'wc', 'ls', 'pwd', 'true', 'false',
-  'printf', 'touch', 'mkdir', 'cd', 'export', 'exit', 'git', 'npm', 'bun',
-  'pnpm', 'yarn', 'node', 'python', 'python3', 'ruby', 'go', 'cargo', 'rustc',
-  'make', 'cmake', 'gcc', 'g++', 'curl', 'wget', 'tar', 'gzip', 'gunzip',
-  'zip', 'unzip', 'chmod', 'chown', 'find', 'stat', 'diff', 'cp', 'mv', 'rm',
+  // Read-only filesystem
+  'ls', 'pwd', 'cat', 'head', 'tail', 'grep', 'wc', 'find', 'stat', 'diff',
+  // File operations
+  'touch', 'mkdir', 'cp', 'mv', 'rm',
+  // Shell builtins
+  'echo', 'printf', 'true', 'false', 'exit', 'export', 'cd', 'type',
+  // Version control
+  'git', 'hg',
+  // Package managers
+  'npm', 'bun', 'pnpm', 'yarn',
+  // Runtime
+  'node', 'python', 'python3', 'ruby', 'go', 'cargo', 'rustc',
+  // Build tools
+  'make', 'cmake', 'gcc', 'g++',
+  // Utilities
+  'curl', 'wget', 'tar', 'gzip', 'gunzip', 'zip', 'unzip', 'chmod', 'chown',
+  // Editors & Interactive
+  'vim', 'nano', 'less', 'more', 'man',
+  // Remote
+  'ssh', 'scp', 'rsync',
 ]);
 
 // ─── Security Helpers ─────────────────────────────────────────────────────────
@@ -98,8 +113,9 @@ export function validateSessionId(id: string): boolean {
 /**
  * Shell metacharacters that require shell=true to work.
  * If any of these appear, the command must go through exec() with shell=true.
+ * Includes glob metacharacters (* ? [ ]) because shell expansion is needed for them.
  */
-export const SHELL_METACHAR_REGEX = /[|&;()<>`]/;
+export const SHELL_METACHAR_REGEX = /[|&;()<>`*?[\]]/;
 
 /**
  * Returns true if the command contains any shell metacharacter.
