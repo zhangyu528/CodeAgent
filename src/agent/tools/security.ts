@@ -13,12 +13,14 @@ import * as path from 'path';
  * Returns the normalized path if valid, null if it escapes the workspace.
  */
 export function validatePath(inputPath: string, workspaceRoot: string): string | null {
-  // Expand ~ if present (Node.js path.resolve doesn't do this)
-  let resolvedPath = path.resolve(inputPath);
-  if (inputPath.startsWith('~') || resolvedPath.includes('/~')) {
+  // Expand ~ if present at the START of the path (Node.js path.resolve doesn't do this)
+  let resolvedPath: string;
+  if (inputPath.startsWith('~')) {
     const homeDir = process.env.HOME || process.env.USERPROFILE || '/';
     const expandedPath = inputPath.replace(/^~/, homeDir);
     resolvedPath = path.resolve(expandedPath);
+  } else {
+    resolvedPath = path.resolve(inputPath);
   }
 
   const normalizedWorkspace = path.resolve(workspaceRoot) + path.sep;

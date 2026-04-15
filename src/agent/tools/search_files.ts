@@ -2,10 +2,13 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AgentToolResult } from '@mariozechner/pi-agent-core';
+import { validatePath } from './security.js';
 
-// Workspace root - cached at module load time to avoid repeated process.env lookups
-// Can be overridden via CODEAGENT_WORKSPACE_ROOT before the module is first imported
-const WORKSPACE_ROOT = process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
+// Workspace root - resolved dynamically from environment each time
+// NOTE: This must be a function call (not a cached constant) because tests set
+// CODEAGENT_WORKSPACE_ROOT after the module is imported. Using a function ensures
+// we always read the current env value, not the value at module load time.
+const getWorkspaceRoot = (): string => process.env.CODEAGENT_WORKSPACE_ROOT || process.cwd();
 
 // ReDoS protection: regex.test() calls are wrapped with a step counter
 // that aborts if execution exceeds MAX_REGEX_OPERATIONS to prevent catastrophic backtracking.
@@ -84,20 +87,11 @@ export const searchFilesTool = {
     { pattern, directoryPath = '.', fileExtension, maxResults = 50 }: 
     { pattern: string; directoryPath?: string; fileExtension?: string; maxResults?: number }
   ): Promise<AgentToolResult<any>> => {
-    const workspaceRoot = WORKSPACE_ROOT;
-    const resolvedPath = path.resolve(directoryPath);
-    const normalizedWorkspace = path.resolve(workspaceRoot) + path.sep;
+    const workspaceRoot = getWorkspaceRoot();
 
-    // Reject home directory paths (~ expansion is NOT done by Node.js path.resolve)
-    if (directoryPath.startsWith('~') || resolvedPath.includes('/~')) {
-      return {
-        content: [{ type: 'text', text: `Error: Access denied. Home directory paths are not allowed: ${directoryPath}` }],
-        details: { directoryPath, success: false, reason: 'path_traversal' }
-      };
-    }
-
-    // Check if resolved path is within workspace root
-    if (!resolvedPath.startsWith(normalizedWorkspace)) {
+    // Use shared security module for path validation
+    // Pass original directoryPath (not pre-resolved) so validatePath can detect and expand ~ correctly
+    if (!validatePath(directoryPath, workspaceRoot)) {
       return {
         content: [{ type: 'text', text: `Error: Access denied. Path is outside workspace: ${directoryPath}` }],
         details: { directoryPath, success: false, reason: 'path_traversal' }

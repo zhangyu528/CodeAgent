@@ -3,35 +3,107 @@
  * Tests for validatePath, validateSessionId, checkCommandAllowed
  */
 import { describe, it, expect } from 'vitest';
+import * as path from 'path';
 import { validatePath, validateSessionId, checkCommandAllowed } from '../../../../src/agent/tools/security.js';
 
 describe('validatePath', () => {
-  const workspaceRoot = '/tmp/workspace';
+  // Use the project root which actually exists for testing
+  const projectRoot = path.resolve('/mnt/d/work/project/CodeAgent');
+  const srcDir = path.join(projectRoot, 'src');
 
   it('should return normalized path for valid workspace-internal paths', () => {
-    const result = validatePath('/tmp/workspace/src/app.ts', workspaceRoot);
-    expect(result).toBe('/tmp/workspace/src/app.ts');
+    const result = validatePath(path.join(projectRoot, 'package.json'), projectRoot);
+    expect(result).toBe(path.join(projectRoot, 'package.json'));
   });
 
   it('should return null for path traversal attempts with ../', () => {
-    const result = validatePath('/tmp/workspace/../../../etc/passwd', workspaceRoot);
+    const result = validatePath(path.join(projectRoot, '..', '..', 'etc', 'passwd'), projectRoot);
     expect(result).toBeNull();
   });
 
   it('should return null for absolute path outside workspace', () => {
-    const result = validatePath('/etc/passwd', workspaceRoot);
+    const result = validatePath('/etc/passwd', projectRoot);
     expect(result).toBeNull();
   });
 
-  it('should return null for paths escaping workspace via symbolic link simulation', () => {
-    const result = validatePath('/tmp/workspace/src/../../other/file', workspaceRoot);
+  it('should return null for paths escaping workspace via ../', () => {
+    const result = validatePath(path.join(projectRoot, 'src', '..', '..', 'other', 'file'), projectRoot);
     expect(result).toBeNull();
   });
 
   it('should handle paths with trailing slashes correctly', () => {
     // path.resolve normalizes trailing slashes — this is expected behavior
-    const result = validatePath('/tmp/workspace/src/', workspaceRoot);
-    expect(result).toBe('/tmp/workspace/src');
+    const result = validatePath(path.join(projectRoot, 'src') + '/', projectRoot);
+    expect(result).toBe(srcDir);
+  });
+
+  it('should expand tilde to home directory', () => {
+    // This test verifies tilde expansion works
+    const homeDir = process.env.HOME || '/home/user';
+    const result = validatePath('~/project/file.txt', projectRoot);
+    // Tilde expansion should work, but the result is validated against workspace
+    const expectedResolved = path.join(homeDir, 'project/file.txt');
+    if (expectedResolved.startsWith(projectRoot + path.sep)) {
+      expect(result).toBe(expectedResolved);
+    } else {
+      expect(result).toBeNull();
+    }
+  });
+
+  it('should return null for tilde path that escapes workspace after expansion', () => {
+    const result = validatePath('~/../../etc/passwd', projectRoot);
+    expect(result).toBeNull();
+  });
+
+  it('should handle tilde paths when HOME is inside workspace', () => {
+    // Test that tilde expansion works correctly when HOME is inside workspace
+    const originalHome = process.env.HOME;
+    process.env.HOME = projectRoot;
+    try {
+      const result = validatePath('~/file.txt', projectRoot);
+      expect(result).toBe(path.join(projectRoot, 'file.txt'));
+    } finally {
+      process.env.HOME = originalHome;
+    }
+  });
+
+  it('should return normalized path for subdirectory inside workspace', () => {
+    const result = validatePath(path.join(projectRoot, 'src', 'app.ts'), projectRoot);
+    expect(result).toBe(path.join(projectRoot, 'src', 'app.ts'));
+  });
+
+  it('should handle paths with redundant slashes', () => {
+    const result = validatePath(path.join(projectRoot, 'src') + '//app.ts', projectRoot);
+    expect(result).toBe(path.join(projectRoot, 'src', 'app.ts'));
+  });
+
+  it('should handle paths with . and .. mixed', () => {
+    const result = validatePath(path.join(projectRoot, '.', 'src', '..', 'src', 'app.ts'), projectRoot);
+    expect(result).toBe(path.join(projectRoot, 'src', 'app.ts'));
+  });
+
+  it('should return null for deeply nested path traversal', () => {
+    const result = validatePath(
+      path.join(projectRoot, 'a', 'b', 'c', 'd', 'e', 'f', '..', '..', '..', '..', '..', '..', '..', '..', 'etc', 'passwd'),
+      projectRoot
+    );
+    expect(result).toBeNull();
+  });
+
+  it('should return null for path that resolves to workspace parent', () => {
+    const result = validatePath(path.join(projectRoot, '..'), projectRoot);
+    expect(result).toBeNull();
+  });
+
+  it('should return null for path outside workspace with spaces', () => {
+    const result = validatePath('/mnt/d/work project/file.txt', projectRoot);
+    expect(result).toBeNull();
+  });
+
+  it('should return null for path that is exactly the parent of workspace', () => {
+    const parentDir = path.dirname(projectRoot);
+    const result = validatePath(parentDir, projectRoot);
+    expect(result).toBeNull();
   });
 });
 
@@ -86,7 +158,6 @@ describe('checkCommandAllowed', () => {
   it('should reject commands with command substitution injection', () => {
     const result = checkCommandAllowed('echo $(whoami)');
     expect(result.allowed).toBe(false);
-    // Blocked by the BLOCKED_REGEX pattern for $()
     expect(result.reason).toBeDefined();
   });
 
@@ -110,10 +181,9 @@ describe('checkCommandAllowed', () => {
     expect(result.allowed).toBe(false);
   });
 
-  it('should allow unknown safe commands (no shell metacharacters, not in blocklist)', () => {
-    // Unknown command without shell metacharacters should be rejected
-    // This is the key security fix: unknown commands without shell features should NOT silently execute
+  it('should reject unknown commands that are not in allowlist', () => {
     const result = checkCommandAllowed('unknowncmd --flag');
     expect(result.allowed).toBe(false);
+    expect(result.reason).toBe('command_not_in_allowlist');
   });
 });

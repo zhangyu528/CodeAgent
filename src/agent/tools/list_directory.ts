@@ -2,6 +2,7 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AgentToolResult } from '@mariozechner/pi-agent-core';
+import { validatePath } from './security.js';
 
 // Workspace root - can be overridden via environment variable or defaults to process.cwd()
 const getWorkspaceRoot = (): string => {
@@ -17,24 +18,17 @@ export const listDirectoryTool = {
   }),
   execute: async (toolCallId: string, { directoryPath }: { directoryPath: string }): Promise<AgentToolResult<any>> => {
     const workspaceRoot = getWorkspaceRoot();
-    const resolvedPath = path.resolve(directoryPath);
-    const normalizedWorkspace = path.resolve(workspaceRoot) + path.sep;
 
-    // Reject home directory paths (~ expansion is NOT done by Node.js path.resolve)
-    if (directoryPath.startsWith('~') || resolvedPath.includes('/~')) {
-      return {
-        content: [{ type: 'text', text: `Error: Access denied. Home directory paths are not allowed: ${directoryPath}` }],
-        details: { directoryPath, success: false, reason: 'path_traversal' }
-      };
-    }
-
-    // Check if resolved path is within workspace root
-    if (!resolvedPath.startsWith(normalizedWorkspace)) {
+    // Use shared security module for path validation
+    // Pass original directoryPath (not pre-resolved) so validatePath can detect and expand ~ correctly
+    if (!validatePath(directoryPath, workspaceRoot)) {
       return {
         content: [{ type: 'text', text: `Error: Access denied. Path is outside workspace: ${directoryPath}` }],
         details: { directoryPath, success: false, reason: 'path_traversal' }
       };
     }
+
+    const resolvedPath = path.resolve(directoryPath);
 
     try {
       const files = await fs.readdir(resolvedPath, { withFileTypes: true });
