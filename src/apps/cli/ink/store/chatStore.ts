@@ -185,7 +185,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const success = await switchSession(sessionPath);
       if (!success) return false;
 
-      const sessionName = getSessionName() || 'Untitled Session';
+      // Get session name from the session file (via listSessions which reads file directly).
+      // listSessions returns SessionInfo with name/firstMessage, whereas getSessionName()
+      // only reads from in-memory entries that may not have a session_info entry.
+      const sessions = await listSessions();
+      const info = sessions.find((s: any) => s.path === sessionPath);
+      const sessionName = info?.name || info?.firstMessage?.slice(0, 40) || getSessionName() || 'Untitled Session';
 
       set({
         activeSessionId: getSessionId(),
