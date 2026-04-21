@@ -2,19 +2,18 @@
   "name": "codeagent",
   "version": "0.1.0",
   "description": "CodeAgent - AI-powered terminal assistant with multi-provider LLM support",
-  "main": "dist/apps/cli/index.js",
+  "main": "dist/cli/index.js",
   "bin": {
-    "codeagent": "dist/apps/cli/index.js"
+    "codeagent": "dist/cli/index.js"
   },
   "files": [
     "dist",
-    "bin",
     "README.md"
   ],
   "scripts": {
     "dev": "bun run src/apps/cli/index.tsx",
-    "build": "bun build src/apps/cli/index.tsx --target=node --outfile=dist/apps/cli/index.js",
-    "start": "bun run dist/apps/cli/index.js",
+    "build": "bun build src/apps/cli/index.tsx --target=node --outfile=dist/cli/index.js",
+    "start": "bun run dist/cli/index.js",
     "test": "vitest",
     "test:run": "vitest run",
     "lint": "eslint src/",
