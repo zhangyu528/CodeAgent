@@ -18,6 +18,7 @@ import {
   getSessionName,
   setSessionName,
   getSessionMessages,
+  getSessionFile,
 } from '@codeagent/core';
 import {
   ChatMessageSchema,
@@ -32,6 +33,7 @@ export type SessionStatus = 'active' | 'completed' | 'error' | 'streaming';
 
 interface SessionInfo {
   id: string;
+  path: string;
   title: string;
   updatedAt: number;
   messageCount: number;
@@ -78,7 +80,7 @@ interface ChatStore {
   // Session Actions
   refreshHistory: (limit?: number) => Promise<SessionInfo[]>;
   persistCurrentSession: (status?: SessionStatus, messages?: ChatMessage[]) => void;
-  restoreSessionById: (sessionId: string) => Promise<boolean>;
+  restoreSessionByPath: (sessionPath: string) => Promise<boolean>;
   ensureSessionForPrompt: (userInput: string) => string;
 
   // Pending Prompt Actions
@@ -119,9 +121,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   refreshHistory: async (limit?: number) => {
     const allSessions = await listSessions();
     const history = limit ? allSessions.slice(0, limit) : allSessions;
-    // pi-coding-agent SessionInfo: { id, name, modified, messageCount, firstMessage, ... }
+    // pi-coding-agent SessionInfo: { id, path, name, modified, messageCount, firstMessage, ... }
     const mapped: SessionInfo[] = history.map((h: any) => ({
       id: h.id,
+      path: h.path,
       title: h.name || h.firstMessage?.slice(0, 40) || 'Untitled Session',
       updatedAt: h.modified instanceof Date ? h.modified.getTime() : h.modified,
       messageCount: h.messageCount || 0,
@@ -178,21 +181,36 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     };
   })(),
 
-  restoreSessionById: async (sessionId: string) => {
+  restoreSessionByPath: async (sessionPath: string) => {
     try {
-      const success = await switchSession(sessionId);
+      const success = await switchSession(sessionPath);
       if (!success) return false;
 
-      // Restore both session state and messages atomically
-      // Use getSessionManager().getSessionName() to read name from session file (session_info entry),
-      // not getSessionName() which reads from in-memory agentSession.sessionName
-      const sessionName = getSessionManager().getSessionName();
+      // pi-coding-agent doesn't store session name in the file — it only exists in memory.
+      // The session file's first line has a "session" entry with timestamp and cwd.
+      // We use that timestamp (formatted) as the session display name.
+      const sessionFile = getSessionFile();
+      let sessionName: string | undefined;
+      if (sessionFile) {
+        try {
+          const { readFileSync } = await import('fs');
+          const firstLine = readFileSync(sessionFile, 'utf8').split('\n')[0]!;
+          const entry = JSON.parse(firstLine);
+          if (entry?.timestamp) {
+            const d = new Date(entry.timestamp);
+            sessionName = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          }
+        } catch { /* ignore */ }
+      }
+      sessionName = sessionName || getSessionName() || getSessionManager().getSessionName() || 'Untitled Session';
+
       set({
         activeSessionId: getSessionId(),
         currentSession: {
           id: getSessionId(),
+          path: sessionFile || sessionPath,
           title: sessionName || 'Untitled Session',
-          status: 'completed', // Default status for restored sessions
+          status: 'completed',
           updatedAt: Date.now(),
           messageCount: getSessionMessages().length,
         },
@@ -214,6 +232,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         set({
           currentSession: {
             id: activeSessionId,
+            path: getSessionFile() || '',
             title: extractSessionTitle(userInput),
             status: 'active',
             updatedAt: Date.now(),
@@ -231,6 +250,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       activeSessionId: sessionId,
       currentSession: {
         id: sessionId,
+        path: getSessionFile() || '',
         title: extractSessionTitle(userInput),
         status: 'active',
         updatedAt: Date.now(),

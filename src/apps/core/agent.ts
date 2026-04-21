@@ -82,11 +82,15 @@ export function getAgentSession(): AgentSession {
  * Switch to an existing session by id.
  * Requires ensureAgentInitialized() to have completed.
  */
-export function switchSession(sessionId: string): Promise<boolean> {
+/**
+ * Switch to a different session by file path.
+ * Requires ensureAgentInitialized() to have completed.
+ */
+export function switchSession(sessionPath: string): Promise<boolean> {
   if (!agentSession) {
     throw new Error('[Agent] Not initialized.');
   }
-  return agentSession.switchSession(sessionId);
+  return agentSession.switchSession(sessionPath);
 }
 
 /**
@@ -150,4 +154,14 @@ export function getSessionMessages(): any[] {
     throw new Error('[Agent] Not initialized.');
   }
   return agentSession.messages as any[];
+}
+
+/**
+ * Get the current session file path.
+ */
+export function getSessionFile(): string | undefined {
+  if (!agentSession) {
+    return undefined;
+  }
+  return agentSession.sessionFile;
 }

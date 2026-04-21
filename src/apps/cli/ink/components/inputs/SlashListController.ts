@@ -23,13 +23,13 @@ export function useSlashHandlers(modelConfig: UseModelConfigResult) {
         title: limit ? 'Resume Recent Session' : 'Session History',
         message: limit ? 'Choose a recent session to resume.' : 'Browse and restore a saved session.',
         choices: history.map(item => ({
-          value: item.id,
+          value: item.path,
           label: `${item.title} · ${new Date(item.updatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} · ${item.messageCount} msgs`,
         })),
         footer: '↑/↓ Navigate • Enter Resume • Esc Cancel',
         emptyLabel: 'No saved sessions found',
         onSubmit: async (choice) => {
-          const restored = await session.restoreSessionById(choice.value);
+          const restored = await session.restoreSessionByPath(choice.value);
           if (!restored) {
             showNotice({ title: 'Session History', message: 'Failed to restore the selected session.' });
             return;
@@ -56,7 +56,7 @@ export function useSlashHandlers(modelConfig: UseModelConfigResult) {
         try {
           const history = await session.refreshHistory(1);
           if (history.length > 0) {
-            const restored = await session.restoreSessionById(history[0]!.id);
+            const restored = await session.restoreSessionByPath(history[0]!.path);
             if (restored) {
               setPage('chat');
               return;

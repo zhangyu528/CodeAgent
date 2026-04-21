@@ -60,6 +60,7 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
 export const ChatSessionInfoSchema = z.object({
   id: z.string(),
+  path: z.string(),
   title: z.string(),
   status: z.string(),
   updatedAt: z.number(),

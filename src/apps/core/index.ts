@@ -4,7 +4,7 @@
  */
 
 // Session management
-export { ensureAgentInitialized, getAgent, getAgentSession, switchSession, newSession, setModel, getSessionId, getSessionName, setSessionName, getSessionMessages } from './agent.js';
+export { ensureAgentInitialized, getAgent, getAgentSession, switchSession, newSession, setModel, getSessionId, getSessionName, setSessionName, getSessionMessages, getSessionFile } from './agent.js';
 export { getSessionManager, listSessions } from './sessionManager.js';
 
 // Auth helpers (API key management via AuthStorage)
