@@ -19,7 +19,6 @@ export default defineConfig({
       ],
       exclude: [
         'src/apps/cli/ink/**/*.d.ts',
-        'src/apps/cli/ink/test-input.ts',
         'src/agent/**/*.d.ts',
       ],
       // Coverage budget — prevents regression in critical modules.

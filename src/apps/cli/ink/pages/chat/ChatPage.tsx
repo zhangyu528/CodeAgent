@@ -5,10 +5,11 @@ import { ChatHeader } from '../../components/chat/ChatHeader.js';
 import { MessageList } from '../../components/chat/MessageList.js';
 import { useChatStore } from '../../store/index.js';
 import { useAgentEvents } from '../../hooks/useAgentEvents.js';
-import { useAgent } from '../../context/index.js';
+import { getAgentSession } from '../../../../core/index.js';
 
 export function ChatPage() {
-  const agent = useAgent();
+  const session = getAgentSession();
+  const agent = session.agent;
   const messages = useChatStore(state => state.messages);
   const { stdout } = useStdout();
   const [terminalRows, setTerminalRows] = useState(stdout.rows || 24);
@@ -24,7 +25,7 @@ export function ChatPage() {
   const {
     hydrateFromAgentState,
     appendUserMessage,
-  } = useAgentEvents(agent, {
+  } = useAgentEvents(session, {
     isRawModeSupported: false,
     onRawModeChange: () => {},
     onTurnSettled: (status) => {

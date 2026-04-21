@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type PiPage = 'loading' | 'welcome' | 'chat';
+export type PiPage = 'init' | 'welcome' | 'chat';
 
 interface AppStoreState {
   page: PiPage;
@@ -17,7 +17,7 @@ interface AppStoreState {
 }
 
 export const useAppStore = create<AppStoreState>((set) => ({
-  page: 'loading',
+  page: 'init',
   isFirstPress: false,
   currentModel: null,
   pendingPrompt: null,

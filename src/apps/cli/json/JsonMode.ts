@@ -1,10 +1,10 @@
 /**
  * JSON Mode - Agent event to NDJSON serializer
- * Connects pi-agent-core events to the NDJSON emitter
+ * Connects pi-coding-agent session events to the NDJSON emitter
  */
 
 import { emit, setJsonMode } from './emitter.js';
-import type { AgentEvent } from '@mariozechner/pi-agent-core';
+import type { AgentSessionEvent } from '../../../core/index.js';
 
 /**
  * Initialize JSON mode with the agent
@@ -15,19 +15,20 @@ export function initJsonMode(): void {
 }
 
 /**
- * Map agent events to JSON events and emit them
+ * Map agent session events to JSON events and emit them
  */
-export function handleAgentEvent(event: AgentEvent): void {
+export function handleAgentEvent(event: AgentSessionEvent): void {
   switch (event.type) {
     case 'message_end': {
       // Assistant message response
-      if (event.message.role === 'assistant') {
-        const content = extractTextContent(event.message as any);
+      const msg = event.message as any;
+      if (msg.role === 'assistant') {
+        const content = extractTextContent(msg);
         if (content) {
           emit({
             type: 'response',
             content,
-            model: (event.message as any).model || 'codeagent',
+            model: msg.model || 'codeagent',
           });
         }
       }
@@ -41,37 +42,17 @@ export function handleAgentEvent(event: AgentEvent): void {
         emit({
           type: 'response',
           content: msgEvent.delta,
-          model: (event.message as any).model || 'codeagent',
+          model: (event.message as any)?.model || 'codeagent',
         });
       }
       break;
     }
 
-    case 'tool_execution_start': {
-      emit({
-        type: 'tool_call',
-        tool: event.toolName,
-        args: event.args || {},
-      });
-      break;
-    }
-
-    case 'tool_execution_end': {
-      // Extract result text from the tool execution result
-      const resultText = extractResultText(event.result);
-      emit({
-        type: 'tool_result',
-        tool: event.toolName,
-        result: resultText,
-        success: !event.isError,
-      });
-      break;
-    }
-
-    case 'agent_end': {
+    case 'agent_end':
+    case 'auto_compaction_end':
+    case 'auto_retry_end':
       // Session ended - no special output needed
       break;
-    }
   }
 }
 
@@ -87,31 +68,4 @@ function extractTextContent(message: { content?: Array<{ type: string; text?: st
     }
   }
   return parts.join('');
-}
-
-/**
- * Extract readable text from tool result
- */
-function extractResultText(result: unknown): string {
-  if (!result) return '';
-
-  // Handle ToolResultMessage-like structure
-  if (typeof result === 'object' && result !== null) {
-    const r = result as Record<string, unknown>;
-
-    // Check for content array
-    if (Array.isArray(r.content)) {
-      return r.content
-        .map((item: { type?: string; text?: string }) => {
-          if (item.type === 'text' && item.text) return item.text;
-          return String(item);
-        })
-        .join('');
-    }
-
-    // Fallback: stringify the result
-    return JSON.stringify(r);
-  }
-
-  return String(result);
 }

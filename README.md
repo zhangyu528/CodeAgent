@@ -9,9 +9,9 @@ CodeAgent is an AI-powered terminal coding assistant built on [pi-coding-agent](
 - **Self-Correction**: Automatically analyzes command errors and attempts to fix them.
 - **Safety Guards**: Workspace path validation, command blocklist, and **Human-in-the-Loop (HITL)** for sensitive operations.
 - **Memory Management**: Token-aware sliding window memory (~4000 tokens) ensuring context stability.
-- **Session Persistence (SQLite)**: Sessions saved to `~/.codeagent/sessions.db` with resume support.
+- **Session Persistence (SQLite)**: Sessions saved to `~/.codeagent/sessions/` with resume support.
 - **Observability**: Real-time token usage display and detailed turn-by-turn action logging.
-- **Multi-Provider LLM**: Register **Zhipu (zai)** / **Minimax** via `.env`, switch at runtime with `/model`.
+- **Multi-Provider LLM**: Configure **Zhipu (zai)** / **Minimax** at runtime via `/model` command — no `.env` required.
 - **Ink TUI**: Full-screen terminal UI with welcome mode + chat mode, modal overlays, slash command palette, and keyboard shortcuts.
 - **Structured Chat Timeline**: Messages rendered as typed blocks (`text`, `thinking`, `reasoning`, `toolSummary`) with date-grouped history.
 - **JSON Mode**: Non-interactive NDJSON output for shell piping (`--json --prompt "..."`).
@@ -20,7 +20,6 @@ CodeAgent is an AI-powered terminal coding assistant built on [pi-coding-agent](
 
 - [Bun](https://bun.sh/) v1.3+
 - A terminal that supports Ink/TTY interactive rendering (not Windows ConPTY — use WSL or Windows Terminal).
-- At least one configured LLM provider in `.env` (see `.env.example`).
 
 ## Setup
 
@@ -29,7 +28,7 @@ CodeAgent is an AI-powered terminal coding assistant built on [pi-coding-agent](
 bun install
 ```
 
-Provider configuration is done **at runtime** via the `/model` command inside the TUI — no `.env` file is required for normal use. API keys are stored in `AuthStorage` (`~/.pi/agent/`).
+Provider configuration is done **at runtime** via the `/model` command inside the TUI — no `.env` file is required for normal use. API keys are stored in `AuthStorage` (`~/.codeagent/auth.json`).
 
 ## Usage
 
@@ -81,18 +80,18 @@ bun run test:coverage # Coverage report
 
 ```
 src/apps/
-├── core/                  # Shared business logic
+├── core/                  # Shared business logic (only layer importing pi-coding-agent)
 │   ├── index.ts           # Public API re-exports
 │   ├── agent.ts           # AgentSession singleton factory
 │   ├── apiKey.ts          # AuthStorage wrapper (API key persistence)
-│   ├── modelDiscovery.ts  # ModelRegistry cache (zai, minimax-cn)
-│   ├── logger.ts          # Consola → ~/.pi/agent/logs/codeagent.log
+│   ├── modelDiscovery.ts   # ModelRegistry cache (zai, minimax-cn)
+│   ├── logger.ts          # Consola → ~/.codeagent/logs/codeagent.log
 │   └── logViewer.ts       # PowerShell log viewer window [dev only]
 │
 ├── cli/                   # Application entry
 │   ├── index.tsx          # Entry: TTY check, flag parsing, bootstrap
 │   │
-│   ├── ink/               # Interactive TUI (Ink + React)
+│   ├── ink/                # Interactive TUI (Ink + React)
 │   │   ├── App.tsx        # Root component — page routing
 │   │   ├── AppController.ts
 │   │   ├── useKeyboardShortcuts.ts  # Double-press exit
@@ -104,35 +103,71 @@ src/apps/
 │   │   │   └── chat/ChatPage.tsx    # Main chat + agent binding
 │   │   │
 │   │   ├── components/
-│   │   │   ├── inputs/              # Input + slash command palette
-│   │   │   ├── modals/              # Ask/Confirm/Notice/SelectOne modals
-│   │   │   └── chat/                # MessageList, MessageItem, ChatHeader
+│   │   │   ├── inputs/               # Input + slash command palette
+│   │   │   │   ├── InputController.ts  # Keyboard input handling + submission
+│   │   │   │   ├── input.tsx
+│   │   │   │   ├── InputField.tsx
+│   │   │   │   ├── SlashList.tsx
+│   │   │   │   ├── SlashListController.ts
+│   │   │   │   ├── useSlashCommands.ts
+│   │   │   │   └── index.ts
+│   │   │   │
+│   │   │   ├── modals/               # Ask/Confirm/Notice/SelectOne modals
+│   │   │   │   ├── ModalContainer.tsx
+│   │   │   │   ├── ModalFrame.tsx
+│   │   │   │   ├── visibility.ts
+│   │   │   │   ├── textLayout.ts
+│   │   │   │   ├── AskModal.tsx
+│   │   │   │   ├── ConfirmModal.tsx
+│   │   │   │   ├── NoticeModal.tsx
+│   │   │   │   ├── PromptBox.tsx
+│   │   │   │   ├── SelectOneModal.tsx
+│   │   │   │   └── index.ts
+│   │   │   │
+│   │   │   ├── chat/                 # MessageList, MessageItem, ChatHeader
+│   │   │   │   ├── ChatHeader.tsx
+│   │   │   │   ├── DateDivider.tsx
+│   │   │   │   ├── MessageItem.tsx
+│   │   │   │   ├── MessageList.tsx
+│   │   │   │   ├── TypingIndicator.tsx
+│   │   │   │   └── index.ts
+│   │   │   │
+│   │   │   └── ErrorBoundary.tsx
 │   │   │
 │   │   ├── store/
-│   │   │   ├── chatStore.ts  # Unified session + message state (Zustand)
-│   │   │   ├── uiStore.ts    # Page routing + UI state
-│   │   │   └── schemas.ts    # Zod schemas (single source of truth)
+│   │   │   ├── chatStore.ts   # Unified session + message state (Zustand)
+│   │   │   ├── uiStore.ts     # Page routing + UI state
+│   │   │   ├── schemas.ts     # Zod schemas (single source of truth)
+│   │   │   └── index.ts
 │   │   │
-│   │   └── hooks/
-│   │       ├── useAgentEvents.ts     # Agent event subscription + throttle
-│   │       ├── useModelConfig.ts     # Config flow state machine
-│   │       └── useProviderConfig.ts  # Provider/model selection UI
+│   │   ├── hooks/
+│   │   │   ├── useAgentEvents.ts      # Agent event subscription + throttle
+│   │   │   ├── useModelConfig.ts       # Config flow state machine
+│   │   │   ├── useProviderConfig.ts    # Provider/model selection UI
+│   │   │   ├── useTokenTracking.ts
+│   │   │   └── index.ts
+│   │   │
+│   │   └── utils/
+│   │       ├── utils.ts
+│   │       └── messageAdapters.ts
 │   │
-│   └── json/               # JSON output mode
+│   └── json/                # JSON output mode
 │       ├── JsonMode.ts     # Event → NDJSON mapper
 │       ├── emitter.ts      # NDJSON stdout writer
-│       └── flags.ts        # --json, --prompt, --session parser
+│       ├── flags.ts        # --json, --prompt, --session parser
+│       ├── types.ts        # JsonEvent type definitions
+│       └── index.ts
 │
 docs/
-├── specs/                  # Architecture specifications
-└── archive/               # Legacy docs
+├── specs/                   # Architecture specifications (SPEC.md)
+└── archive/                # Legacy docs
 
 tests/                     # Vitest tests
 ```
 
 ## Configuration
 
-Provider API keys are configured **at runtime** via the `/model` command (no `.env` needed). Keys are persisted in `AuthStorage` at `~/.pi/agent/`.
+Provider API keys are configured **at runtime** via the `/model` command (no `.env` needed). Keys are persisted in `AuthStorage` at `~/.codeagent/auth.json`.
 
 For automated/CI environments, you can still use environment variables:
 

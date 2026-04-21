@@ -6,7 +6,7 @@
  * to reduce React re-renders from high-frequency token updates.
  */
 import { useEffect, useRef, useCallback } from 'react';
-import { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
+import { AgentSession, AgentSessionEvent } from '../../../../core/index.js';
 import { useChatStore } from '../store/index.js';
 import { ChatMessage } from '../pages/types.js';
 import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
@@ -28,8 +28,9 @@ export interface UseAgentEventsOptions {
   onError?: (message: string) => void;
 }
 
-export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
+export function useAgentEvents(session: AgentSession, options: UseAgentEventsOptions) {
   const { isRawModeSupported, onRawModeChange, onAgentStart, onAgentEnd, onTurnSettled, onError } = options;
+  const agent = session.agent;
 
   const lastTurnStatusRef = useRef<'active' | 'completed' | 'error'>('completed');
 
@@ -142,7 +143,7 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
 
   // Agent event subscription
   useEffect(() => {
-    const unsubscribe = agent.subscribe((event: AgentEvent) => {
+    const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
       switch (event.type) {
         case 'agent_start':
           lastTurnStatusRef.current = 'active';
@@ -208,6 +209,11 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
           }
           break;
         }
+
+        case 'auto_compaction_end':
+          // Refresh messages after compaction
+          hydrateFromAgentState();
+          break;
       }
     });
 
@@ -218,6 +224,7 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
       flushDeltas();
     };
   }, [
+    session,
     agent,
     isRawModeSupported,
     onRawModeChange,
@@ -233,6 +240,7 @@ export function useAgentEvents(agent: Agent, options: UseAgentEventsOptions) {
     appendThinkingDelta,
     flushDeltas,
     stopThrottleInterval,
+    hydrateFromAgentState,
   ]);
 
   // Return store state and actions

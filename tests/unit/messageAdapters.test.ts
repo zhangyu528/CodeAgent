@@ -5,13 +5,10 @@
 import { describe, it, expect } from 'vitest';
 import { agentMessagesToChatMessages } from '../../src/apps/cli/ink/utils/messageAdapters.js';
 
-// 导入真实类型
-import type { AgentMessage } from '@mariozechner/pi-agent-core';
-
 describe('messageAdapters - 真实转换逻辑测试', () => {
   describe('agentMessagesToChatMessages', () => {
     it('应该正确转换 user 角色消息', () => {
-      const agentMessages: AgentMessage[] = [
+      const agentMessages: any[] = [
         {
           id: 'msg-1',
           role: 'user',
@@ -30,7 +27,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
     });
 
     it('应该正确转换 assistant 角色消息', () => {
-      const agentMessages: AgentMessage[] = [
+      const agentMessages: any[] = [
         {
           id: 'msg-2',
           role: 'assistant',
@@ -47,7 +44,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
     });
 
     it('应该正确转换 system 角色消息', () => {
-      const agentMessages: AgentMessage[] = [
+      const agentMessages: any[] = [
         {
           id: 'msg-3',
           role: 'system',
@@ -63,7 +60,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
     });
 
     it('应该正确转换 error 角色消息', () => {
-      const agentMessages: AgentMessage[] = [
+      const agentMessages: any[] = [
         {
           id: 'msg-4',
           role: 'error',
@@ -81,7 +78,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
 
     // === BUG 潜在点：未知角色 ===
     it('应该处理未知角色 - 默认转为 system', () => {
-      const agentMessages: AgentMessage[] = [
+      const agentMessages: any[] = [
         {
           id: 'msg-5',
           role: 'unknown_role' as any,
@@ -104,7 +101,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理 content 为空字符串', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-6', role: 'user', content: '', createdAt: 6000 },
         ];
 
@@ -114,7 +111,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理 undefined content', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-7', role: 'user', content: undefined, createdAt: 7000 } as any,
         ];
 
@@ -125,7 +122,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理 content 为 null', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-8', role: 'user', content: null, createdAt: 8000 } as any,
         ];
 
@@ -136,7 +133,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理 content 为数字', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-9', role: 'user', content: 123 as any, createdAt: 9000 },
         ];
 
@@ -147,7 +144,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理 content 为对象', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-10', role: 'user', content: { text: 'Hello' } as any, createdAt: 10000 },
         ];
 
@@ -157,7 +154,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理 content 为对象但没有 text 属性', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-11', role: 'user', content: { no_text: 'Hello' } as any, createdAt: 11000 },
         ];
 
@@ -171,7 +168,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
     // === 数组 content 测试 ===
     describe('数组 content 处理', () => {
       it('应该处理字符串数组', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-12', role: 'user', content: ['Hello', 'World'] as any, createdAt: 12000 },
         ];
 
@@ -181,7 +178,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理混合类型数组', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-13', role: 'user', content: ['Hello', { text: 'World' }, { content: '!' }] as any, createdAt: 13000 },
         ];
 
@@ -191,7 +188,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该过滤掉空值', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-14', role: 'user', content: ['Hello', '', null, 'World'] as any, createdAt: 14000 },
         ];
 
@@ -204,7 +201,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
     // === createdAt 测试 ===
     describe('createdAt 处理', () => {
       it('应该使用消息中的 createdAt', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-15', role: 'user', content: 'Hello', createdAt: 1234567890 },
         ];
 
@@ -214,7 +211,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理 createdAt 为字符串', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-16', role: 'user', content: 'Hello', createdAt: '2024-01-01' as any },
         ];
 
@@ -225,7 +222,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理 createdAt 缺失 - 使用 index fallback', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-17', role: 'user', content: 'Hello' } as any,
           { id: 'msg-18', role: 'user', content: 'World' } as any,
         ];
@@ -241,7 +238,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
     // === ID 生成测试 ===
     describe('ID 生成', () => {
       it('应该使用消息中的 id', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'my-custom-id', role: 'user', content: 'Hello', createdAt: 1000 },
         ];
 
@@ -251,7 +248,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该生成 fallback id 当 id 缺失时', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { role: 'user', content: 'Hello', createdAt: 1000 } as any,
         ];
 
@@ -264,7 +261,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
     // === 特殊字符测试 ===
     describe('特殊字符处理', () => {
       it('应该处理 emoji', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-emoji', role: 'user', content: 'Hello 👋🌍', createdAt: 1000 },
         ];
 
@@ -274,7 +271,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理多行文本', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-multi', role: 'user', content: 'Line 1\nLine 2\nLine 3', createdAt: 1000 },
         ];
 
@@ -284,7 +281,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理 SQL 注入尝试', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-sql', role: 'user', content: "'; DROP TABLE users; --", createdAt: 1000 },
         ];
 
@@ -295,7 +292,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
       });
 
       it('应该处理 XSS 尝试', () => {
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-xss', role: 'user', content: '<script>alert("xss")</script>', createdAt: 1000 },
         ];
 
@@ -307,7 +304,7 @@ describe('messageAdapters - 真实转换逻辑测试', () => {
 
       it('应该处理超长文本', () => {
         const longText = 'A'.repeat(100000);
-        const agentMessages: AgentMessage[] = [
+        const agentMessages: any[] = [
           { id: 'msg-long', role: 'user', content: longText, createdAt: 1000 },
         ];
 

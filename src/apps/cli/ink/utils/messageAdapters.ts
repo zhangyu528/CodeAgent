@@ -1,4 +1,3 @@
-import type { AgentMessage } from '@mariozechner/pi-agent-core';
 import type { ChatMessage, ChatMessageRole } from '../pages/types.js';
 
 function normalizeRole(role: string | undefined): ChatMessageRole {
@@ -13,11 +12,12 @@ function extractText(content: unknown): string {
 
   if (Array.isArray(content)) {
     return content
-      .map((item: any) => {
+      .map((item: unknown) => {
         if (typeof item === 'string') return item;
-        if (item && typeof item.text === 'string') return item.text;
-        if (item && typeof item.content === 'string') return item.content;
-        if (item && typeof item.input_text === 'string') return item.input_text;
+        const obj = item as Record<string, unknown>;
+        if (obj && typeof obj.text === 'string') return obj.text;
+        if (obj && typeof obj.content === 'string') return obj.content;
+        if (obj && typeof obj.input_text === 'string') return obj.input_text;
         return '';
       })
       .filter(Boolean)
@@ -25,7 +25,7 @@ function extractText(content: unknown): string {
   }
 
   if (content && typeof content === 'object') {
-    const value = content as any;
+    const value = content as Record<string, unknown>;
     if (typeof value.text === 'string') return value.text;
     if (typeof value.content === 'string') return value.content;
     if (typeof value.input_text === 'string') return value.input_text;
@@ -34,8 +34,12 @@ function extractText(content: unknown): string {
   return '';
 }
 
-export function agentMessagesToChatMessages(messages: AgentMessage[]): ChatMessage[] {
-  return messages.map((message: any, index) => {
+/**
+ * Convert agent messages (from pi-coding-agent session.messages) to ChatMessage format.
+ * The input is typed as any[] since pi-coding-agent doesn't export AgentMessage type.
+ */
+export function agentMessagesToChatMessages(messages: any[]): ChatMessage[] {
+  return messages.map((message: any, index: number) => {
     const role = normalizeRole(message.role);
     const text = extractText(message.content);
     const createdAt = typeof message.createdAt === 'number'

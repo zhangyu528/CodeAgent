@@ -3,7 +3,6 @@ import { useApp } from 'ink';
 import { SLASH_COMMANDS, executeSlash, HELP_MESSAGE } from './useSlashCommands.js';
 import { useAppStore } from '../../store/uiStore.js';
 import { useChatStore } from '../../store/index.js';
-import { getAgent } from '../../../../../agent/index.js';
 import type { UseModelConfigResult } from '../../hooks/useModelConfig.js';
 import { showNotice, showSelectOne } from '../modals/index.js';
 import { padToWidth } from '../modals/textLayout.js';

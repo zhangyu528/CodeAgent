@@ -1,6 +1,4 @@
 import { useCallback } from 'react';
-import type { SessionInfo } from '../../../../../agent/index.js';
-import { getAgent } from '../../../../../agent/index.js';
 import { useAppStore } from '../../store/uiStore.js';
 import { useChatStore } from '../../store/index.js';
 import type { UseModelConfigResult } from '../../hooks/useModelConfig.js';
@@ -66,19 +64,5 @@ export function executeSlash(cmd: string, handlers: SlashCommandHandlers): boole
   }
 
   return false;
-}
-
-function formatSessionChoice(item: SessionInfo): { value: string; label: string } {
-  const updatedAt = new Date(item.updatedAt).toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  return {
-    value: item.id,
-    label: `${item.title} · ${updatedAt} · ${item.messageCount} msgs`,
-  };
 }
 

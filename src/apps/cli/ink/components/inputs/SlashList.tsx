@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useSlashList } from './SlashListController.js';
 import { useModelConfig } from '../../hooks/useModelConfig.js';
-import { getAgent } from '../../../../../agent/index.js';
+import { getAgentSession } from '../../../../core/index.js';
 import { padToWidth, truncateToWidth } from '../modals/textLayout.js';
 
 interface SlashListProps {
@@ -11,8 +11,8 @@ interface SlashListProps {
 }
 
 export function SlashList({ inputValue, setInputValue }: SlashListProps) {
-  const agent = getAgent();
-  const modelConfig = useModelConfig(agent);
+  const session = getAgentSession();
+  const modelConfig = useModelConfig(session);
   const { hasSlash, commands, selectedIndex, setSelectedIndex, confirmSlash, listHeight } = useSlashList(inputValue, modelConfig, setInputValue);
 
   // Keyboard navigation

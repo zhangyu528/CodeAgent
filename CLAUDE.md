@@ -29,9 +29,10 @@
 ### 核心组件
 
 1. **Agent 系统** (`src/agent/`)
-   - 使用 `@mariozechner/pi-agent-core` 的单例 Agent 实例
+   - 使用 `@mariozechner/pi-coding-agent` 的 `AgentSession` 单例
+   - 基于 `createAgentSession` 的高级编程助手能力
+   - 内置编码工具：read, write, edit (diff), bash, grep, find, ls
    - 多 Provider LLM 支持（OpenAI/Anthropic/Zhipu/Minimax）
-   - 工具集成：文件操作、Shell 命令、网页浏览
    - 基于环境变量的模型解析器
 
 2. **CLI 应用** (`src/apps/cli/`)
@@ -92,6 +93,7 @@ src/
 ### 当前状态（来自 ROADMAP.md）
 
 **已完成的功能（N1-N4, N11-N12）**：
+
 - ✅ N1: 新内核与 Ink TUI 集成
 - ✅ N2: 多 Provider 支持与 Env 配置
 - ✅ N3: 会话生命周期与持久化基线
@@ -100,19 +102,21 @@ src/
 - ✅ N12: 自动化测试方案
 
 **已废弃的功能**：
+
 - ❌ N5-N6, N7-N10：已被吸收或不再适用
 
 ### 自动化任务（cron jobs）
 
-| Job 名称 | 职责 | 频率 |
-|---------|------|------|
-| `codeagent-optimizer` | 代码质量分析 + 优化执行 | 每小时 |
-| `codeagent-ideas-gen` | 生成新功能提案 | 每6小时 |
+| Job 名称               | 职责                       | 频率    |
+| ---------------------- | -------------------------- | ------- |
+| `codeagent-optimizer`  | 代码质量分析 + 优化执行    | 每小时  |
+| `codeagent-ideas-gen`  | 生成新功能提案             | 每6小时 |
 | `codeagent-ideas-exec` | 执行选中的提案（TDD 方式） | 每6小时 |
 
 ### 重要约定
 
-- Agent 是单例，使用 `getAgent()` 访问
-- 工具在启动时注册到 Agent
-- UI 适配器固定用于会话生命周期
+- AgentSession 是单例，使用 `getAgentSession()` 访问，底层 Agent 通过 `session.agent` 访问
+- 使用 `ensureAgentInitialized()` 在启动时进行异步初始化
+- 优先使用 `pi-coding-agent` 的内置编码工具
+- UI 适配器通过订阅 `AgentSession` 获取事件流
 - 会话数据由运行时拥有，跨重启持久化

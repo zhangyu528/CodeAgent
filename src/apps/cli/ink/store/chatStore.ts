@@ -9,8 +9,7 @@
  */
 import { create } from 'zustand';
 import { randomUUID } from 'crypto';
-import { getAgent } from '../../../../agent/index.js';
-import { sessionManager, SessionInfo, SessionStatus } from '../../../../agent/sessions.js';
+import { getAgentSession } from '../../../core/index.js';
 import {
   ChatMessageSchema,
   ChatSessionInfoSchema,
@@ -18,6 +17,17 @@ import {
   type ChatSessionInfo,
 } from './schemas.js';
 import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
+
+// Re-export common types if needed or use from pi-coding-agent
+export type SessionStatus = 'active' | 'completed' | 'error' | 'streaming';
+
+interface SessionInfo {
+  id: string;
+  title: string;
+  updatedAt: number;
+  messageCount: number;
+  status: SessionStatus;
+}
 
 // Debounce delay for persistCurrentSession to avoid hammering filesystem
 const DEBOUNCE_MS = 500;
@@ -98,104 +108,100 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   // Session Actions
   refreshHistory: async (limit?: number) => {
-    const history = await sessionManager.getHistory(limit ?? 50);
-    set({ historyItems: history });
-    return history;
+    const session = getAgentSession();
+    // In pi-coding-agent, getHistory is sync and returns SessionInfo[] from the session manager
+    // We'll use getHistory(limit) which exists on the SessionManager
+    const history = await (session.sessionManager as any).list(limit ?? 50);
+    // Convert pi-coding-agent SessionInfo to our local SessionInfo format
+    const mapped: SessionInfo[] = history.map((h: any) => ({
+      id: h.id,
+      title: h.title || 'Untitled Session',
+      updatedAt: h.updatedAt,
+      messageCount: h.messageCount || 0,
+      status: h.status || 'completed',
+    }));
+    set({ historyItems: mapped });
+    return mapped;
   },
 
   persistCurrentSession: (() => {
-    // Debounce ref stored outside the store function to persist across calls
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
     let pendingStatus: SessionStatus = 'completed';
-    let pendingMessages: ChatMessage[] | undefined;
 
-    return (status: SessionStatus = 'completed', messages?: ChatMessage[]) => {
-      const { activeSessionId, currentSession } = get();
+    return (status: SessionStatus = 'completed') => {
+      const { activeSessionId } = get();
       if (!activeSessionId) return;
 
-      // Capture current values for the deferred save
       pendingStatus = status;
-      pendingMessages = messages;
 
-      // Clear any pending save and schedule a new one (true debounce)
       if (saveTimer !== null) {
         clearTimeout(saveTimer);
       }
 
       saveTimer = setTimeout(() => {
         saveTimer = null;
-        // Read sessionId from store AT timeout time, not from outer closure,
-        // to avoid saving to a stale session if the user switched sessions
-        // during the debounce window (500ms).
-        const { activeSessionId: sid } = get();
-        if (!sid) return;
-        const agent = getAgent();
-        agent.sessionId = sid;
-
-        const { currentSession } = get();
-        const title = currentSession?.id === sid ? currentSession.title : null;
-        const messagesToUse = pendingMessages || [];
-
+        const session = getAgentSession();
+        // pi-coding-agent saves automatically on message_end,
+        // but we can manually trigger a save if needed or just update local state
+        
         set(prev => ({
           currentSession:
-            prev.activeSessionId === sid && prev.currentSession
+            prev.activeSessionId === activeSessionId && prev.currentSession
               ? {
                   ...prev.currentSession,
                   status: pendingStatus,
                   updatedAt: Date.now(),
-                  messageCount: messagesToUse.length,
-                  title:
-                    prev.currentSession.title ||
-                    extractSessionTitle((messagesToUse[0] as any)?.content || ''),
+                  messageCount: session.messages.length,
                 }
               : prev.currentSession,
         }));
+        
+        // Optionally update title if it's the first message
+        if (session.messages.length > 0 && (!get().currentSession?.title || get().currentSession?.title === 'New Session')) {
+          const firstMsg = session.messages.find(m => m.role === 'user');
+          if (firstMsg) {
+            const title = extractSessionTitle(typeof firstMsg.content === 'string' ? firstMsg.content : '');
+            session.setSessionName(title);
+            set(prev => prev.currentSession ? { currentSession: { ...prev.currentSession, title } } : prev);
+          }
+        }
 
-        void sessionManager
-          .saveSession(sid, agent.state.messages, {
-            status: pendingStatus,
-            model: agent.state.model?.id,
-            provider: agent.state.model?.provider,
-            ...(title ? { title } : {}),
-          })
-          .then(() => {
-            void get().refreshHistory();
-          })
-          .catch(err => console.error('Failed to persist session:', err));
+        void get().refreshHistory();
       }, DEBOUNCE_MS);
     };
   })(),
 
   restoreSessionById: async (sessionId: string) => {
-    const record = await sessionManager.loadSession(sessionId);
-    if (!record) return false;
+    const session = getAgentSession();
+    try {
+      const success = await session.switchSession(sessionId);
+      if (!success) return false;
 
-    const agent = getAgent();
-    agent.sessionId = record.id;
-    agent.replaceMessages(record.messages);
+      // Restore both session state and messages atomically
+      set({
+        activeSessionId: session.sessionId,
+        currentSession: {
+          id: session.sessionId,
+          title: session.sessionName || 'Untitled Session',
+          status: 'completed', // Default status for restored sessions
+          updatedAt: Date.now(),
+          messageCount: session.messages.length,
+        },
+        messages: agentMessagesToChatMessages(session.messages as any[]),
+      });
 
-    // Restore both session state and messages atomically
-    set({
-      activeSessionId: record.id,
-      currentSession: {
-        id: record.id,
-        title: record.title || 'Untitled Session',
-        status: record.meta.status,
-        updatedAt: record.meta.updatedAt,
-        messageCount: record.messages?.length || 0,
-      },
-      messages: agentMessagesToChatMessages(record.messages),
-    });
-
-    return true;
+      return true;
+    } catch (err) {
+      console.error('[ChatStore] Failed to restore session:', err);
+      return false;
+    }
   },
 
   ensureSessionForPrompt: (userInput: string) => {
     const { activeSessionId, currentSession } = get();
-    const agent = getAgent();
+    const session = getAgentSession();
 
     if (activeSessionId) {
-      agent.sessionId = activeSessionId;
       if (!currentSession) {
         set({
           currentSession: {
@@ -210,19 +216,19 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       return activeSessionId;
     }
 
-    const newSessionId = createSessionId();
-    agent.sessionId = newSessionId;
+    // New session logic in pi-coding-agent is session.newSession()
+    // but usually it's already in a session.
     set({
-      activeSessionId: newSessionId,
+      activeSessionId: session.sessionId,
       currentSession: {
-        id: newSessionId,
+        id: session.sessionId,
         title: extractSessionTitle(userInput),
         status: 'active',
         updatedAt: Date.now(),
         messageCount: 1,
       },
     });
-    return newSessionId;
+    return session.sessionId;
   },
 
   // Pending Prompt Actions
@@ -255,10 +261,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   // Combined Actions
   clearAll: () => {
-    const agent = getAgent();
-    agent.replaceMessages([]);
+    const session = getAgentSession();
+    void session.newSession();
     set({
-      activeSessionId: null,
+      activeSessionId: session.sessionId,
       currentSession: null,
       pendingPrompt: null,
       messages: [],

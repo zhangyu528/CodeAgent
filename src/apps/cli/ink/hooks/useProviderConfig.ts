@@ -1,61 +1,16 @@
 /**
- * Provider Configuration Module
- * Handles lazy loading and caching of providers and models
+ * Provider Configuration Hook
+ * UI layer for provider/model selection and API key input.
+ * Core logic is in src/core/modelRegistry.ts
  */
 
-import { checkApiKeyConfigured } from '../../../../agent/index.js';
+import {
+  ensureProvidersLoaded,
+  getProviders,
+  getModels,
+  checkApiKeyConfigured,
+} from '../../../core/index.js';
 import { showNotice, showSelectOne, showAsk } from '../components/modals/index.js';
-import type { Api, Model } from '@mariozechner/pi-ai';
-
-// 延迟加载 pi-ai 模块，避免启动时加载 13896 行的 models.generated.js
-// 懒加载缓存
-type AllowedProvider = 'zai' | 'minimax-cn';
-let providersCache: AllowedProvider[] | null = null;
-let modelsByProviderCache: Record<string, Model<Api>[]> | null = null;
-let isLoadingCache = false;
-
-// 同步获取 providers（如果已缓存）
-export function getProviders(): string[] | null {
-  return providersCache;
-}
-
-// 同步获取 models by provider（如果已缓存）
-export function getModels(provider: string): Model<Api>[] | null {
-  if (!modelsByProviderCache) return null;
-  return modelsByProviderCache[provider] || null;
-}
-
-// 异步加载 providers
-export async function ensureProvidersLoaded(): Promise<string[]> {
-  if (providersCache) return providersCache;
-  if (isLoadingCache) {
-    // 等待加载完成（轮询）
-    while (!providersCache) {
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    return providersCache;
-  }
-  isLoadingCache = true;
-  const { getProviders: gp, getModels: gm } = await import('@mariozechner/pi-ai');
-  const ALLOWED_PROVIDERS = ['zai', 'minimax-cn'] as const;
-  providersCache = (gp() as string[]).filter((p): p is AllowedProvider => ALLOWED_PROVIDERS.includes(p as AllowedProvider));
-  modelsByProviderCache = {};
-  for (const p of providersCache) {
-    modelsByProviderCache[p] = gm(p);
-  }
-  isLoadingCache = false;
-  return providersCache;
-}
-
-// 检查 API Key 是否已配置
-export { checkApiKeyConfigured };
-
-// 清除缓存（用于测试）
-export function clearProviderCache(): void {
-  providersCache = null;
-  modelsByProviderCache = null;
-  isLoadingCache = false;
-}
 
 // 显示 Provider 选择对话框
 export function showProviderSelection(
@@ -83,8 +38,8 @@ export function showProviderSelection(
 // 显示 Model 选择对话框
 export function showModelSelection(
   provider: string,
-  models: Model<Api>[],
-  onSelect: (model: Model<Api>) => void,
+  models: any[],
+  onSelect: (model: any) => void,
   onCancel: () => void
 ): void {
   if (!models || models.length === 0) {

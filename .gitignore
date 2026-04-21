@@ -9,11 +9,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Local config (contains API keys)
+.codeagent/
+**/.env
+
 # Node
 node_modules/
 dist/
-.env
-.env.local
+
 
 # Editor
 .vscode/

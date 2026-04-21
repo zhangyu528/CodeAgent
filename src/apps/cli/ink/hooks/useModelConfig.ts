@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Agent } from '@mariozechner/pi-agent-core';
-import { saveApiKey, saveModelConfig } from '../../../../agent/index.js';
+import type { AgentSession } from '../../../core/index.js';
+import { saveApiKey } from '../../../core/index.js';
 import { showNotice } from '../components/modals/index.js';
 import { useAppStore } from '../store/uiStore.js';
 import {
@@ -8,6 +8,8 @@ import {
   getProviders,
   getModels,
   checkApiKeyConfigured,
+} from '../../../core/index.js';
+import {
   showProviderSelection,
   showModelSelection,
   showApiKeyInput,
@@ -19,12 +21,12 @@ export interface UseModelConfigResult {
   step: ConfigStep;
   isActive: boolean;
   pendingCommand: string | null;
-  isLoading: boolean;  // 是否正在加载模型列表
+  isLoading: boolean;
   startConfig: (pendingCommand?: string) => void;
   cancelConfig: () => void;
 }
 
-export function useModelConfig(agent: Agent): UseModelConfigResult {
+export function useModelConfig(session: AgentSession): UseModelConfigResult {
   const [step, setStep] = useState<ConfigStep>('idle');
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
@@ -39,7 +41,6 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
     setConfigTriggered(true);
     setIsLoading(true);
     setLoadError(null);
-    // 触发异步加载
     ensureProvidersLoaded()
       .then(() => {
         setIsLoading(false);
@@ -89,24 +90,20 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
             return;
           }
 
-          // Directly show model selection - no need to wait for useEffect
           const models = getModels(provider);
           if (!models || models.length === 0) {
             showNotice({ title: 'Model Configuration', message: `No models available for ${provider.toUpperCase()}.`, footer: 'Esc Close' });
             return;
           }
 
-          // Show model selection modal directly
           showModelSelection(
             provider,
             models,
             (selectedModel) => {
               try {
                 cancelConfig();
-                // Call after cancelConfig so modal is fully closed
                 setCurrentModel(selectedModel.id);
               } catch (error) {
-                // 显示错误消息在同一个 modal 上
                 showNotice({ title: 'Model Configuration', message: `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`, footer: 'Esc Close' });
               }
             },
@@ -129,14 +126,12 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
             return;
           }
 
-          // Show model selection modal directly
           showModelSelection(
             selectedProvider,
             models,
             (selectedModel) => {
               try {
-                agent.setModel(selectedModel as any);
-                saveModelConfig(selectedProvider, selectedModel.id);
+                void session.setModel(selectedModel as any);
                 setCurrentModel(selectedModel.id);
               } catch (error) {
                 showNotice({ title: 'Model Configuration', message: `Failed to set model: ${error instanceof Error ? error.message : String(error)}`, footer: 'Esc Close' });
@@ -160,19 +155,17 @@ export function useModelConfig(agent: Agent): UseModelConfigResult {
         models,
         (selectedModel) => {
           try {
-            agent.setModel(selectedModel as any);
-            saveModelConfig(selectedModel.provider, selectedModel.id);
+            void session.setModel(selectedModel as any);
             setCurrentModel(selectedModel.id);
           } catch (error) {
             showNotice({ title: 'Model Configuration', message: `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`, footer: 'Esc Close' });
-            return;
+            cancelConfig();
           }
-          cancelConfig();
         },
         cancelConfig
       );
     }
-  }, [agent, cancelConfig, configTriggered, isLoading, loadError, selectedProvider, providers, setCurrentModel, step]);
+  }, [session, cancelConfig, configTriggered, isLoading, loadError, selectedProvider, providers, setCurrentModel, step]);
 
   return {
     step,

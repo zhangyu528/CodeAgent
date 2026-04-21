@@ -7,9 +7,8 @@ import { useChatStore } from '../../store/index.js';
 import { shortenPath } from '../../utils.js';
 import { useModelConfig } from '../../hooks/useModelConfig.js';
 import { useInput as useKeyboardInput } from 'ink';
-import { getAgent } from '../../../../../agent/index.js';
+import { getAgentSession } from '../../../../core/index.js';
 import { useModalOpenState } from '../modals/index.js';
-import { useSlashHandlers } from './SlashListController.js';
 
 export interface InputControllerResult {
   value: string;
@@ -21,8 +20,8 @@ export interface InputControllerResult {
 }
 
 export function useInput(): InputControllerResult {
-  const agent = getAgent();
-  const modelConfig = useModelConfig(agent);
+  const session = getAgentSession();
+  const modelConfig = useModelConfig(session);
   const [value, setValue] = useState('');
 
   // Subscribe to state
@@ -64,10 +63,10 @@ export function useInput(): InputControllerResult {
         status: 'completed',
         blocks: [{ kind: 'text', text: trimmed }],
       });
-      void agent.prompt(trimmed);
+      void session.prompt(trimmed);
     }
     setValue('');
-  }, [currentModel, page, modelConfig, setPage, ensureSessionForPrompt, setPendingPrompt, agent, addMessage]);
+  }, [currentModel, page, modelConfig, setPage, ensureSessionForPrompt, setPendingPrompt, session, addMessage]);
 
   useKeyboardInput((input, key) => {
     // Return - submit or execute slash command

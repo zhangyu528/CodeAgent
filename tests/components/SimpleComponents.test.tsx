@@ -1,30 +1,30 @@
 /**
  * Simple Components 测试
- * 测试 LoadingPage 和 PromptBox
+ * 测试 InitPage 和 PromptBox
  */
 import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { LoadingPage } from '../../src/apps/cli/ink/pages/loading/LoadingPage.js';
+import { InitPage } from '../../src/apps/cli/ink/pages/init/InitPage.js';
 import { PromptBox } from '../../src/apps/cli/ink/components/modals/PromptBox.js';
 
-describe('LoadingPage', () => {
+describe('InitPage', () => {
   describe('基本渲染', () => {
     it('should render loading text', () => {
-      const { lastFrame } = render(<LoadingPage />);
+      const { lastFrame } = render(<InitPage />);
 
       expect(lastFrame()).toContain('Loading...');
     });
 
     it('should render with cyan color', () => {
-      const { lastFrame } = render(<LoadingPage />);
+      const { lastFrame } = render(<InitPage />);
 
       // LoadingPage uses cyan color
       expect(lastFrame()).toContain('Loading...');
     });
 
     it('should render centered content', () => {
-      const { lastFrame } = render(<LoadingPage />);
+      const { lastFrame } = render(<InitPage />);
 
       // Just verify it renders without error
       expect(lastFrame()).toBeDefined();

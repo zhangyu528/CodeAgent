@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { create } from 'zustand';
 
-type PiPage = 'loading' | 'welcome' | 'chat';
+type PiPage = 'init' | 'welcome' | 'chat';
 
 interface AppStoreState {
   page: PiPage;
@@ -22,7 +22,7 @@ interface AppStoreState {
 }
 
 const createTestStore = () => create<AppStoreState>((set) => ({
-  page: 'loading',
+  page: 'init',
   isFirstPress: false,
   currentModel: null,
   pendingPrompt: null,
@@ -43,8 +43,8 @@ describe('AppStore', () => {
   });
 
   describe('initial state', () => {
-    it('should have page as loading', () => {
-      expect(store.getState().page).toBe('loading');
+    it('should have page as init', () => {
+      expect(store.getState().page).toBe('init');
     });
 
     it('should have isFirstPress as false', () => {
@@ -76,10 +76,10 @@ describe('AppStore', () => {
       expect(store.getState().page).toBe('chat');
     });
 
-    it('should set page to loading', () => {
+    it('should set page to init', () => {
       store.getState().setPage('welcome');
-      store.getState().setPage('loading');
-      expect(store.getState().page).toBe('loading');
+      store.getState().setPage('init');
+      expect(store.getState().page).toBe('init');
     });
 
     it('should transition through all pages', () => {
@@ -89,8 +89,8 @@ describe('AppStore', () => {
       store.getState().setPage('chat');
       expect(store.getState().page).toBe('chat');
 
-      store.getState().setPage('loading');
-      expect(store.getState().page).toBe('loading');
+      store.getState().setPage('init');
+      expect(store.getState().page).toBe('init');
     });
   });
 
@@ -179,9 +179,9 @@ describe('AppStore', () => {
   });
 
   describe('PiPage type', () => {
-    it('should accept loading as valid page', () => {
-      store.getState().setPage('loading');
-      expect(store.getState().page).toBe('loading');
+    it('should accept init as valid page', () => {
+      store.getState().setPage('init');
+      expect(store.getState().page).toBe('init');
     });
 
     it('should accept welcome as valid page', () => {
@@ -231,7 +231,7 @@ describe('AppStore', () => {
       store1.getState().setPage('chat');
       store1.getState().setCurrentModel('gpt-4');
 
-      expect(store2.getState().page).toBe('loading');
+      expect(store2.getState().page).toBe('init');
       expect(store2.getState().currentModel).toBeNull();
     });
   });
