@@ -8,8 +8,9 @@ import {
   getProviders,
   getModels,
   checkApiKeyConfigured,
+  removeApiKey,
 } from '@codeagent/core';
-import { showProviderSelection, showModelSelection, showApiKeyInput } from './useProviderConfig.js';
+import { showProviderSelection, showModelSelection, showApiKeyInput, showSelectOne } from './useProviderConfig.js';
 
 export type ConfigStep = 'idle' | 'selecting_provider' | 'entering_api_key' | 'selecting_model';
 
@@ -94,33 +95,54 @@ export function useModelConfig(session: AgentSession): UseModelConfigResult {
             return;
           }
 
-          const models = getModels(provider);
-          if (!models || models.length === 0) {
-            showNotice({
-              title: 'Model Configuration',
-              message: `No models available for ${provider.toUpperCase()}.`,
-              footer: 'Esc Close',
-            });
-            return;
-          }
-
-          showModelSelection(
-            provider,
-            models,
-            selectedModel => {
-              try {
-                cancelConfig();
-                setCurrentModel(selectedModel.id);
-              } catch (error) {
+          // Provider already has API key — ask user what to do
+          showSelectOne({
+            title: `${provider.toUpperCase()} Already Configured`,
+            choices: [
+              { label: 'Use Current Key', value: 'use' },
+              { label: 'Update Key', value: 'update' },
+              { label: 'Delete Key', value: 'delete' },
+            ],
+            footer: '↑/↓ Navigate • Enter Select • Esc Cancel',
+            onSubmit: (choice) => {
+              if (choice.value === 'delete') {
+                removeApiKey(provider);
                 showNotice({
                   title: 'Model Configuration',
-                  message: `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`,
+                  message: `API key for ${provider.toUpperCase()} has been deleted.`,
                   footer: 'Esc Close',
                 });
+                cancelConfig();
+                return;
               }
+              if (choice.value === 'update') {
+                setSelectedProvider(provider);
+                setStep('entering_api_key');
+                return;
+              }
+              // 'use' — proceed to model selection
+              const models = getModels(provider);
+              if (!models || models.length === 0) {
+                showNotice({
+                  title: 'Model Configuration',
+                  message: `No models available for ${provider.toUpperCase()}.`,
+                  footer: 'Esc Close',
+                });
+                return;
+              }
+              showModelSelection(
+                provider,
+                models,
+                selectedModel => {
+                  cancelConfig();
+                  setCurrentModel(selectedModel.id);
+                },
+                cancelConfig
+              );
             },
-            cancelConfig
-          );
+            onCancel: cancelConfig,
+          });
+          return;
         },
         cancelConfig
       );

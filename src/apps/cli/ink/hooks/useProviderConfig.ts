@@ -11,6 +11,7 @@ import {
   checkApiKeyConfigured,
 } from '@codeagent/core';
 import { showNotice, showSelectOne, showAsk } from '../components/modals/index.js';
+export { showSelectOne };
 
 // 显示 Provider 选择对话框
 export function showProviderSelection(
