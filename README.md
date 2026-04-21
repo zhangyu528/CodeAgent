@@ -1,166 +1,184 @@
 # CodeAgent (MVP)
 
-CodeAgent is an AI-powered coding assistant that can plan and execute complex development tasks by interacting directly with your local environment.
+CodeAgent is an AI-powered terminal coding assistant built on [pi-coding-agent](https://github.com/mariozechner/pi-coding-agent). It features a full-screen Ink TUI, structured chat timeline, slash commands, session persistence, and multi-provider LLM support.
 
 ## Features
 
-- **Advanced Toolset**: Read/Write files, run shell commands, structured directory listing, global text search, and precise content replacement.
+- **Advanced Toolset**: Read/Write files, run shell commands, structured directory listing, text search via `@mariozechner/pi-coding-agent`.
 - **Task Planning**: Decomposes complex user objectives into actionable multi-step plans.
-- **Self-Correction**: Automatically analyzes command errors (stderr) and attempts to fix them.
+- **Self-Correction**: Automatically analyzes command errors and attempts to fix them.
 - **Safety Guards**: Workspace path validation, command blocklist, and **Human-in-the-Loop (HITL)** for sensitive operations.
 - **Memory Management**: Token-aware sliding window memory (~4000 tokens) ensuring context stability.
-- **Session Persistence (SQLite)**: Runtime-owned sessions with resume support across restarts (CLI only renders and routes).
+- **Session Persistence (SQLite)**: Sessions saved to `~/.codeagent/sessions.db` with resume support.
 - **Observability**: Real-time token usage display and detailed turn-by-turn action logging.
-- **Multi-Provider LLM**: Register OpenAI/Anthropic/Zhipu (zai)/Minimax via `.env`, switch at runtime with `/model`.
-- **Ink CLI UX**: Full-screen Ink TUI with welcome mode + chat mode, modal overlays, slash popup, and keyboard shortcuts.
-- **Structured Chat Timeline**: Chat page renders user, assistant, system, and error messages as message blocks instead of a flat log stream; reasoning is separated from the final answer.
+- **Multi-Provider LLM**: Register **Zhipu (zai)** / **Minimax** via `.env`, switch at runtime with `/model`.
+- **Ink TUI**: Full-screen terminal UI with welcome mode + chat mode, modal overlays, slash command palette, and keyboard shortcuts.
+- **Structured Chat Timeline**: Messages rendered as typed blocks (`text`, `thinking`, `reasoning`, `toolSummary`) with date-grouped history.
+- **JSON Mode**: Non-interactive NDJSON output for shell piping (`--json --prompt "..."`).
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) (v16+)
-- [npm](https://www.npmjs.com/)
-- A terminal that supports Ink/TTY interactive rendering.
+- [Bun](https://bun.sh/) v1.3+
+- A terminal that supports Ink/TTY interactive rendering (not Windows ConPTY — use WSL or Windows Terminal).
 - At least one configured LLM provider in `.env` (see `.env.example`).
 
 ## Setup
 
-1. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+```bash
+# Install dependencies
+bun install
+```
 
-2. **Configure environment**:
-   Copy `.env.example` to `.env` and fill in your provider config:
-   ```bash
-   cp .env.example .env
-   ```
+Provider configuration is done **at runtime** via the `/model` command inside the TUI — no `.env` file is required for normal use. API keys are stored in `AuthStorage` (`~/.pi/agent/`).
 
 ## Usage
 
-### Interactive Mode (Ink CLI)
-Run the agent in a continuous interactive session:
+### Interactive Mode (Ink TUI)
+
 ```bash
-npm start
+bun run dev       # Development mode (with log viewer window)
+bun run start     # Production build
+npm start         # After npm link
+codeagent         # After global install
 ```
-Or use the global command if installed:
+
+### JSON Output Mode
+
 ```bash
-codeagent
+codeagent --json --prompt "Explain this code" --session <session-id>
+# Outputs NDJSON events to stdout:
+# {"type":"response","content":"The code...","model":"..."}
 ```
 
 ### Slash Commands
-- `/help`: Show commands, config hints, and keybindings.
-- `/model`: Interactively switch model under current provider.
-- `/new`: Create and switch to a new session (old sessions remain resumable).
-- `/history`: Show recent sessions.
-- `/resume`: Continue the latest saved session.
+
+| Command    | Description                                    |
+| ---------- | ---------------------------------------------- |
+| `/help`    | Show commands and keybindings                  |
+| `/model`   | Interactively switch model / configure API key |
+| `/new`     | Create and switch to a new session             |
+| `/history` | Browse saved session history                   |
+| `/resume`  | Resume the most recent session                 |
 
 ### Keybindings
-- `Ctrl+C`: Interrupt current task; press again to exit when idle.
-- `Ctrl+D`: Exit.
-- `Esc`: Close modal overlays or cancel the current modal flow.
-- `Tab` / `Up` / `Down` / `Esc` / `Enter`: Slash popup selection and completion.
+
+- `Enter` / `Return`: Submit prompt or execute slash command
+- `Backspace` / `Delete`: Delete last character
+- `Escape`: Clear input field
+- `↑` / `↓` / `PageUp` / `PageDown`: Navigate message history or slash command list
+- `Ctrl+C` / `Ctrl+D`: Double-press to exit (first press shows a hint)
 
 ## Testing
 
-This project uses [vitest](https://vitest.dev/) for testing.
-
-Run tests in watch mode:
 ```bash
-bun test
-```
-
-Run all tests once:
-```bash
-bun run test:run
-```
-
-Run tests with UI:
-```bash
-bun run test:ui
+bun test              # Watch mode
+bun run test:run      # Single run
+bun run test:ui       # Vitest browser UI
+bun run test:coverage # Coverage report
 ```
 
 ## Project Structure
 
 ```
-src/
-├── agent/                    # Agent core business logic
-│   ├── agent.ts             # Agent singleton factory
-│   ├── config.ts            # Configuration
-│   ├── model.ts             # LLM model resolution
-│   ├── sessions.ts          # Session management
-│   └── tools/               # Execution tools (read_file, write_file, run_command, list_directory)
+src/apps/
+├── core/                  # Shared business logic
+│   ├── index.ts           # Public API re-exports
+│   ├── agent.ts           # AgentSession singleton factory
+│   ├── apiKey.ts          # AuthStorage wrapper (API key persistence)
+│   ├── modelDiscovery.ts  # ModelRegistry cache (zai, minimax-cn)
+│   ├── logger.ts          # Consola → ~/.pi/agent/logs/codeagent.log
+│   └── logViewer.ts       # PowerShell log viewer window [dev only]
 │
-├── apps/cli/                 # Ink CLI interface
-│   ├── index.tsx            # CLI entry point
-│   └── ink/                 # Ink components
-│       ├── App.tsx          # Main Ink app
-│       ├── components/      # UI components (modals, inputs, chat, debug)
-│       ├── hooks/           # React hooks
-│       ├── pages/           # Page components (welcome, chat, loading)
-│       ├── store/           # State stores (session, chat, ui)
-│       └── context/         # React context
+├── cli/                   # Application entry
+│   ├── index.tsx          # Entry: TTY check, flag parsing, bootstrap
+│   │
+│   ├── ink/               # Interactive TUI (Ink + React)
+│   │   ├── App.tsx        # Root component — page routing
+│   │   ├── AppController.ts
+│   │   ├── useKeyboardShortcuts.ts  # Double-press exit
+│   │   │
+│   │   ├── pages/
+│   │   │   ├── types.ts              # ChatMessage, ChatMessageBlock types
+│   │   │   ├── init/InitPage.tsx    # Loading spinner
+│   │   │   ├── welcome/WelcomePage.tsx
+│   │   │   └── chat/ChatPage.tsx    # Main chat + agent binding
+│   │   │
+│   │   ├── components/
+│   │   │   ├── inputs/              # Input + slash command palette
+│   │   │   ├── modals/              # Ask/Confirm/Notice/SelectOne modals
+│   │   │   └── chat/                # MessageList, MessageItem, ChatHeader
+│   │   │
+│   │   ├── store/
+│   │   │   ├── chatStore.ts  # Unified session + message state (Zustand)
+│   │   │   ├── uiStore.ts    # Page routing + UI state
+│   │   │   └── schemas.ts    # Zod schemas (single source of truth)
+│   │   │
+│   │   └── hooks/
+│   │       ├── useAgentEvents.ts     # Agent event subscription + throttle
+│   │       ├── useModelConfig.ts     # Config flow state machine
+│   │       └── useProviderConfig.ts  # Provider/model selection UI
+│   │
+│   └── json/               # JSON output mode
+│       ├── JsonMode.ts     # Event → NDJSON mapper
+│       ├── emitter.ts      # NDJSON stdout writer
+│       └── flags.ts        # --json, --prompt, --session parser
 │
-├── docs/                    # Documentation and roadmaps
-└── tests/                   # Unit and integration tests
+docs/
+├── specs/                  # Architecture specifications
+└── archive/               # Legacy docs
+
+tests/                     # Vitest tests
 ```
 
 ## Configuration
 
-Create a `.env` file in the project root with your provider API keys:
+Provider API keys are configured **at runtime** via the `/model` command (no `.env` needed). Keys are persisted in `AuthStorage` at `~/.pi/agent/`.
+
+For automated/CI environments, you can still use environment variables:
 
 ```bash
-# Default provider: zai, openai, anthropic, minimax-cn
+# Optional: pre-configure via environment (optional — /model inside TUI is preferred)
 DEFAULT_PROVIDER=zai
-
-# Provider API keys
-ZAI_API_KEY=your_zai_key
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
-MINIMAX_API_KEY=your_minimax_key
+ZAI_API_KEY=your_zhipu_key
+MINIMAX_API_KEY=your_key
 MINIMAX_API_BASE_URL=https://api.minimax.chat
 ```
 
-## Quick Start
-
 ```bash
-# Install dependencies
-bun install
-
-# Run in development mode
-bun run dev
-
-# Build for production
-bun run build
-
-# Run tests
-bun run test:run
+# Advanced environment variables
+CODEAGENT_SESSION_DB=~/.codeagent/sessions.db  # SQLite session path (auto: ~/.codeagent/)
+NODE_ENV=production               # Disables log viewer and dev features
 ```
+
+## Architecture Highlights
+
+### Core + App Separation
+
+`src/apps/core/` is the **only** layer that imports `pi-coding-agent`. All other layers (`ink/`, `json/`) go through `core/index.ts` re-exports. This keeps the dependency graph clean and makes testing easier.
+
+### Unified Chat Store
+
+Session state and message state live in a **single Zustand store** (`chatStore.ts`). This reflects the true business model — a Session contains Messages — and makes `clearAll()` atomic.
+
+### Streaming Throttle
+
+Agent streaming deltas (text/thinking) are buffered in a **150 ms throttle window** before flushing to the store. Prevents React re-render storms from high-frequency token updates while keeping latency under 200 ms.
+
+### Modal Pattern
+
+Each modal is a **self-contained component** with its own reducer + module-level `dispatch` ref. `show*()` functions dispatch to this ref. `ModalContainer` renders all four; no prop drilling.
+
+### Zod Schema as Type Source
+
+Store types are derived via `z.infer<>` from Zod schemas defined in `schemas.ts`. Runtime validation at action boundaries ensures consistency between TypeScript types and actual data shape.
 
 ## Session Storage
 
-- Default DB path: `~/.codeagent/sessions.db` (Windows: `%USERPROFILE%\\.codeagent\\sessions.db`).
-- Override DB path with env: `CODEAGENT_SESSION_DB=...`
-- Runtime tries `bun:sqlite` first; if unavailable, falls back to `node:sqlite`.
+- **Storage root**: `~/.codeagent/`
+- **API keys**: `~/.codeagent/auth.json`
+- **Sessions**: `~/.codeagent/sessions/` (JSON) + `~/.codeagent/sessions.db` (SQLite)
+- **Override**: `CODEAGENT_SESSION_DB=...`
 
-## CLI Runtime Notes
+## License
 
-- Entry: `src/apps/cli/index.ts`
-- UI runtime entry: `src/apps/cli/ink/pi_app.tsx`
-- Chat page now uses a structured message model instead of flat line-based rendering.
-- UI adapter is fixed for session lifecycle (no runtime adapter swapping).
-- Legacy Blessed-era files such as `repl.ts` and `blessed_welcome.ts` have been removed from the CLI codebase.
-
-## Web Tools (F5)
-
-- `web_search`: Real-time web search (provider-based).
-- `browse_page`: Fetch and extract main page content with summary.
-
-See `docs/archive/legacy_functional_requirements/F5_浏览器增强.md` and related implementation plan for configuration and safety rules.
-# test
-# update
-# test2
-test3
-# test post-commit python
-# author test
-# human test
-# hermes test
+ISC
