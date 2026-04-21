@@ -108,11 +108,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   // Session Actions
   refreshHistory: async (limit?: number) => {
-    // SessionManager.list() is a static method: SessionManager.list(cwd, sessionDir?)
-    const { SessionManager } = await import('@mariozechner/pi-coding-agent') as any;
+    // Use AgentSession.sessionManager instance — it carries the correct sessionDir
+    // so list() returns sessions from the right directory (~/.codeagent/...).
     const session = getAgentSession();
     const cwd = (session.sessionManager as any).getCwd?.() ?? process.cwd();
-    const allSessions = await SessionManager.list(cwd);
+    const allSessions = await session.sessionManager.list(cwd);
     const history = limit ? allSessions.slice(0, limit) : allSessions;
     // pi-coding-agent SessionInfo: { id, name, modified, messageCount, firstMessage, ... }
     const mapped: SessionInfo[] = history.map((h: any) => ({
