@@ -10,7 +10,6 @@
 import { create } from 'zustand';
 import { randomUUID } from 'crypto';
 import {
-  getSessionManager,
   listSessions,
   newSession,
   switchSession,
@@ -186,29 +185,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const success = await switchSession(sessionPath);
       if (!success) return false;
 
-      // pi-coding-agent doesn't store session name in the file — it only exists in memory.
-      // The session file's first line has a "session" entry with timestamp and cwd.
-      // We use that timestamp (formatted) as the session display name.
-      const sessionFile = getSessionFile();
-      let sessionName: string | undefined;
-      if (sessionFile) {
-        try {
-          const { readFileSync } = await import('fs');
-          const firstLine = readFileSync(sessionFile, 'utf8').split('\n')[0]!;
-          const entry = JSON.parse(firstLine);
-          if (entry?.timestamp) {
-            const d = new Date(entry.timestamp);
-            sessionName = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-          }
-        } catch { /* ignore */ }
-      }
-      sessionName = sessionName || getSessionName() || getSessionManager().getSessionName() || 'Untitled Session';
+      const sessionName = getSessionName() || 'Untitled Session';
 
       set({
         activeSessionId: getSessionId(),
         currentSession: {
           id: getSessionId(),
-          path: sessionFile || sessionPath,
+          path: getSessionFile() || sessionPath,
           title: sessionName || 'Untitled Session',
           status: 'completed',
           updatedAt: Date.now(),
