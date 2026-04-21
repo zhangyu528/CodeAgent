@@ -184,11 +184,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       if (!success) return false;
 
       // Restore both session state and messages atomically
+      // Use getSessionManager().getSessionName() to read name from session file (session_info entry),
+      // not getSessionName() which reads from in-memory agentSession.sessionName
+      const sessionName = getSessionManager().getSessionName();
       set({
         activeSessionId: getSessionId(),
         currentSession: {
           id: getSessionId(),
-          title: getSessionName() || 'Untitled Session',
+          title: sessionName || 'Untitled Session',
           status: 'completed', // Default status for restored sessions
           updatedAt: Date.now(),
           messageCount: getSessionMessages().length,
