@@ -234,12 +234,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     // New session — no need to call newSession() explicitly here,
     // the session already exists after ensureAgentInitialized().
     const sessionId = getSessionId();
+    const title = extractSessionTitle(userInput);
+    setSessionName(title);
     set({
       activeSessionId: sessionId,
       currentSession: {
         id: sessionId,
         path: getSessionFile() || '',
-        title: extractSessionTitle(userInput),
+        title,
         status: 'active',
         updatedAt: Date.now(),
         messageCount: 1,
