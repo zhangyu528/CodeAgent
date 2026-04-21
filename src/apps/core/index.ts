@@ -24,5 +24,8 @@ export {
   reloadProviders,
 } from './modelDiscovery.js';
 
+// Log viewer (dev only — Windows PowerShell window)
+export { openLogViewer, closeLogViewer } from './logViewer.js';
+
 // Re-export types from pi-coding-agent for use by apps layer
 export type { AgentSession, AgentSessionEvent } from '@mariozechner/pi-coding-agent';

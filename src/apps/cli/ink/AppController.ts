@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useApp, useStdout } from 'ink';
+import type { AgentSession } from '../../../core/index.js';
 import { useAppStore } from './store/uiStore.js';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts.js';
 
-const LOADING_SCREEN_DELAY_MS = 800;
+interface UseAppControllerOptions {
+  initPromise?: Promise<AgentSession>;
+}
 
-export function useAppController() {
+export function useAppController({ initPromise }: UseAppControllerOptions = {}) {
   const { exit } = useApp();
   const page = useAppStore(state => state.page);
   const setPage = useAppStore(state => state.setPage);
@@ -17,7 +20,14 @@ export function useAppController() {
 
   useKeyboardShortcuts();
 
+  // Once init completes, switch from init to welcome
   useEffect(() => {
+    if (page !== 'init' || !initPromise) return;
+    initPromise.then(() => setPage('welcome'));
+  }, [page, initPromise, setPage]);
+
+  useEffect(() => {
+    // Terminal resize events only
     const handleResize = () => {
       setTerminalSize({
         width: stdout.columns,
@@ -30,18 +40,6 @@ export function useAppController() {
       process.stdout.off('resize', handleResize);
     };
   }, [stdout]);
-
-  useEffect(() => {
-    if (page !== 'loading') return;
-
-    const timer = setTimeout(() => {
-      setPage('welcome');
-    }, LOADING_SCREEN_DELAY_MS);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [page, setPage]);
 
   return {
     page,

@@ -1,26 +1,14 @@
+// Must be before any pi-coding-agent imports
+process.env.PI_CODING_AGENT_DIR = join(homedir(), '.codeagent');
+
 import React from 'react';
-import { render, Box, Text } from 'ink';
+import { render } from 'ink';
 import { App } from './ink/App.js';
-import * as dotenv from 'dotenv';
-import { useAppStore } from './ink/store/uiStore.js';
 import { parseFlags } from './json/flags.js';
 import { initJsonMode, handleAgentEvent } from './json/JsonMode.js';
-import { getAgent } from '../../agent/agent.js';
-import { runCompatibilityCheckOrExit } from '../../agent/compatibilityCheck.js';
-
-dotenv.config({ quiet: true });
-
-// Initialize currentModel from saved environment variables
-function initializeSavedModel() {
-  const defaultProvider = process.env.DEFAULT_PROVIDER;
-  if (!defaultProvider) return;
-
-  const modelKey = `${defaultProvider.toUpperCase().replace(/-/g, '_')}_MODEL`;
-  const savedModel = process.env[modelKey];
-  if (savedModel) {
-    useAppStore.getState().setCurrentModel(savedModel);
-  }
-}
+import { ensureAgentInitialized, openLogViewer, closeLogViewer } from '../core/index.js';
+import { join } from 'path';
+import { homedir } from 'os';
 
 /**
  * JSON output mode - non-interactive NDJSON output
@@ -29,15 +17,14 @@ async function runJsonMode(flags: { prompt?: string; session?: string }): Promis
   // Skip TTY check for JSON mode
   process.stdout.write(''); // Ensure stdout is writable
 
-  // Run compatibility checks
-  runCompatibilityCheckOrExit();
+  // Initialize agent session
+  const session = await ensureAgentInitialized();
 
   // Initialize JSON mode
   initJsonMode();
 
-  // Subscribe to agent events and emit NDJSON
-  const agent = getAgent();
-  const unsubscribe = agent.subscribe(event => {
+  // Subscribe to session events and emit NDJSON
+  const unsubscribe = session.subscribe((event) => {
     handleAgentEvent(event);
   });
 
@@ -49,15 +36,13 @@ async function runJsonMode(flags: { prompt?: string; session?: string }): Promis
 
   // Send prompt
   if (flags.prompt) {
-    const sessionId = await import('./ink/store/chatStore.js').then(m =>
+    await import('./ink/store/chatStore.js').then(m =>
       m.useChatStore.getState().ensureSessionForPrompt(flags.prompt!)
     );
-    agent.sessionId = sessionId;
     try {
-      await agent.prompt(flags.prompt);
+      await session.prompt(flags.prompt);
     } catch (err) {
       const { emit } = await import('./json/emitter.js');
-      const { emit: emitError } = await import('./json/emitter.js');
       emit({
         type: 'error',
         code: 'PROMPT_FAILED',
@@ -65,9 +50,6 @@ async function runJsonMode(flags: { prompt?: string; session?: string }): Promis
       });
     }
   }
-
-  // Wait for agent to finish
-  await agent.waitForIdle?.();
 
   unsubscribe();
 }
@@ -82,16 +64,18 @@ async function bootstrap() {
     process.exit(1);
   }
 
-  // Initialize saved model from environment before rendering
-  initializeSavedModel();
-
-  // Terminal setup before render
   process.stdout.write('\u001b[?1049h'); // alternate screen
   process.stdout.write('\u001b[?25l'); // hide cursor
 
-  const { waitUntilExit } = render(<App />, { exitOnCtrlC: false });
+  openLogViewer();
+
+  const initPromise = ensureAgentInitialized();
+
+  const { waitUntilExit } = render(<App initPromise={initPromise} />, { exitOnCtrlC: false });
 
   await waitUntilExit();
+
+  closeLogViewer();
 
   // Restore terminal state
   process.stdout.write('\u001b[2J\u001b['); // clear screen
