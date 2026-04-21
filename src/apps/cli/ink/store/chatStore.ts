@@ -108,17 +108,19 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   // Session Actions
   refreshHistory: async (limit?: number) => {
+    // SessionManager.list() is a static method: SessionManager.list(cwd, sessionDir?)
+    const { SessionManager } = await import('@mariozechner/pi-coding-agent') as any;
     const session = getAgentSession();
-    // In pi-coding-agent, getHistory is sync and returns SessionInfo[] from the session manager
-    // We'll use getHistory(limit) which exists on the SessionManager
-    const history = await (session.sessionManager as any).list(limit ?? 50);
-    // Convert pi-coding-agent SessionInfo to our local SessionInfo format
+    const cwd = (session.sessionManager as any).getCwd?.() ?? process.cwd();
+    const allSessions = await SessionManager.list(cwd);
+    const history = limit ? allSessions.slice(0, limit) : allSessions;
+    // pi-coding-agent SessionInfo: { id, name, modified, messageCount, firstMessage, ... }
     const mapped: SessionInfo[] = history.map((h: any) => ({
       id: h.id,
-      title: h.title || 'Untitled Session',
-      updatedAt: h.updatedAt,
+      title: h.name || h.firstMessage?.slice(0, 40) || 'Untitled Session',
+      updatedAt: h.modified instanceof Date ? h.modified.getTime() : h.modified,
       messageCount: h.messageCount || 0,
-      status: h.status || 'completed',
+      status: 'completed' as const,
     }));
     set({ historyItems: mapped });
     return mapped;
