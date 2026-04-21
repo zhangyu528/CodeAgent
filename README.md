@@ -159,8 +159,9 @@ src/apps/
 │       └── index.ts
 │
 docs/
-├── specs/                   # Architecture specifications (SPEC.md)
-└── archive/                # Legacy docs
+├── specs/                         # Architecture specifications
+│   └── CODEAGENT_ARCHITECTURE.md  # Full technical specification
+└── archive/                       # Legacy docs
 
 tests/                     # Vitest tests
 ```
@@ -185,27 +186,19 @@ CODEAGENT_SESSION_DB=~/.codeagent/sessions.db  # SQLite session path (auto: ~/.c
 NODE_ENV=production               # Disables log viewer and dev features
 ```
 
-## Architecture Highlights
+## Architecture
 
-### Core + App Separation
+See [docs/specs/CODEAGENT_ARCHITECTURE.md](docs/specs/CODEAGENT_ARCHITECTURE.md) for the full technical specification.
 
-`src/apps/core/` is the **only** layer that imports `pi-coding-agent`. All other layers (`ink/`, `json/`) go through `core/index.ts` re-exports. This keeps the dependency graph clean and makes testing easier.
+Key design decisions:
 
-### Unified Chat Store
-
-Session state and message state live in a **single Zustand store** (`chatStore.ts`). This reflects the true business model — a Session contains Messages — and makes `clearAll()` atomic.
-
-### Streaming Throttle
-
-Agent streaming deltas (text/thinking) are buffered in a **150 ms throttle window** before flushing to the store. Prevents React re-render storms from high-frequency token updates while keeping latency under 200 ms.
-
-### Modal Pattern
-
-Each modal is a **self-contained component** with its own reducer + module-level `dispatch` ref. `show*()` functions dispatch to this ref. `ModalContainer` renders all four; no prop drilling.
-
-### Zod Schema as Type Source
-
-Store types are derived via `z.infer<>` from Zod schemas defined in `schemas.ts`. Runtime validation at action boundaries ensures consistency between TypeScript types and actual data shape.
+| Topic | Approach |
+|-------|----------|
+| Core + App separation | `src/apps/core/` is the only layer importing `pi-coding-agent` |
+| State | Single Zustand store (`chatStore.ts`) — session + messages as one aggregate |
+| Streaming | 150 ms throttle window on agent deltas to prevent render storms |
+| Modals | Self-contained with reducer + module-level `dispatch` ref — no prop drilling |
+| Types | Zod schemas as single source of truth (`schemas.ts` → `z.infer<>`)
 
 ## Session Storage
 

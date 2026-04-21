@@ -24,7 +24,7 @@ src/apps/
 │   ├── agent.ts       # AgentSession singleton factory
 │   ├── apiKey.ts      # AuthStorage wrapper (API key persistence)
 │   ├── modelDiscovery.ts  # ModelRegistry cache layer (zai, minimax-cn)
-│   ├── logger.ts      # Consola-based logger → ~/.pi/agent/logs/codeagent.log
+│   ├── logger.ts      # Consola-based logger → ~/.codeagent/logs/codeagent.log
 │   └── logViewer.ts   # PowerShell log viewer window management
 │
 ├── cli/               # Main application entry
@@ -126,7 +126,7 @@ src/apps/
 ### 3.4 Logging (`logger.ts`)
 
 - Uses **Consola** with a custom file reporter.
-- Log file: `~/.pi/agent/logs/codeagent.log` (daily rotation handled by filename).
+- Log file: `~/.codeagent/logs/codeagent.log` (daily rotation handled by filename).
 - Dev mode (`NODE_ENV !== 'production'`): console + file.
 - Prod mode: file only.
 - Log level set to `Infinity` (all messages pass through).
@@ -134,7 +134,7 @@ src/apps/
 ### 3.5 Log Viewer (`logViewer.ts`)
 
 - Dev-only: opens a detached PowerShell window that tails `codeagent.log`.
-- Window PID saved to `~/.pi/agent/logs/logviewer.pid` for cleanup.
+- Window PID saved to `~/.codeagent/logs/logviewer.pid` for cleanup.
 - `openLogViewer()`: spawns `cmd /c start Log Viewer powershell ...` with `-NoExit`.
 - `closeLogViewer()`: kills the PowerShell process via `taskkill /PID`.
 
