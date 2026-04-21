@@ -9,11 +9,7 @@ import {
   getModels,
   checkApiKeyConfigured,
 } from '@codeagent/core';
-import {
-  showProviderSelection,
-  showModelSelection,
-  showApiKeyInput,
-} from './useProviderConfig.js';
+import { showProviderSelection, showModelSelection, showApiKeyInput } from './useProviderConfig.js';
 
 export type ConfigStep = 'idle' | 'selecting_provider' | 'entering_api_key' | 'selecting_model';
 
@@ -45,7 +41,7 @@ export function useModelConfig(session: AgentSession): UseModelConfigResult {
       .then(() => {
         setIsLoading(false);
       })
-      .catch((error) => {
+      .catch(error => {
         setLoadError(error instanceof Error ? error.message : 'Failed to load providers');
         setIsLoading(false);
       });
@@ -68,12 +64,20 @@ export function useModelConfig(session: AgentSession): UseModelConfigResult {
     if (!configTriggered) return;
 
     if (isLoading) {
-      showNotice({ title: 'Model Configuration', message: 'Loading available providers and models...', footer: 'Esc Cancel' });
+      showNotice({
+        title: 'Model Configuration',
+        message: 'Loading available providers and models...',
+        footer: 'Esc Cancel',
+      });
       return;
     }
 
     if (loadError) {
-      showNotice({ title: 'Model Configuration', message: `Failed to load providers.\n${loadError}`, footer: 'Esc Close' });
+      showNotice({
+        title: 'Model Configuration',
+        message: `Failed to load providers.\n${loadError}`,
+        footer: 'Esc Close',
+      });
       return;
     }
 
@@ -83,7 +87,7 @@ export function useModelConfig(session: AgentSession): UseModelConfigResult {
     if (step === 'selecting_provider') {
       showProviderSelection(
         cachedProviders,
-        (provider) => {
+        provider => {
           if (!checkApiKeyConfigured(provider)) {
             setSelectedProvider(provider);
             setStep('entering_api_key');
@@ -92,19 +96,27 @@ export function useModelConfig(session: AgentSession): UseModelConfigResult {
 
           const models = getModels(provider);
           if (!models || models.length === 0) {
-            showNotice({ title: 'Model Configuration', message: `No models available for ${provider.toUpperCase()}.`, footer: 'Esc Close' });
+            showNotice({
+              title: 'Model Configuration',
+              message: `No models available for ${provider.toUpperCase()}.`,
+              footer: 'Esc Close',
+            });
             return;
           }
 
           showModelSelection(
             provider,
             models,
-            (selectedModel) => {
+            selectedModel => {
               try {
                 cancelConfig();
                 setCurrentModel(selectedModel.id);
               } catch (error) {
-                showNotice({ title: 'Model Configuration', message: `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`, footer: 'Esc Close' });
+                showNotice({
+                  title: 'Model Configuration',
+                  message: `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`,
+                  footer: 'Esc Close',
+                });
               }
             },
             cancelConfig
@@ -118,23 +130,38 @@ export function useModelConfig(session: AgentSession): UseModelConfigResult {
     if (step === 'entering_api_key' && selectedProvider) {
       showApiKeyInput(
         selectedProvider,
-        (apiKey) => {
-          saveApiKey(selectedProvider, apiKey);
+        apiKey => {
+          if (!saveApiKey(selectedProvider, apiKey)) {
+            showNotice({
+              title: 'Model Configuration',
+              message: `Invalid API key for ${selectedProvider.toUpperCase()}.`,
+              footer: 'Esc Close',
+            });
+            return;
+          }
           const models = getModels(selectedProvider);
           if (!models || models.length === 0) {
-            showNotice({ title: 'Model Configuration', message: `No models available for ${selectedProvider.toUpperCase()}.`, footer: 'Esc Close' });
+            showNotice({
+              title: 'Model Configuration',
+              message: `No models available for ${selectedProvider.toUpperCase()}.`,
+              footer: 'Esc Close',
+            });
             return;
           }
 
           showModelSelection(
             selectedProvider,
             models,
-            (selectedModel) => {
+            selectedModel => {
               try {
                 void session.setModel(selectedModel as any);
                 setCurrentModel(selectedModel.id);
               } catch (error) {
-                showNotice({ title: 'Model Configuration', message: `Failed to set model: ${error instanceof Error ? error.message : String(error)}`, footer: 'Esc Close' });
+                showNotice({
+                  title: 'Model Configuration',
+                  message: `Failed to set model: ${error instanceof Error ? error.message : String(error)}`,
+                  footer: 'Esc Close',
+                });
                 return;
               }
               cancelConfig();
@@ -153,19 +180,33 @@ export function useModelConfig(session: AgentSession): UseModelConfigResult {
       showModelSelection(
         selectedProvider,
         models,
-        (selectedModel) => {
+        selectedModel => {
           try {
             void session.setModel(selectedModel as any);
             setCurrentModel(selectedModel.id);
           } catch (error) {
-            showNotice({ title: 'Model Configuration', message: `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`, footer: 'Esc Close' });
+            showNotice({
+              title: 'Model Configuration',
+              message: `Failed to set model:\n${error instanceof Error ? error.message : String(error)}\n\nPress Esc to close.`,
+              footer: 'Esc Close',
+            });
             cancelConfig();
           }
         },
         cancelConfig
       );
     }
-  }, [session, cancelConfig, configTriggered, isLoading, loadError, selectedProvider, providers, setCurrentModel, step]);
+  }, [
+    session,
+    cancelConfig,
+    configTriggered,
+    isLoading,
+    loadError,
+    selectedProvider,
+    providers,
+    setCurrentModel,
+    step,
+  ]);
 
   return {
     step,

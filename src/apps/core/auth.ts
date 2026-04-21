@@ -27,20 +27,26 @@ export function checkApiKeyConfigured(provider: string): boolean {
 
 /**
  * Save API key to AuthStorage for persistence.
+ * Returns true if saved successfully, false if validation failed (key too short, etc).
+ * Logs warning instead of throwing to avoid fatal errors in the UI.
  */
-export function saveApiKey(provider: string, apiKey: string): void {
+export function saveApiKey(provider: string, apiKey: string): boolean {
   if (!apiKey || typeof apiKey !== 'string') {
-    throw new Error('API key must be a non-empty string');
+    logger.warn(`[Auth] API key must be a non-empty string for ${provider}`);
+    return false;
   }
-  if (apiKey.length < 8) {
-    throw new Error('API key is too short (minimum 8 characters)');
+  if (apiKey.length < 4) {
+    logger.warn(`[Auth] API key is too short for ${provider} (minimum 4 characters)`);
+    return false;
   }
   if (/[\x00-\x1F\x7F]/.test(apiKey)) {
-    throw new Error('API key contains invalid control characters');
+    logger.warn(`[Auth] API key contains invalid control characters for ${provider}`);
+    return false;
   }
 
   getAuthStorage().set(provider, { type: 'api_key', key: apiKey });
   logger.info(`[Auth] API key saved for provider: ${provider}`);
+  return true;
 }
 
 /**
