@@ -9,7 +9,16 @@
  */
 import { create } from 'zustand';
 import { randomUUID } from 'crypto';
-import { getAgentSession } from '@codeagent/core';
+import {
+  getSessionManager,
+  listSessions,
+  newSession,
+  switchSession,
+  getSessionId,
+  getSessionName,
+  setSessionName,
+  getSessionMessages,
+} from '@codeagent/core';
 import {
   ChatMessageSchema,
   ChatSessionInfoSchema,
@@ -108,11 +117,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   // Session Actions
   refreshHistory: async (limit?: number) => {
-    // Use AgentSession.sessionManager instance — it carries the correct sessionDir
-    // so list() returns sessions from the right directory (~/.codeagent/...).
-    const session = getAgentSession();
-    const cwd = (session.sessionManager as any).getCwd?.() ?? process.cwd();
-    const allSessions = await session.sessionManager.list(cwd);
+    const allSessions = await listSessions();
     const history = limit ? allSessions.slice(0, limit) : allSessions;
     // pi-coding-agent SessionInfo: { id, name, modified, messageCount, firstMessage, ... }
     const mapped: SessionInfo[] = history.map((h: any) => ({
@@ -142,10 +147,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
       saveTimer = setTimeout(() => {
         saveTimer = null;
-        const session = getAgentSession();
+        const messages = getSessionMessages();
         // pi-coding-agent saves automatically on message_end,
         // but we can manually trigger a save if needed or just update local state
-        
+
         set(prev => ({
           currentSession:
             prev.activeSessionId === activeSessionId && prev.currentSession
@@ -153,17 +158,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                   ...prev.currentSession,
                   status: pendingStatus,
                   updatedAt: Date.now(),
-                  messageCount: session.messages.length,
+                  messageCount: messages.length,
                 }
               : prev.currentSession,
         }));
-        
+
         // Optionally update title if it's the first message
-        if (session.messages.length > 0 && (!get().currentSession?.title || get().currentSession?.title === 'New Session')) {
-          const firstMsg = session.messages.find(m => m.role === 'user');
+        if (messages.length > 0 && (!get().currentSession?.title || get().currentSession?.title === 'New Session')) {
+          const firstMsg = messages.find((m: any) => m.role === 'user');
           if (firstMsg) {
             const title = extractSessionTitle(typeof firstMsg.content === 'string' ? firstMsg.content : '');
-            session.setSessionName(title);
+            setSessionName(title);
             set(prev => prev.currentSession ? { currentSession: { ...prev.currentSession, title } } : prev);
           }
         }
@@ -174,22 +179,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   })(),
 
   restoreSessionById: async (sessionId: string) => {
-    const session = getAgentSession();
     try {
-      const success = await session.switchSession(sessionId);
+      const success = await switchSession(sessionId);
       if (!success) return false;
 
       // Restore both session state and messages atomically
       set({
-        activeSessionId: session.sessionId,
+        activeSessionId: getSessionId(),
         currentSession: {
-          id: session.sessionId,
-          title: session.sessionName || 'Untitled Session',
+          id: getSessionId(),
+          title: getSessionName() || 'Untitled Session',
           status: 'completed', // Default status for restored sessions
           updatedAt: Date.now(),
-          messageCount: session.messages.length,
+          messageCount: getSessionMessages().length,
         },
-        messages: agentMessagesToChatMessages(session.messages as any[]),
+        messages: agentMessagesToChatMessages(getSessionMessages() as any[]),
       });
 
       return true;
@@ -201,7 +205,6 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   ensureSessionForPrompt: (userInput: string) => {
     const { activeSessionId, currentSession } = get();
-    const session = getAgentSession();
 
     if (activeSessionId) {
       if (!currentSession) {
@@ -218,19 +221,20 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       return activeSessionId;
     }
 
-    // New session logic in pi-coding-agent is session.newSession()
-    // but usually it's already in a session.
+    // New session — no need to call newSession() explicitly here,
+    // the session already exists after ensureAgentInitialized().
+    const sessionId = getSessionId();
     set({
-      activeSessionId: session.sessionId,
+      activeSessionId: sessionId,
       currentSession: {
-        id: session.sessionId,
+        id: sessionId,
         title: extractSessionTitle(userInput),
         status: 'active',
         updatedAt: Date.now(),
         messageCount: 1,
       },
     });
-    return session.sessionId;
+    return sessionId;
   },
 
   // Pending Prompt Actions
@@ -263,10 +267,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   // Combined Actions
   clearAll: () => {
-    const session = getAgentSession();
-    void session.newSession();
+    newSession();
     set({
-      activeSessionId: session.sessionId,
+      activeSessionId: getSessionId(),
       currentSession: null,
       pendingPrompt: null,
       messages: [],

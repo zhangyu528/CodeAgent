@@ -4,7 +4,8 @@
  */
 
 // Session management
-export { getAgentSession, ensureAgentInitialized } from './agent.js';
+export { ensureAgentInitialized, getAgent, getAgentSession, switchSession, newSession, setModel, getSessionId, getSessionName, setSessionName, getSessionMessages } from './agent.js';
+export { getSessionManager, listSessions } from './sessionManager.js';
 
 // Auth helpers (API key management via AuthStorage)
 export {
@@ -13,16 +14,20 @@ export {
   checkApiKeyConfigured,
   isFirstRun,
   getAuthStorage,
-} from './apiKey.js';
+} from './auth.js';
 
-// Model discovery
+// Settings manager
+export { getSettingsManager } from './settingsManager.js';
+
+// Model registry
 export {
+  getModelRegistry,
   ensureProvidersLoaded,
   getProviders,
   getModels,
   clearProviderCache,
   reloadProviders,
-} from './modelDiscovery.js';
+} from './modelRegistry.js';
 
 // Log viewer (dev only — Windows PowerShell window)
 export { openLogViewer, closeLogViewer } from './logViewer.js';

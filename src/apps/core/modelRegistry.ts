@@ -1,18 +1,24 @@
 /**
- * Model Registry - 统一模型发现层
- * 封装 pi-coding-agent 的 ModelRegistry，对外只暴露纯函数
+ * Model Registry API - facade for agent's ModelRegistry
  */
 
 import { ModelRegistry } from '@mariozechner/pi-coding-agent';
 import { logger } from './logger.js';
-import { getAuthStorage } from './apiKey.js';
+import { getAuthStorage } from './auth.js';
 
 type AllowedProvider = 'zai' | 'minimax-cn';
 
-let registryCache: ModelRegistry | null = null;
+let modelRegistryInstance: ModelRegistry | null = null;
 let providersCache: AllowedProvider[] | null = null;
 let modelsByProviderCache: Record<string, any[]> | null = null;
 let isLoadingCache = false;
+
+export function getModelRegistry(): ModelRegistry {
+  if (!modelRegistryInstance) {
+    modelRegistryInstance = new ModelRegistry(getAuthStorage());
+  }
+  return modelRegistryInstance;
+}
 
 export function getProviders(): string[] | null {
   return providersCache;
@@ -33,11 +39,9 @@ export async function ensureProvidersLoaded(): Promise<string[]> {
   }
   isLoadingCache = true;
 
-  // Use real AuthStorage so setFallbackResolver is available
-  registryCache = new ModelRegistry(getAuthStorage());
-  registryCache.refresh();
-
-  const allModels = registryCache.getAll();
+  const registry = getModelRegistry();
+  registry.refresh();
+  const allModels = registry.getAll();
   const ALLOWED_PROVIDERS: AllowedProvider[] = ['zai', 'minimax-cn'];
 
   const providerSet = new Set<AllowedProvider>();
@@ -60,7 +64,7 @@ export async function ensureProvidersLoaded(): Promise<string[]> {
 
 // 清除缓存（用于测试）
 export function clearProviderCache(): void {
-  registryCache = null;
+  modelRegistryInstance = null;
   providersCache = null;
   modelsByProviderCache = null;
   isLoadingCache = false;
