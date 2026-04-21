@@ -2,8 +2,9 @@
 # Auto-install missing packages
 
 [build]
-# Alias @codeagent/core to the source directory for bundling
-# This replaces the need for --alias flag in the build script
+# Alias @codeagent/core to the source directory.
+# This is read by 'bun build' when bundling. CLI build script
+# uses --target=node and --outfile flags instead.
 [[build.alias]]
 from = "@codeagent/core"
 to = "./src/apps/core/index.ts"
