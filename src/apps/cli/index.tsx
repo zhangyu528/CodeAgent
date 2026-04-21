@@ -6,7 +6,7 @@ import { render } from 'ink';
 import { App } from './ink/App.js';
 import { parseFlags } from './json/flags.js';
 import { initJsonMode, handleAgentEvent } from './json/JsonMode.js';
-import { ensureAgentInitialized, openLogViewer, closeLogViewer, logger } from '../core/index.js';
+import { ensureAgentInitialized, openLogViewer, closeLogViewer, logger } from '@codeagent/core';
 import { join } from 'path';
 import { homedir } from 'os';
 

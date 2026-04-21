@@ -1,0 +1,9 @@
+[install]
+# Auto-install missing packages
+
+[build]
+# Alias @codeagent/core to the source directory for bundling
+# This replaces the need for --alias flag in the build script
+[[build.alias]]
+from = "@codeagent/core"
+to = "./src/apps/core/index.ts"

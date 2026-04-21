@@ -6,7 +6,7 @@ import { ModalContainer } from './components/modals/ModalContainer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { useAppController } from './AppController.js';
 
-import type { AgentSession } from '../../../core/index.js';
+import type { AgentSession } from '@codeagent/core';
 
 interface AppProps {
   initPromise: Promise<AgentSession>;

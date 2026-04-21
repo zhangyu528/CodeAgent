@@ -9,7 +9,7 @@ import {
   getProviders,
   getModels,
   checkApiKeyConfigured,
-} from '../../../core/index.js';
+} from '@codeagent/core';
 import { showNotice, showSelectOne, showAsk } from '../components/modals/index.js';
 
 // 显示 Provider 选择对话框

@@ -10,7 +10,12 @@
     "skipLibCheck": true,
     "types": ["node"],
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@codeagent/core": ["./src/apps/core/index.ts"],
+      "@codeagent/core/*": ["./src/apps/core/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules/**/*"]

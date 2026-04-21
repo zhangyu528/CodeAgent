@@ -9,7 +9,7 @@
  */
 import { create } from 'zustand';
 import { randomUUID } from 'crypto';
-import { getAgentSession } from '../../../core/index.js';
+import { getAgentSession } from '@codeagent/core';
 import {
   ChatMessageSchema,
   ChatSessionInfoSchema,

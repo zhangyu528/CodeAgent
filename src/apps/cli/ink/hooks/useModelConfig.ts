@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import type { AgentSession } from '../../../core/index.js';
-import { saveApiKey } from '../../../core/index.js';
+import type { AgentSession } from '@codeagent/core';
+import { saveApiKey } from '@codeagent/core';
 import { showNotice } from '../components/modals/index.js';
 import { useAppStore } from '../store/uiStore.js';
 import {
@@ -8,7 +8,7 @@ import {
   getProviders,
   getModels,
   checkApiKeyConfigured,
-} from '../../../core/index.js';
+} from '@codeagent/core';
 import {
   showProviderSelection,
   showModelSelection,

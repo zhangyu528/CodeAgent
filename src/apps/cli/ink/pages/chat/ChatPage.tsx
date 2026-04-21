@@ -5,7 +5,7 @@ import { ChatHeader } from '../../components/chat/ChatHeader.js';
 import { MessageList } from '../../components/chat/MessageList.js';
 import { useChatStore } from '../../store/index.js';
 import { useAgentEvents } from '../../hooks/useAgentEvents.js';
-import { getAgentSession } from '../../../../core/index.js';
+import { getAgentSession } from '@codeagent/core';
 
 export function ChatPage() {
   const session = getAgentSession();

@@ -6,7 +6,7 @@
  * to reduce React re-renders from high-frequency token updates.
  */
 import { useEffect, useRef, useCallback } from 'react';
-import { AgentSession, AgentSessionEvent } from '../../../../core/index.js';
+import { AgentSession, AgentSessionEvent } from '@codeagent/core';
 import { useChatStore } from '../store/index.js';
 import { ChatMessage } from '../pages/types.js';
 import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';

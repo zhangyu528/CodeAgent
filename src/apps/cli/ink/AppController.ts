@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useApp, useStdout } from 'ink';
-import type { AgentSession } from '../../core/index.js';
+import type { AgentSession } from '@codeagent/core';
 import { useAppStore } from './store/uiStore.js';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts.js';
-import { checkApiKeyConfigured, getModels, getProviders, ensureProvidersLoaded } from '../../core/index.js';
+import { checkApiKeyConfigured, getModels, getProviders, ensureProvidersLoaded } from '@codeagent/core';
 
 interface UseAppControllerOptions {
   initPromise?: Promise<AgentSession>;
