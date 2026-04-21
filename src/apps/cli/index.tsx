@@ -6,9 +6,23 @@ import { render } from 'ink';
 import { App } from './ink/App.js';
 import { parseFlags } from './json/flags.js';
 import { initJsonMode, handleAgentEvent } from './json/JsonMode.js';
-import { ensureAgentInitialized, openLogViewer, closeLogViewer } from '../core/index.js';
+import { ensureAgentInitialized, openLogViewer, closeLogViewer, logger } from '../core/index.js';
 import { join } from 'path';
 import { homedir } from 'os';
+
+// ─── Global exception handlers ───────────────────────────────────────────────
+
+process.on('uncaughtException', (err: Error) => {
+  logger.fatal(err, 'Uncaught exception');
+  closeLogViewer();
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason: unknown) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  logger.error(err, 'Unhandled rejection');
+  // Don't exit for rejections — some may be recoverable
+});
 
 /**
  * JSON output mode - non-interactive NDJSON output
@@ -88,14 +102,14 @@ const flags = parseFlags(process.argv.slice(2));
 
 if (flags.json) {
   // JSON output mode (non-interactive)
-  runJsonMode(flags).catch(err => {
-    console.error('Fatal error during JSON mode:', err);
+  runJsonMode(flags).catch((err: Error) => {
+    logger.fatal(err, 'Fatal error during JSON mode');
     process.exit(1);
   });
 } else {
   // Interactive TUI mode
-  bootstrap().catch(err => {
-    console.error('Fatal error during bootstrap:', err);
+  bootstrap().catch((err: Error) => {
+    logger.fatal(err, 'Fatal error during bootstrap');
     process.exit(1);
   });
 }
