@@ -1,50 +1,47 @@
 /**
- * EscapeChatPage - Full escape sequence based chat rendering
+ * EscapeChatPage - Hybrid: Ink components for Header/Input, escape sequences for scroll.
  *
- * Layout:
- *   Row 0-1:    Header (fixed)
- *   Row 2:      Separator line
- *   Row 3 to (T-5): Messages scroll region (DECSTBM)
- *   Row (T-4):  Separator line
- *   Row (T-3) to T: Input area (fixed)
+ * Layout (Ink Box):
+ *   <Box flexDirection="column" flexGrow={1}>
+ *     <ChatHeader />                    ← Ink Box (fixed)
+ *     <EscapeMessageList />            ← Ink Box wrapping DECSTBM scroll region
+ *     <Input />                        ← Ink Box with TextInput (fixed)
+ *   </Box>
+ *
+ * The EscapeMessageList component:
+ * - Uses Ink Box as outer container (so Ink tree is balanced)
+ * - Inside the Box, it manages a DECSTBM scroll region for messages
+ * - Does NOT use alternate screen - messages live in terminal scrollback
  */
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { useAgentEvents } from '../hooks/useAgentEvents.js';
-import { useChatStore } from '../store/index.js';
+import { Box, Text, useStdout } from 'ink';
+import { Input } from '../../components/inputs/index.js';
+import { ChatHeader } from '../../components/chat/ChatHeader.js';
+import { useChatStore } from '../../store/index.js';
+import { useAgentEvents } from '../../hooks/useAgentEvents.js';
 import { getAgentSession } from '@codeagent/core';
-import { ChatMessage } from '../pages/types.js';
+import { ChatMessage } from '../types.js';
 
 const ESC = '\x1b';
 const CSI = `${ESC}[`;
 
 // ANSI escape sequences
 const ansi = {
-  // Cursor
   cursorTo: (row: number, col: number = 1) => `${CSI}${row};${col}H`,
   cursorForward: (n = 1) => `${CSI}${n}C`,
   cursorBack: (n = 1) => `${CSI}${n}D`,
   saveCursor: () => `${ESC}7`,
   restoreCursor: () => `${ESC}8`,
-
-  // Clear
   clearScreen: () => `${CSI}2J`,
   clearLine: () => `${CSI}2K`,
   clearLineToEnd: () => `${CSI}0K`,
-
-  // Scroll region (DECSTBMS)
   setScrollRegion: (top: number, bottom: number) => `${CSI}${top};${bottom}r`,
   scrollUp: (n = 1) => `${CSI}${n}S`,
-
-  // Screen modes
-  enterAltScreen: () => `${CSI}?1049h`,
-  exitAltScreen: () => `${CSI}?1049l`,
   hideCursor: () => `${CSI}?25l`,
   showCursor: () => `${CSI}?25h`,
-
-  // Terminal modes
-  enableLineFeed: () => `${ESC}[20h`,
-  disableLineFeed: () => `${ESC}[20l`,
+  // Scroll to bottom of scroll region (DECSTBM bound scrolling)
+  scrollToBottom: () => `${CSI}${1};${1}H`, // Move to scroll region top, scroll region auto-scrolls
 };
 
 // Colors
@@ -73,105 +70,27 @@ function roleColor(role: string): string {
 interface Layout {
   rows: number;
   cols: number;
-  headerTop: number;
-  headerBottom: number;
   scrollTop: number;
   scrollBottom: number;
-  inputTop: number;
-  inputBottom: number;
 }
 
-function calculateLayout(rows: number, cols: number, headerLines: number, inputLines: number): Layout {
-  return {
-    rows,
-    cols,
-    headerTop: 1,
-    headerBottom: headerLines,
-    scrollTop: headerLines + 1,
-    scrollBottom: rows - inputLines,
-    inputTop: rows - inputLines + 1,
-    inputBottom: rows,
-  };
-}
-
-function renderHeader(layout: Layout, sessionName?: string): void {
-  const { cols, headerTop, headerBottom } = layout;
-  const border = '─'.repeat(Math.min(cols - 4, 60));
-
-  // Top border
-  process.stdout.write(ansi.cursorTo(headerTop, 1));
-  process.stdout.write(`${c.blue}${c.bold}┌${border}┐${c.reset}`);
-
-  // Title
-  process.stdout.write(ansi.cursorTo(headerTop + 1, 1));
-  const title = sessionName ? ` Chat - ${sessionName} ` : ' CodeAgent ';
-  const padding = Math.max(0, Math.floor((cols - title.length - 4) / 2));
-  const titleLine = `${c.blue}│${c.reset}${' '.repeat(padding)}${c.bold}${c.white}${title}${c.reset}${' '.repeat(Math.max(0, cols - padding - title.length - 6))}${c.blue}│${c.reset}`;
-  process.stdout.write(titleLine);
-
-  // Bottom border
-  process.stdout.write(ansi.cursorTo(headerBottom, 1));
-  process.stdout.write(`${c.blue}${c.bold}└${border}┘${c.reset}`);
-}
-
-function renderInputArea(layout: Layout, inputText: string, cursorPos: number): void {
-  const { cols, inputTop, inputBottom, scrollBottom } = layout;
-
-  // Separator line
-  const sep = '─'.repeat(Math.min(cols - 4, 60));
-  process.stdout.write(ansi.cursorTo(scrollBottom + 1, 1));
-  process.stdout.write(`${c.cyan}├${sep}┤${c.reset}`);
-
-  // Input prompt line
-  const prompt = `${c.cyan}>${c.reset} `;
-  const promptLen = 2;
-
-  process.stdout.write(ansi.cursorTo(inputTop, 1));
-  process.stdout.write(ansi.clearLine());
-  process.stdout.write(prompt);
-
-  // Render input text with cursor
-  const maxWidth = cols - promptLen - 2;
-  const displayText = inputText.length > maxWidth
-    ? '...' + inputText.slice(-maxWidth + 3)
-    : inputText;
-
-  const cursorOffset = Math.min(cursorPos, displayText.length);
-
-  // Text before cursor
-  if (cursorOffset > 0) {
-    process.stdout.write(displayText.slice(0, cursorOffset));
+function roleLabel(role: string): string {
+  switch (role) {
+    case 'user': return 'You';
+    case 'assistant': return 'Assistant';
+    case 'error': return 'Error';
+    default: return role;
   }
-
-  // Cursor
-  process.stdout.write(`${c.yellow}${c.bold}_${c.reset}`);
-
-  // Text after cursor
-  if (cursorOffset < displayText.length) {
-    process.stdout.write(displayText.slice(cursorOffset));
-  }
-
-  process.stdout.write(ansi.clearLineToEnd());
-
-  // Input area background hint
-  const hint = `${c.dim}Press Enter to send, Ctrl+C to exit${c.reset}`;
-  process.stdout.write(ansi.cursorTo(inputTop + 1, 1));
-  process.stdout.write(ansi.clearLine());
-  process.stdout.write(hint);
-
-  // Separator bottom
-  process.stdout.write(ansi.cursorTo(inputBottom, 1));
-  process.stdout.write(`${c.cyan}└${sep}┘${c.reset}`);
 }
 
 function formatMessage(msg: ChatMessage, maxWidth: number): string[] {
   const lines: string[] = [];
   const color = roleColor(msg.role);
   const border = `${c.dim}│${c.reset}`;
-  const indent = ' ';
+  const label = roleLabel(msg.role);
 
-  // Role label
-  lines.push(`${border} ${color}${c.bold}${msg.role}${c.reset}`);
+  // Role label with border
+  lines.push(`${border} ${color}${c.bold}${label}${c.reset}`);
 
   // Blocks
   for (const block of msg.blocks) {
@@ -191,20 +110,19 @@ function formatMessage(msg: ChatMessage, maxWidth: number): string[] {
     const textLines = text.split('\n');
     for (const line of textLines) {
       if (line.length > maxWidth - 4) {
-        // Simple word wrap
         const words = line.split(' ');
         let currentLine = '';
         for (const word of words) {
           if ((currentLine + ' ' + word).length > maxWidth - 4) {
-            if (currentLine) lines.push(`${border}${indent}${currentLine}`);
+            if (currentLine) lines.push(`${border} ${currentLine}`);
             currentLine = word;
           } else {
             currentLine = currentLine ? `${currentLine} ${word}` : word;
           }
         }
-        if (currentLine) lines.push(`${border}${indent}${currentLine}`);
+        if (currentLine) lines.push(`${border} ${currentLine}`);
       } else {
-        lines.push(`${border}${indent}${line}`);
+        lines.push(`${border} ${line}`);
       }
     }
   }
@@ -212,18 +130,125 @@ function formatMessage(msg: ChatMessage, maxWidth: number): string[] {
   return lines;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// EscapeMessageList - Ink Box wrapping DECSTBM scroll region
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface EscapeMessageListProps {
+  messages: ChatMessage[];
+}
+
+function EscapeMessageList({ messages }: EscapeMessageListProps) {
+  const { stdout } = useStdout();
+  const layoutRef = useRef<Layout | null>(null);
+  const containerRef = useRef<HTMLBoxElement>(null);
+  const prevRowCountRef = useRef<number>(0);
+  const isInitializedRef = useRef(false);
+
+  // Calculate scroll region position based on Ink rendering
+  // We query the stdout.rows after Ink renders to find our position
+  const updateLayout = useCallback(() => {
+    const rows = stdout.rows || 24;
+    const cols = stdout.columns || 80;
+    // We don't know exact Ink layout, so we use the whole terminal
+    // and manage scrolling within that area
+    // Leave 1 row at bottom as margin for Ink's cursor
+    layoutRef.current = {
+      rows,
+      cols,
+      scrollTop: 1,
+      scrollBottom: rows - 1,
+    };
+  }, [stdout.rows, stdout.columns]);
+
+  // Render all messages into scroll region
+  const renderMessages = useCallback(() => {
+    if (!layoutRef.current) return;
+
+    const layout = layoutRef.current;
+    const maxWidth = layout.cols - 2;
+
+    // Save cursor
+    process.stdout.write(ansi.saveCursor());
+
+    // Clear scroll region
+    process.stdout.write(ansi.setScrollRegion(layout.scrollTop, layout.scrollBottom));
+    for (let r = layout.scrollTop; r <= layout.scrollBottom; r++) {
+      process.stdout.write(ansi.cursorTo(r, 1));
+      process.stdout.write(ansi.clearLine());
+    }
+
+    // Render all messages
+    for (const msg of messages) {
+      const lines = formatMessage(msg, maxWidth);
+      for (const line of lines) {
+        process.stdout.write(ansi.cursorTo(layout.scrollBottom, 1));
+        process.stdout.write(ansi.scrollUp(1));
+        process.stdout.write(ansi.cursorTo(layout.scrollBottom, 1));
+        process.stdout.write(ansi.clearLine());
+        process.stdout.write(line);
+      }
+    }
+
+    // Restore cursor
+    process.stdout.write(ansi.restoreCursor());
+  }, [messages]);
+
+  // Initialize and handle resize
+  useEffect(() => {
+    updateLayout();
+
+    const handleResize = () => {
+      updateLayout();
+      renderMessages();
+    };
+    process.stdout.on('resize', handleResize);
+
+    return () => {
+      process.stdout.off('resize', handleResize);
+    };
+  }, [updateLayout, renderMessages]);
+
+  // Re-render on messages change
+  useEffect(() => {
+    if (!isInitializedRef.current) {
+      // First render - give Ink time to settle, then render
+      isInitializedRef.current = true;
+      return;
+    }
+    renderMessages();
+  }, [messages, renderMessages]);
+
+  // Return an empty Ink Box - all rendering done via escape sequences
+  // The Box still participates in Ink layout but renders nothing itself
+  return (
+    <Box
+      ref={containerRef as any}
+      flexGrow={1}
+      flexShrink={1}
+    >
+      {/* Invisible - all content rendered via escape sequences */}
+    </Box>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EscapeChatPage - Main page component
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function EscapeChatPage() {
   const session = getAgentSession();
   const agent = session.agent;
   const messages = useChatStore(state => state.messages);
   const currentSession = useChatStore(state => state.currentSession);
-  const addMessage = useChatStore(state => state.addMessage);
-  const updateLastMessage = useChatStore(state => state.updateLastMessage);
+  const { stdout } = useStdout();
+  const [terminalRows, setTerminalRows] = useState(stdout.rows || 24);
 
-  const [inputText, setInputText] = useState('');
-  const [cursorPos, setCursorPos] = useState(0);
-  const layoutRef = useRef<Layout | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const onResize = () => setTerminalRows(stdout.rows);
+    stdout.on('resize', onResize);
+    return () => stdout.off('resize', onResize);
+  }, [stdout]);
 
   const {
     hydrateFromAgentState,
@@ -236,182 +261,54 @@ export function EscapeChatPage() {
     },
   });
 
-  // Initialize terminal
+  // Handle pending prompt from WelcomePage
   useEffect(() => {
-    // Enter alternate screen and hide cursor
-    process.stdout.write(ansi.enterAltScreen());
-    process.stdout.write(ansi.clearScreen());
-    process.stdout.write(ansi.hideCursor());
+    const pending = useChatStore.getState().getAndClearPendingPrompt();
 
-    // Calculate initial layout
-    const rows = process.stdout.rows || 24;
-    const cols = process.stdout.columns || 80;
-    layoutRef.current = calculateLayout(rows, cols, 2, 3);
+    if (!pending) {
+      hydrateFromAgentState();
+      return;
+    }
 
-    // Initial render
-    renderAll();
-
-    // Setup stdin for input
-    process.stdin.setRawMode?.(true);
-    process.stdin.resume?.();
-    process.stdin.setEncoding?.('utf-8');
-
-    // Handle resize
-    const handleResize = () => {
-      const rows = process.stdout.rows || 24;
-      const cols = process.stdout.columns || 80;
-      layoutRef.current = calculateLayout(rows, cols, 2, 3);
-      renderAll();
-    };
-    process.stdout.on('resize', handleResize);
-
-    // Cleanup
-    return () => {
-      process.stdout.write(ansi.exitAltScreen());
-      process.stdout.write(ansi.showCursor());
-      process.stdout.write(ansi.clearScreen());
-      process.stdin.setRawMode?.(false);
-      process.stdout.off('resize', handleResize);
-    };
+    useChatStore.getState().ensureSessionForPrompt(pending);
+    appendUserMessage(pending);
+    void agent.prompt(pending);
   }, []);
 
-  // Render all UI
-  const renderAll = useCallback(() => {
-    if (!layoutRef.current) return;
+  // Don't render EscapeMessageList in welcome state - use standard layout
+  const isWelcome = !currentSession;
 
-    const layout = layoutRef.current;
-    const maxWidth = layout.cols - 2;
+  if (isWelcome) {
+    return (
+      <Box flexDirection="column" flexGrow={1}>
+        <Box flexShrink={0}>
+          <ChatHeader session={null} />
+        </Box>
+        <Box flexGrow={1} justifyContent="center" alignItems="center">
+          <Text dimColor>No active session</Text>
+        </Box>
+        <Box flexShrink={0}>
+          <Input />
+        </Box>
+      </Box>
+    );
+  }
 
-    // Clear scroll region
-    process.stdout.write(ansi.setScrollRegion(layout.scrollTop, layout.scrollBottom));
-    for (let r = layout.scrollTop; r <= layout.scrollBottom; r++) {
-      process.stdout.write(ansi.cursorTo(r, 1));
-      process.stdout.write(ansi.clearLine());
-    }
+  const headerRows = 2; // ChatHeader takes ~2 rows
+  const inputRows = 9; // Input component height
+  const availableRows = Math.max(1, terminalRows - headerRows - inputRows);
 
-    // Render header
-    renderHeader(layout, currentSession?.title);
-
-    // Render messages in scroll region
-    for (const msg of messages) {
-      const lines = formatMessage(msg, maxWidth);
-      for (const line of lines) {
-        // Move to end of scroll region
-        process.stdout.write(ansi.cursorTo(layout.scrollBottom, 1));
-        // Scroll up to make room
-        process.stdout.write(ansi.scrollUp(1));
-        // Write at new bottom
-        process.stdout.write(ansi.cursorTo(layout.scrollBottom, 1));
-        process.stdout.write(ansi.clearLine());
-        process.stdout.write(line);
-      }
-    }
-
-    // Ensure cursor is at input position
-    process.stdout.write(ansi.setScrollRegion(1, layout.rows));
-    process.stdout.write(ansi.cursorTo(layout.inputTop, 3 + cursorPos));
-
-  }, [messages, currentSession, cursorPos]);
-
-  // Re-render on messages change
-  useEffect(() => {
-    renderAll();
-  }, [messages, currentSession, renderAll]);
-
-  // Handle input
-  useEffect(() => {
-    const handleKeypress = (chunk: string, key?: { name?: string; ctrl?: boolean }) => {
-      if (!layoutRef.current) return;
-
-      const layout = layoutRef.current;
-
-      if (key?.ctrl && key.name === 'c') {
-        // Exit
-        process.stdout.write(ansi.exitAltScreen());
-        process.stdout.write(ansi.showCursor());
-        process.stdout.write(ansi.clearScreen());
-        process.exit(0);
-        return;
-      }
-
-      if (key?.name === 'return' || key?.name === 'enter') {
-        // Submit
-        const text = inputText.trim();
-        if (text) {
-          appendUserMessage(text);
-          setInputText('');
-          setCursorPos(0);
-          // Agent will handle the response
-        }
-        return;
-      }
-
-      if (key?.name === 'backspace') {
-        if (cursorPos > 0 && inputText.length > 0) {
-          const newText = inputText.slice(0, cursorPos - 1) + inputText.slice(cursorPos);
-          setInputText(newText);
-          setCursorPos(cursorPos - 1);
-        }
-        return;
-      }
-
-      if (key?.name === 'delete') {
-        if (cursorPos < inputText.length) {
-          const newText = inputText.slice(0, cursorPos) + inputText.slice(cursorPos + 1);
-          setInputText(newText);
-        }
-        return;
-      }
-
-      if (key?.name === 'leftArrow') {
-        if (cursorPos > 0) {
-          setCursorPos(cursorPos - 1);
-        }
-        return;
-      }
-
-      if (key?.name === 'rightArrow') {
-        if (cursorPos < inputText.length) {
-          setCursorPos(cursorPos + 1);
-        }
-        return;
-      }
-
-      if (key?.name === 'home') {
-        setCursorPos(0);
-        return;
-      }
-
-      if (key?.name === 'end') {
-        setCursorPos(inputText.length);
-        return;
-      }
-
-      // Regular character
-      if (chunk && !key?.ctrl && !key?.meta) {
-        const newText = inputText.slice(0, cursorPos) + chunk + inputText.slice(cursorPos);
-        setInputText(newText);
-        setCursorPos(cursorPos + chunk.length);
-      }
-    };
-
-    process.stdin.on('data', handleKeypress);
-
-    return () => {
-      process.stdin.off('data', handleKeypress);
-    };
-  }, [inputText, cursorPos, appendUserMessage]);
-
-  // Render input area on cursor/input change
-  useEffect(() => {
-    if (!layoutRef.current) return;
-    renderInputArea(layoutRef.current, inputText, cursorPos);
-    // Move cursor to input position
-    process.stdout.write(ansi.cursorTo(layoutRef.current.inputTop, 3 + cursorPos));
-  }, [inputText, cursorPos]);
-
-  // Return null - all rendering is done via escape sequences
-  return null;
+  return (
+    <Box flexDirection="column" flexGrow={1}>
+      <Box flexShrink={0}>
+        <ChatHeader session={currentSession} />
+      </Box>
+      <EscapeMessageList messages={messages} />
+      <Box flexShrink={0}>
+        <Input />
+      </Box>
+    </Box>
+  );
 }
 
 export default EscapeChatPage;

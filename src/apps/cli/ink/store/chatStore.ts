@@ -11,7 +11,7 @@ import { create } from 'zustand';
 import { randomUUID } from 'crypto';
 import {
   listSessions,
-  newSession,
+  newSession as coreNewSession,
   switchSession,
   getSessionId,
   getSessionName,
@@ -275,7 +275,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   // Combined Actions
   clearAll: () => {
-    newSession();
+    coreNewSession();
     set({
       activeSessionId: getSessionId(),
       currentSession: null,

@@ -5,10 +5,6 @@
  * This tests the escape sequence rendering without needing the full app.
  */
 
-import { useAgentEvents } from './ink/hooks/useAgentEvents.js';
-import { useChatStore } from './ink/store/index.js';
-import { getAgentSession } from '@codeagent/core';
-
 const ESC = '\x1b';
 const CSI = `${ESC}[`;
 
