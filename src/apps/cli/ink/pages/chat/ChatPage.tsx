@@ -61,11 +61,13 @@ export function ChatPage() {
       <Box flexShrink={0}>
         <ChatHeader session={currentSession} />
       </Box>
-      <MessageList
-        messages={messages}
-        scrollEnabled={true}
-        availableRows={viewportHeight}
-      />
+      <Box flexGrow={1} overflow="scroll">
+        <MessageList
+          messages={messages}
+          scrollEnabled={true}
+          availableRows={viewportHeight}
+        />
+      </Box>
       <Box flexShrink={0}>
         <Input />
       </Box>
