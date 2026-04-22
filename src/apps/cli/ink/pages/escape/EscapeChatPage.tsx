@@ -1,12 +1,14 @@
 /**
- * EscapeChatPage - Hybrid: Ink components for Header/Input, escape sequences for scroll.
+ * EscapeChatPage - Hybrid: Ink for Header/Input, escape sequences for messages via alternate screen.
  *
- * Layout:
- *   <Box flexDirection="column" flexGrow={1}>
- *     <ChatHeader />        ← Ink Box (fixed)
- *     <EscapeMessageList /> ← Escape sequence rendering in commit phase
- *     <Input />            ← Ink Box with TextInput (fixed)
- *   </Box>
+ * Architecture:
+ *   Main screen:     Header (Ink) + Input (Ink)          ← Ink 控制
+ *   Alternate screen: Messages (DECSTBM scroll region)   ← Escape sequences, 不被 Ink 影响
+ *
+ * Layout rows:
+ *   Row 1:           ChatHeader (Ink, ~2 rows)
+ *   Row 3 to (T-9):   Messages scroll region (alternate screen, DECSTBM)
+ *   Row (T-8) to T:  Input (Ink, ~9 rows)
  */
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
@@ -28,6 +30,8 @@ const ansi = {
   clearLine: () => `${CSI}2K`,
   setScrollRegion: (top: number, bottom: number) => `${CSI}${top};${bottom}r`,
   scrollUp: (n = 1) => `${CSI}${n}S`,
+  enterAltScreen: () => `${CSI}?1049h`,
+  exitAltScreen: () => `${CSI}?1049l`,
 };
 
 const cc = {
@@ -37,6 +41,7 @@ const cc = {
   cyan: '\x1b[36m',
   blue: '\x1b[34m',
   white: '\x1b[37m',
+  gray: '\x1b[90m',
 };
 
 function roleColorANSI(role: string): string {
@@ -101,7 +106,7 @@ function formatMessageANSI(msg: ChatMessage, maxWidth: number): string[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EscapeMessageList - renders messages via escape sequences after Ink commit
+// EscapeMessageList - alternate screen with DECSTBM scroll region
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface EscapeMessageListProps {
@@ -110,109 +115,119 @@ interface EscapeMessageListProps {
 
 function EscapeMessageList({ messages }: EscapeMessageListProps) {
   const { stdout } = useStdout();
-  const renderedRef = useRef<Set<string>>(new Set());
-  const lastCountRef = useRef(0);
+  const isAltScreenRef = useRef(false);
   const pendingRenderRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const containerRef = useRef<HTMLBoxElement>(null);
 
-  // Get the position of this component in the terminal
-  // We use a spacer Box to occupy space, then render escape sequences after commit
-  const [spacerHeight, setSpacerHeight] = useState(10);
-
-  // Calculate how many rows we have available
-  useEffect(() => {
-    const rows = stdout.rows || 24;
-    // Header ~2 rows, Input ~9 rows, leaving the rest for messages
-    const available = Math.max(5, rows - 2 - 9);
-    setSpacerHeight(available);
-  }, [stdout.rows]);
-
-  // Render messages to the scroll region
-  // This runs AFTER Ink's commit phase, so it's safe to write to stdout
-  const renderMessages = useCallback(() => {
+  // Calculate layout
+  const getLayout = useCallback(() => {
     const rows = stdout.rows || 24;
     const cols = stdout.columns || 80;
-    const maxWidth = cols - 2;
+    // Message area: rows 3 to (T - 9)
+    // Header takes rows 1-2, Input takes last 9 rows
+    return {
+      rows,
+      cols,
+      scrollTop: 3,
+      scrollBottom: rows - 9,
+    };
+  }, [stdout.rows, stdout.columns]);
 
-    // Scroll region: rows 3 to (rows - 10), leaving room for header/input
-    const scrollTop = 3;
-    const scrollBottom = rows - 10;
+  // Enter alternate screen and set up scroll region
+  const enterAltScreen = useCallback(() => {
+    if (isAltScreenRef.current) return;
+    isAltScreenRef.current = true;
 
-    // Save cursor and scroll region
-    process.stdout.write(ansi.saveCursor());
-    process.stdout.write(ansi.setScrollRegion(scrollTop, scrollBottom));
+    const layout = getLayout();
+    process.stdout.write(ansi.enterAltScreen());
+    process.stdout.write(ansi.setScrollRegion(layout.scrollTop, layout.scrollBottom));
+  }, [getLayout]);
+
+  // Exit alternate screen
+  const exitAltScreen = useCallback(() => {
+    if (!isAltScreenRef.current) return;
+    isAltScreenRef.current = false;
+    process.stdout.write(ansi.setScrollRegion(1, stdout.rows || 24));
+    process.stdout.write(ansi.exitAltScreen());
+  }, [stdout.rows]);
+
+  // Render messages in alternate screen
+  const renderMessages = useCallback(() => {
+    if (!isAltScreenRef.current) return;
+
+    const layout = getLayout();
+    const maxWidth = layout.cols - 2;
 
     // Clear scroll region
-    for (let r = scrollTop; r <= scrollBottom; r++) {
+    for (let r = layout.scrollTop; r <= layout.scrollBottom; r++) {
       process.stdout.write(ansi.cursorTo(r, 1));
       process.stdout.write(ansi.clearLine());
     }
 
-    // Render all messages (newest at bottom)
-    const visibleMessages = messages.slice(-20); // Last 20 messages
+    // Render messages (last 30)
+    const visibleMessages = messages.slice(-30);
     for (const msg of visibleMessages) {
       const lines = formatMessageANSI(msg, maxWidth);
       for (const line of lines) {
-        process.stdout.write(ansi.cursorTo(scrollBottom, 1));
+        process.stdout.write(ansi.cursorTo(layout.scrollBottom, 1));
         process.stdout.write(ansi.scrollUp(1));
-        process.stdout.write(ansi.cursorTo(scrollBottom, 1));
+        process.stdout.write(ansi.cursorTo(layout.scrollBottom, 1));
         process.stdout.write(ansi.clearLine());
         process.stdout.write(line);
       }
     }
 
-    // Restore
-    process.stdout.write(ansi.setScrollRegion(1, rows));
-    process.stdout.write(ansi.restoreCursor());
-  }, [messages, stdout.rows, stdout.columns]);
+    // Move cursor out of scroll region
+    process.stdout.write(ansi.cursorTo(layout.scrollBottom + 1, 1));
+  }, [messages, getLayout]);
 
-  // Render after commit (using setTimeout 0)
+  // Enter alternate screen on mount
   useEffect(() => {
-    // Skip if no messages yet
-    if (messages.length === 0) return;
+    // Small delay to ensure Ink has rendered the main layout first
+    const t = setTimeout(() => {
+      enterAltScreen();
+      renderMessages();
+    }, 50);
 
-    // Clear any pending render
-    if (pendingRenderRef.current) {
-      clearTimeout(pendingRenderRef.current);
-    }
+    return () => {
+      clearTimeout(t);
+      exitAltScreen();
+    };
+  }, []);
 
-    // Render in next tick, after Ink commit
+  // Re-render messages when they change
+  useEffect(() => {
+    if (!isAltScreenRef.current) return;
+
+    if (pendingRenderRef.current) clearTimeout(pendingRenderRef.current);
     pendingRenderRef.current = setTimeout(() => {
       pendingRenderRef.current = null;
       renderMessages();
-    }, 0);
+    }, 20);
 
     return () => {
-      if (pendingRenderRef.current) {
-        clearTimeout(pendingRenderRef.current);
-      }
+      if (pendingRenderRef.current) clearTimeout(pendingRenderRef.current);
     };
   }, [messages, renderMessages]);
 
-  // Initial render when component mounts
+  // Handle resize
   useEffect(() => {
-    if (messages.length > 0) {
-      const t = setTimeout(renderMessages, 50);
-      return () => clearTimeout(t);
-    }
-  }, []);
+    const handleResize = () => {
+      if (isAltScreenRef.current) {
+        exitAltScreen();
+        enterAltScreen();
+        renderMessages();
+      }
+    };
+    process.stdout.on('resize', handleResize);
+    return () => process.stdout.off('resize', handleResize);
+  }, [exitAltScreen, enterAltScreen, renderMessages]);
 
-  // Return a visible spacer box (occupies space in Ink layout)
-  // The actual content is rendered via escape sequences
-  return (
-    <Box
-      ref={containerRef as any}
-      flexGrow={1}
-      flexShrink={1}
-      minHeight={spacerHeight}
-    >
-      <Text dimColor>Loading messages...</Text>
-    </Box>
-  );
+  // Return empty box - alternate screen handles all rendering
+  return <Box flexGrow={1} flexShrink={1} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EscapeChatPage - Main page
+// EscapeChatPage
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function EscapeChatPage() {
