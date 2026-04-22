@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { Box, Text } from 'ink';
+import { ScrollView, ScrollViewRef } from 'ink-scroll-view';
 import { ChatMessage, ChatMessageRole } from '../../pages/types.js';
 import { DateDivider } from './DateDivider.js';
 
@@ -84,12 +85,29 @@ function SimpleMessage({ message }: { message: ChatMessage }) {
   );
 }
 
+// Track if user is manually scrolling (not auto-scrolling)
+const userScrollingRef = { current: false };
+
 export const MessageList = React.memo(function MessageList({
   messages,
   availableRows,
-  isModalOpen = false,
 }: MessageListProps) {
+  const scrollRef = useRef<ScrollViewRef>(null);
+  const prevMessageCountRef = useRef(0);
+
   const groupedMessages = useMemo(() => groupMessagesByDate(messages), [messages]);
+
+  // Auto-scroll to bottom when new messages arrive, UNLESS user is scrolling manually
+  useEffect(() => {
+    if (messages.length > prevMessageCountRef.current) {
+      // New message arrived
+      if (!userScrollingRef.current) {
+        // Auto-scroll to bottom
+        scrollRef.current?.scrollToBottom();
+      }
+    }
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length]);
 
   if (messages.length === 0) {
     return (
@@ -100,15 +118,28 @@ export const MessageList = React.memo(function MessageList({
   }
 
   return (
-    <Box flexDirection="column">
-      {groupedMessages.map((group, groupIndex) => (
-        <Box key={`group-${groupIndex}`} flexDirection="column">
-          <DateDivider label={group.dateLabel} />
-          {group.messages.map(message => (
-            <SimpleMessage key={message.id} message={message} />
-          ))}
-        </Box>
-      ))}
+    <Box flexGrow={1}>
+      <ScrollView
+        ref={scrollRef}
+        // Fixed height viewport
+        height={availableRows}
+        // Don't trigger React re-render on scroll - just track via ref
+        onScroll={(offset) => {
+          // If user scrolls up, mark as user-scrolling
+          const bottomOffset = scrollRef.current?.getBottomOffset?.() ?? 0;
+          userScrollingRef.current = offset < bottomOffset - 1;
+        }}
+        // No onScroll state update - this is the key to performance
+      >
+        {groupedMessages.map((group, groupIndex) => (
+          <Box key={`group-${groupIndex}`} flexDirection="column">
+            <DateDivider label={group.dateLabel} />
+            {group.messages.map(message => (
+              <SimpleMessage key={message.id} message={message} />
+            ))}
+          </Box>
+        ))}
+      </ScrollView>
     </Box>
   );
 });
