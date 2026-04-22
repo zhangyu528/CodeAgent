@@ -57,17 +57,15 @@ export function ChatPage() {
   const viewportHeight = availableRows;
 
   return (
-    <Box flexDirection="column" paddingX={2} flexGrow={1} height="100%">
+    <Box flexDirection="column" paddingX={2} flexGrow={1}>
       <Box flexShrink={0}>
         <ChatHeader session={currentSession} />
       </Box>
-      <Box height={availableRows} flexShrink={0} overflow="hidden">
-        <MessageList
-          messages={messages}
-          scrollEnabled={true}
-          availableRows={viewportHeight}
-        />
-      </Box>
+      <MessageList
+        messages={messages}
+        scrollEnabled={true}
+        availableRows={viewportHeight}
+      />
       <Box flexShrink={0}>
         <Input />
       </Box>

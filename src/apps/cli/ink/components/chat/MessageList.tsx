@@ -1,8 +1,7 @@
-import React, { useMemo, useRef, useEffect } from 'react';
-import { Box, Text, useStdout } from 'ink';
-import { ChatMessage } from '../../pages/types.js';
+import React, { useMemo } from 'react';
+import { Box, Text } from 'ink';
+import { ChatMessage, ChatMessageBlock, ChatMessageRole } from '../../pages/types.js';
 import { DateDivider } from './DateDivider.js';
-import { MessageItem } from './MessageItem.js';
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -53,34 +52,43 @@ function groupMessagesByDate(messages: ChatMessage[]): DateGroup[] {
   return Array.from(groups.values()).sort((a, b) => a.dateTimestamp - b.dateTimestamp);
 }
 
+function roleColor(role: ChatMessageRole): string {
+  switch (role) {
+    case 'user': return 'cyan';
+    case 'assistant': return 'blue';
+    case 'error': return 'red';
+    default: return 'yellow';
+  }
+}
+
+function SimpleMessage({ message }: { message: ChatMessage }) {
+  const color = roleColor(message.role);
+  const text = message.blocks.map(b => b.text).join('\n');
+
+  return (
+    <Box flexDirection="column" marginBottom={1} marginRight={3}>
+      <Box
+        borderStyle="bold"
+        borderLeft={true}
+        borderLeftColor={color}
+        borderTop={false}
+        borderRight={false}
+        borderBottom={false}
+      >
+        <Text color={color}>{message.role}: </Text>
+      </Box>
+      <Box paddingLeft={2}>
+        <Text>{text}</Text>
+      </Box>
+    </Box>
+  );
+}
+
 export const MessageList = React.memo(function MessageList({
   messages,
   availableRows,
   isModalOpen = false,
 }: MessageListProps) {
-  const { stdout } = useStdout();
-  const prevMessagesLengthRef = useRef(messages.length);
-
-  // Re-measure on resize
-  useEffect(() => {
-    const handleResize = () => {
-      // No-op: terminal handles scrolling naturally
-    };
-    stdout.on('resize', handleResize);
-    return () => {
-      stdout.off('resize', handleResize);
-    };
-  }, [stdout]);
-
-  // Track new messages for auto-scroll (terminal native)
-  useEffect(() => {
-    const isNewMessage = messages.length > prevMessagesLengthRef.current;
-    prevMessagesLengthRef.current = messages.length;
-    if (isNewMessage) {
-      // Terminal automatically shows latest output — no explicit scroll needed
-    }
-  }, [messages.length]);
-
   const groupedMessages = useMemo(() => groupMessagesByDate(messages), [messages]);
 
   if (messages.length === 0) {
@@ -91,14 +99,13 @@ export const MessageList = React.memo(function MessageList({
     );
   }
 
-  // No ScrollView — terminal handles scrolling naturally
   return (
     <Box flexDirection="column">
       {groupedMessages.map((group, groupIndex) => (
         <Box key={`group-${groupIndex}`} flexDirection="column">
           <DateDivider label={group.dateLabel} />
           {group.messages.map(message => (
-            <MessageItem key={message.id} message={message} />
+            <SimpleMessage key={message.id} message={message} />
           ))}
         </Box>
       ))}
