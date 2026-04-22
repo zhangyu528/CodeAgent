@@ -1,17 +1,12 @@
 /**
  * EscapeChatPage - Hybrid: Ink components for Header/Input, escape sequences for scroll.
  *
- * Layout (Ink Box):
+ * Layout:
  *   <Box flexDirection="column" flexGrow={1}>
- *     <ChatHeader />                    ← Ink Box (fixed)
- *     <EscapeMessageList />            ← Ink Box wrapping DECSTBM scroll region
- *     <Input />                        ← Ink Box with TextInput (fixed)
+ *     <ChatHeader />        ← Ink Box (fixed)
+ *     <EscapeMessageList /> ← Escape sequence rendering in commit phase
+ *     <Input />            ← Ink Box with TextInput (fixed)
  *   </Box>
- *
- * The EscapeMessageList component:
- * - Uses Ink Box as outer container (so Ink tree is balanced)
- * - Inside the Box, it manages a DECSTBM scroll region for messages
- * - Does NOT use alternate screen - messages live in terminal scrollback
  */
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
@@ -26,52 +21,31 @@ import { ChatMessage } from '../types.js';
 const ESC = '\x1b';
 const CSI = `${ESC}[`;
 
-// ANSI escape sequences
 const ansi = {
   cursorTo: (row: number, col: number = 1) => `${CSI}${row};${col}H`,
-  cursorForward: (n = 1) => `${CSI}${n}C`,
-  cursorBack: (n = 1) => `${CSI}${n}D`,
   saveCursor: () => `${ESC}7`,
   restoreCursor: () => `${ESC}8`,
-  clearScreen: () => `${CSI}2J`,
   clearLine: () => `${CSI}2K`,
-  clearLineToEnd: () => `${CSI}0K`,
   setScrollRegion: (top: number, bottom: number) => `${CSI}${top};${bottom}r`,
   scrollUp: (n = 1) => `${CSI}${n}S`,
-  hideCursor: () => `${CSI}?25l`,
-  showCursor: () => `${CSI}?25h`,
-  // Scroll to bottom of scroll region (DECSTBM bound scrolling)
-  scrollToBottom: () => `${CSI}${1};${1}H`, // Move to scroll region top, scroll region auto-scrolls
 };
 
-// Colors
-const c = {
+const cc = {
   reset: '\x1b[0m',
   bold: '\x1b[1m',
   dim: '\x1b[2m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
   cyan: '\x1b[36m',
+  blue: '\x1b[34m',
   white: '\x1b[37m',
-  gray: '\x1b[90m',
 };
 
-function roleColor(role: string): string {
+function roleColorANSI(role: string): string {
   switch (role) {
-    case 'user': return c.cyan;
-    case 'assistant': return c.blue;
-    case 'error': return c.red;
-    default: return c.yellow;
+    case 'user': return cc.cyan;
+    case 'assistant': return cc.blue;
+    case 'error': return '\x1b[31m';
+    default: return cc.cyan;
   }
-}
-
-interface Layout {
-  rows: number;
-  cols: number;
-  scrollTop: number;
-  scrollBottom: number;
 }
 
 function roleLabel(role: string): string {
@@ -83,20 +57,17 @@ function roleLabel(role: string): string {
   }
 }
 
-function formatMessage(msg: ChatMessage, maxWidth: number): string[] {
+function formatMessageANSI(msg: ChatMessage, maxWidth: number): string[] {
   const lines: string[] = [];
-  const color = roleColor(msg.role);
-  const border = `${c.dim}│${c.reset}`;
+  const color = roleColorANSI(msg.role);
+  const border = `${cc.dim}│${cc.reset}`;
   const label = roleLabel(msg.role);
 
-  // Role label with border
-  lines.push(`${border} ${color}${c.bold}${label}${c.reset}`);
+  lines.push(`${border} ${color}${cc.bold}${label}${cc.reset}`);
 
-  // Blocks
   for (const block of msg.blocks) {
     let text = block.text;
 
-    // Handle collapsed blocks
     if (block.kind === 'thinking' || block.kind === 'reasoning' || block.kind === 'toolSummary') {
       const collapsed = (block as { collapsed?: boolean }).collapsed !== false;
       if (collapsed) {
@@ -106,7 +77,6 @@ function formatMessage(msg: ChatMessage, maxWidth: number): string[] {
       }
     }
 
-    // Wrap long lines
     const textLines = text.split('\n');
     for (const line of textLines) {
       if (line.length > maxWidth - 4) {
@@ -131,7 +101,7 @@ function formatMessage(msg: ChatMessage, maxWidth: number): string[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EscapeMessageList - Ink Box wrapping DECSTBM scroll region
+// EscapeMessageList - renders messages via escape sequences after Ink commit
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface EscapeMessageListProps {
@@ -140,100 +110,109 @@ interface EscapeMessageListProps {
 
 function EscapeMessageList({ messages }: EscapeMessageListProps) {
   const { stdout } = useStdout();
-  const layoutRef = useRef<Layout | null>(null);
+  const renderedRef = useRef<Set<string>>(new Set());
+  const lastCountRef = useRef(0);
+  const pendingRenderRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLBoxElement>(null);
-  const prevRowCountRef = useRef<number>(0);
-  const isInitializedRef = useRef(false);
 
-  // Calculate scroll region position based on Ink rendering
-  // We query the stdout.rows after Ink renders to find our position
-  const updateLayout = useCallback(() => {
+  // Get the position of this component in the terminal
+  // We use a spacer Box to occupy space, then render escape sequences after commit
+  const [spacerHeight, setSpacerHeight] = useState(10);
+
+  // Calculate how many rows we have available
+  useEffect(() => {
+    const rows = stdout.rows || 24;
+    // Header ~2 rows, Input ~9 rows, leaving the rest for messages
+    const available = Math.max(5, rows - 2 - 9);
+    setSpacerHeight(available);
+  }, [stdout.rows]);
+
+  // Render messages to the scroll region
+  // This runs AFTER Ink's commit phase, so it's safe to write to stdout
+  const renderMessages = useCallback(() => {
     const rows = stdout.rows || 24;
     const cols = stdout.columns || 80;
-    // We don't know exact Ink layout, so we use the whole terminal
-    // and manage scrolling within that area
-    // Leave 1 row at bottom as margin for Ink's cursor
-    layoutRef.current = {
-      rows,
-      cols,
-      scrollTop: 1,
-      scrollBottom: rows - 1,
-    };
-  }, [stdout.rows, stdout.columns]);
+    const maxWidth = cols - 2;
 
-  // Render all messages into scroll region
-  const renderMessages = useCallback(() => {
-    if (!layoutRef.current) return;
+    // Scroll region: rows 3 to (rows - 10), leaving room for header/input
+    const scrollTop = 3;
+    const scrollBottom = rows - 10;
 
-    const layout = layoutRef.current;
-    const maxWidth = layout.cols - 2;
-
-    // Save cursor
+    // Save cursor and scroll region
     process.stdout.write(ansi.saveCursor());
+    process.stdout.write(ansi.setScrollRegion(scrollTop, scrollBottom));
 
     // Clear scroll region
-    process.stdout.write(ansi.setScrollRegion(layout.scrollTop, layout.scrollBottom));
-    for (let r = layout.scrollTop; r <= layout.scrollBottom; r++) {
+    for (let r = scrollTop; r <= scrollBottom; r++) {
       process.stdout.write(ansi.cursorTo(r, 1));
       process.stdout.write(ansi.clearLine());
     }
 
-    // Render all messages
-    for (const msg of messages) {
-      const lines = formatMessage(msg, maxWidth);
+    // Render all messages (newest at bottom)
+    const visibleMessages = messages.slice(-20); // Last 20 messages
+    for (const msg of visibleMessages) {
+      const lines = formatMessageANSI(msg, maxWidth);
       for (const line of lines) {
-        process.stdout.write(ansi.cursorTo(layout.scrollBottom, 1));
+        process.stdout.write(ansi.cursorTo(scrollBottom, 1));
         process.stdout.write(ansi.scrollUp(1));
-        process.stdout.write(ansi.cursorTo(layout.scrollBottom, 1));
+        process.stdout.write(ansi.cursorTo(scrollBottom, 1));
         process.stdout.write(ansi.clearLine());
         process.stdout.write(line);
       }
     }
 
-    // Restore cursor
+    // Restore
+    process.stdout.write(ansi.setScrollRegion(1, rows));
     process.stdout.write(ansi.restoreCursor());
-  }, [messages]);
+  }, [messages, stdout.rows, stdout.columns]);
 
-  // Initialize and handle resize
+  // Render after commit (using setTimeout 0)
   useEffect(() => {
-    updateLayout();
+    // Skip if no messages yet
+    if (messages.length === 0) return;
 
-    const handleResize = () => {
-      updateLayout();
+    // Clear any pending render
+    if (pendingRenderRef.current) {
+      clearTimeout(pendingRenderRef.current);
+    }
+
+    // Render in next tick, after Ink commit
+    pendingRenderRef.current = setTimeout(() => {
+      pendingRenderRef.current = null;
       renderMessages();
-    };
-    process.stdout.on('resize', handleResize);
+    }, 0);
 
     return () => {
-      process.stdout.off('resize', handleResize);
+      if (pendingRenderRef.current) {
+        clearTimeout(pendingRenderRef.current);
+      }
     };
-  }, [updateLayout, renderMessages]);
-
-  // Re-render on messages change
-  useEffect(() => {
-    if (!isInitializedRef.current) {
-      // First render - give Ink time to settle, then render
-      isInitializedRef.current = true;
-      return;
-    }
-    renderMessages();
   }, [messages, renderMessages]);
 
-  // Return an empty Ink Box - all rendering done via escape sequences
-  // The Box still participates in Ink layout but renders nothing itself
+  // Initial render when component mounts
+  useEffect(() => {
+    if (messages.length > 0) {
+      const t = setTimeout(renderMessages, 50);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  // Return a visible spacer box (occupies space in Ink layout)
+  // The actual content is rendered via escape sequences
   return (
     <Box
       ref={containerRef as any}
       flexGrow={1}
       flexShrink={1}
+      minHeight={spacerHeight}
     >
-      {/* Invisible - all content rendered via escape sequences */}
+      <Text dimColor>Loading messages...</Text>
     </Box>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EscapeChatPage - Main page component
+// EscapeChatPage - Main page
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function EscapeChatPage() {
@@ -261,7 +240,6 @@ export function EscapeChatPage() {
     },
   });
 
-  // Handle pending prompt from WelcomePage
   useEffect(() => {
     const pending = useChatStore.getState().getAndClearPendingPrompt();
 
@@ -275,7 +253,6 @@ export function EscapeChatPage() {
     void agent.prompt(pending);
   }, []);
 
-  // Don't render EscapeMessageList in welcome state - use standard layout
   const isWelcome = !currentSession;
 
   if (isWelcome) {
@@ -293,10 +270,6 @@ export function EscapeChatPage() {
       </Box>
     );
   }
-
-  const headerRows = 2; // ChatHeader takes ~2 rows
-  const inputRows = 9; // Input component height
-  const availableRows = Math.max(1, terminalRows - headerRows - inputRows);
 
   return (
     <Box flexDirection="column" flexGrow={1}>
