@@ -23,12 +23,12 @@ export function useContextWindow(session: AgentSession | null): ContextWindowSta
     const recalc = () => {
       const usage = session.getContextUsage();
       if (!usage || usage.tokens === null || usage.contextWindow === 0) return;
-      const ratio = usage.percent ?? usage.tokens / usage.contextWindow;
+      const ratio = (usage.percent ?? usage.tokens / usage.contextWindow) / 100;
       setState({
         used: usage.tokens,
         limit: usage.contextWindow,
         ratio,
-        isNearLimit: ratio >= 0.80,
+        isNearLimit: ratio >= 0.8,
         isAtLimit: ratio >= 0.95,
       });
     };
