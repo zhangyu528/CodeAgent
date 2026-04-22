@@ -29,9 +29,6 @@ export {
   reloadProviders,
 } from './modelRegistry.js';
 
-// Log viewer (dev only — Windows PowerShell window)
-export { openLogViewer, closeLogViewer } from './logViewer.js';
-
 // Logger
 export { logger } from './logger.js';
 
