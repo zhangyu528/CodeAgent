@@ -138,45 +138,43 @@ export const MessageList = React.memo(function MessageList({
     for (let g = groupedMessages.length - 1; g >= 0; g--) {
       const group = groupedMessages[g];
 
-      // Check if adding this group would overflow
-      const groupHeight = DATE_DIVIDER_HEIGHT + group.messages.reduce(
-        (sum, m) => sum + estimateMessageHeight(m), 0
-      );
-
-      if (usedRows + groupHeight > availableRows && usedRows > 0) {
-        // This group doesn't fit - we're done
-        break;
-      }
-
-      // Try adding messages from this group one by one
+      // Try adding messages from this group one by one (newest first)
       const visibleMsgs: ChatMessage[] = [];
+      let groupRows = 0;
+      const isFirstGroup = result.length === 0;
+
       for (let m = group.messages.length - 1; m >= 0; m--) {
         const msg = group.messages[m];
         const msgHeight = estimateMessageHeight(msg);
 
-        if (usedRows + msgHeight > availableRows) {
+        // Always try to show at least the last message of the group
+        if (usedRows + groupRows + msgHeight <= availableRows || visibleMsgs.length === 0) {
+          visibleMsgs.unshift(msg);
+          groupRows += msgHeight;
+        } else {
           break;
         }
-
-        visibleMsgs.unshift(msg);
-        usedRows += msgHeight;
       }
 
       if (visibleMsgs.length > 0) {
-        result.unshift({
-          ...group,
-          messages: visibleMsgs,
-        });
+        // Add divider height if this is not the first (newest) group
+        if (!isFirstGroup) {
+          usedRows += DATE_DIVIDER_HEIGHT;
+        }
+        result.unshift({ ...group, messages: visibleMsgs });
+        usedRows += groupRows;
       }
+
+      // Stop if we can't fit more
+      if (usedRows >= availableRows) break;
     }
 
     return result;
-  }, [groupedMessages, messages, availableRows]);
+  }, [groupedMessages, messages.length, availableRows]);
 
   // How many messages are hidden in scrollback?
-  const hiddenCount = messages.length - visibleGroups.reduce(
-    (sum, g) => sum + g.messages.length, 0
-  );
+  const visibleCount = visibleGroups.reduce((sum, g) => sum + g.messages.length, 0);
+  const hiddenCount = messages.length - visibleCount;
 
   if (messages.length === 0) {
     return (
