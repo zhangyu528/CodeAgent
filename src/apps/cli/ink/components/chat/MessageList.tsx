@@ -1,20 +1,6 @@
-/**
- * MessageList - Virtual list: only renders visible messages, rest goes to scrollback.
- *
- * Terminal layout:
- *   Row 1-2:     Header
- *   Row 3-(T-9): Message viewport
- *   Row (T-8)-T: Input
- *
- * Virtual list logic:
- *   - Calculate approximate height of each message
- *   - Only render enough messages to fill availableRows
- *   - Earlier messages → terminal scrollback (free!)
- */
-
 import React, { useMemo } from 'react';
 import { Box, Text } from 'ink';
-import { ChatMessage, ChatMessageBlock, ChatMessageRole } from '../../pages/types.js';
+import { ChatMessage, ChatMessageRole } from '../../pages/types.js';
 import { DateDivider } from './DateDivider.js';
 
 interface MessageListProps {
@@ -75,26 +61,6 @@ function roleColor(role: ChatMessageRole): string {
   }
 }
 
-// Estimate how many rows a message takes
-function estimateMessageHeight(msg: ChatMessage): number {
-  let rows = 2; // role label + border line
-
-  for (const block of msg.blocks) {
-    const text = block.text || '';
-    // Estimate: 2 chars per "block" unit + newline
-    // Role label is wide (cyan), so use cols - 20 for estimation
-    const estimatedCols = 80 - 20;
-    const textRows = Math.ceil(text.length / estimatedCols);
-    rows += Math.max(1, textRows);
-    rows += 1; // block spacing
-  }
-
-  return rows;
-}
-
-// Estimate date divider height
-const DATE_DIVIDER_HEIGHT = 1;
-
 function SimpleMessage({ message }: { message: ChatMessage }) {
   const color = roleColor(message.role);
   const text = message.blocks.map(b => b.text).join('\n');
@@ -123,58 +89,7 @@ export const MessageList = React.memo(function MessageList({
   availableRows,
   isModalOpen = false,
 }: MessageListProps) {
-  // Group all messages by date
   const groupedMessages = useMemo(() => groupMessagesByDate(messages), [messages]);
-
-  // Virtual list: only render messages that fit in availableRows
-  // Earlier messages go to terminal scrollback (free!)
-  const visibleGroups = useMemo(() => {
-    if (messages.length === 0) return [];
-
-    const result: DateGroup[] = [];
-    let usedRows = 0;
-
-    // Iterate groups from newest to oldest
-    for (let g = groupedMessages.length - 1; g >= 0; g--) {
-      const group = groupedMessages[g];
-
-      // Try adding messages from this group one by one (newest first)
-      const visibleMsgs: ChatMessage[] = [];
-      let groupRows = 0;
-      const isFirstGroup = result.length === 0;
-
-      for (let m = group.messages.length - 1; m >= 0; m--) {
-        const msg = group.messages[m];
-        const msgHeight = estimateMessageHeight(msg);
-
-        // Always try to show at least the last message of the group
-        if (usedRows + groupRows + msgHeight <= availableRows || visibleMsgs.length === 0) {
-          visibleMsgs.unshift(msg);
-          groupRows += msgHeight;
-        } else {
-          break;
-        }
-      }
-
-      if (visibleMsgs.length > 0) {
-        // Add divider height if this is not the first (newest) group
-        if (!isFirstGroup) {
-          usedRows += DATE_DIVIDER_HEIGHT;
-        }
-        result.unshift({ ...group, messages: visibleMsgs });
-        usedRows += groupRows;
-      }
-
-      // Stop if we can't fit more
-      if (usedRows >= availableRows) break;
-    }
-
-    return result;
-  }, [groupedMessages, messages.length, availableRows]);
-
-  // How many messages are hidden in scrollback?
-  const visibleCount = visibleGroups.reduce((sum, g) => sum + g.messages.length, 0);
-  const hiddenCount = messages.length - visibleCount;
 
   if (messages.length === 0) {
     return (
@@ -186,12 +101,7 @@ export const MessageList = React.memo(function MessageList({
 
   return (
     <Box flexDirection="column">
-      {hiddenCount > 0 && (
-        <Box marginBottom={1}>
-          <Text dimColor>▲ {hiddenCount} 条更早的消息 (滚动查看)</Text>
-        </Box>
-      )}
-      {visibleGroups.map((group, groupIndex) => (
+      {groupedMessages.map((group, groupIndex) => (
         <Box key={`group-${groupIndex}`} flexDirection="column">
           <DateDivider label={group.dateLabel} />
           {group.messages.map(message => (
