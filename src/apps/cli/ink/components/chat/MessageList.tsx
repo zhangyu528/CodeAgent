@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { ScrollView, ScrollViewRef } from 'ink-scroll-view';
 import { ScrollBar } from '@byteland/ink-scroll-bar';
@@ -74,38 +74,36 @@ export const MessageList = React.memo(function MessageList({
   messages,
   scrollEnabled = true,
   availableRows,
-  isModalOpen = false, // 默认 false
+  isModalOpen = false,
 }: MessageListProps) {
   const { stdout } = useStdout();
   const scrollRef = useRef<ScrollViewRef>(null);
-  const [scrollOffset, setScrollOffset] = useState(0);
-  const [contentHeight, setContentHeight] = useState(0);
-  const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
+  const scrollOffsetRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  const isPinnedRef = useRef(true);
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false);
 
   const messageSignature = useMemo(() => buildMessageSignature(messages), [messages]);
   const groupedMessages = useMemo(() => groupMessagesByDate(messages), [messages]);
 
-  const syncPinnedState = () => {
+  // Sync pinned state — reads from refs to avoid triggering re-renders
+  const syncPinnedState = useCallback(() => {
     const ref = scrollRef.current;
     if (!ref) return;
-
     const bottomOffset = Math.max(0, ref.getBottomOffset());
     const nextOffset = ref.getScrollOffset();
     const pinned = bottomOffset <= 0 || nextOffset >= bottomOffset - 1;
-
-    setScrollOffset(nextOffset);
-    setIsPinnedToBottom(pinned);
-
+    isPinnedRef.current = pinned;
+    scrollOffsetRef.current = nextOffset;
     if (pinned) {
       setHasUnreadBelow(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
       scrollRef.current?.remeasure();
-      if (isPinnedToBottom) {
+      if (isPinnedRef.current) {
         scrollRef.current?.scrollToBottom();
       }
       syncPinnedState();
@@ -115,60 +113,42 @@ export const MessageList = React.memo(function MessageList({
     return () => {
       stdout.off('resize', handleResize);
     };
-  }, [stdout, isPinnedToBottom]);
+  }, [stdout, syncPinnedState]);
 
   const prevMessagesLengthRef = useRef(messages.length);
 
   useEffect(() => {
-    scrollRef.current?.remeasure();
-
     const isNewMessage = messages.length > prevMessagesLengthRef.current;
     prevMessagesLengthRef.current = messages.length;
 
     if (isNewMessage) {
-      if (scrollRef.current) {
-        queueMicrotask(() => {
-          scrollRef.current?.scrollToBottom();
-        });
-      }
-      setIsPinnedToBottom(true);
+      scrollRef.current?.remeasure();
+      queueMicrotask(() => {
+        scrollRef.current?.scrollToBottom();
+      });
+      isPinnedRef.current = true;
       setHasUnreadBelow(false);
       return;
     }
 
-    if (isPinnedToBottom) {
-      scrollRef.current?.scrollToBottom();
-      syncPinnedState();
-      return;
-    }
-
-    if (messages.length > 0) {
-      setHasUnreadBelow(true);
-    }
-
-    syncPinnedState();
-  }, [messageSignature, availableRows, isPinnedToBottom, messages.length]);
-
-  useEffect(() => {
-    if (isPinnedToBottom && scrollRef.current) {
+    if (isPinnedRef.current) {
       queueMicrotask(() => {
         scrollRef.current?.scrollToBottom();
       });
     }
-  }, [messageSignature]);
+    syncPinnedState();
+  }, [messageSignature, messages.length]);
 
   useInput(
     (input, key) => {
       if (isModalOpen || !scrollEnabled || !scrollRef.current) return;
 
-      // Handle mouse scroll events
       if (typeof input === 'string') {
         const scrollMatch = input.match(/\[<(\d+);(\d+);(\d+)M/);
         if (scrollMatch) {
           const button = Number(scrollMatch[1]);
           if (button === 64 || button === 65) {
             const step = Math.max(1, Math.floor(scrollRef.current.getViewportHeight() / 3));
-
             if (button === 64) {
               scrollRef.current.scrollBy(-step);
             } else {
@@ -179,7 +159,7 @@ export const MessageList = React.memo(function MessageList({
                 scrollRef.current.scrollBy(maxScroll);
               }
             }
-            syncPinnedState();
+            return;
           }
           return;
         }
@@ -189,7 +169,6 @@ export const MessageList = React.memo(function MessageList({
 
       if (key.upArrow) {
         scrollRef.current.scrollBy(-step);
-        syncPinnedState();
         return;
       }
 
@@ -197,18 +176,15 @@ export const MessageList = React.memo(function MessageList({
         const currentOffset = scrollRef.current.getScrollOffset();
         const bottomOffset = scrollRef.current.getBottomOffset();
         if (currentOffset >= bottomOffset) return;
-
         const maxScroll = Math.min(step, bottomOffset - currentOffset);
         if (maxScroll > 0) {
           scrollRef.current.scrollBy(maxScroll);
         }
-        syncPinnedState();
         return;
       }
 
       if (key.pageUp) {
         scrollRef.current.scrollBy(-step * 3);
-        syncPinnedState();
         return;
       }
 
@@ -219,7 +195,6 @@ export const MessageList = React.memo(function MessageList({
         if (maxScroll > 0) {
           scrollRef.current.scrollBy(maxScroll);
         }
-        syncPinnedState();
         return;
       }
     },
@@ -239,21 +214,19 @@ export const MessageList = React.memo(function MessageList({
       <Box height="100%" width="100%" flexGrow={1} flexShrink={1} overflow="hidden">
         <ScrollView
           ref={scrollRef}
-          onScroll={(offset: number) => {
-            setScrollOffset(offset);
-            const ref = scrollRef.current;
-            if (!ref) return;
-
-            const bottomOffset = Math.max(0, ref.getBottomOffset());
-            const pinned = bottomOffset <= 0 || offset >= bottomOffset - 1;
-            setIsPinnedToBottom(pinned);
-
+          onScroll={({ scrollOffset: offset }: { scrollOffset: number }) => {
+            scrollOffsetRef.current = offset;
+            const bottomOffset = Math.max(0, (scrollRef.current as any)?.getBottomOffset?.() ?? 0);
+            const pinned = offset >= bottomOffset - 1;
+            isPinnedRef.current = pinned;
             if (pinned) {
               setHasUnreadBelow(false);
+            } else if (offset < bottomOffset - 10) {
+              setHasUnreadBelow(true);
             }
           }}
           onContentHeightChange={(height: number) => {
-            setContentHeight(height);
+            contentHeightRef.current = height;
           }}
         >
           {groupedMessages.map((group, groupIndex) => (
@@ -270,9 +243,9 @@ export const MessageList = React.memo(function MessageList({
         placement="inset"
         style="line"
         color="cyan"
-        contentHeight={contentHeight}
+        contentHeight={contentHeightRef.current}
         viewportHeight={availableRows}
-        scrollOffset={scrollOffset}
+        scrollOffset={scrollOffsetRef.current}
         autoHide
       />
     </Box>
