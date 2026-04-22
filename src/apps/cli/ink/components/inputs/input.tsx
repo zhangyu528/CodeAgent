@@ -3,28 +3,24 @@ import { Box, Text } from 'ink';
 import { InputField } from './InputField.js';
 import { SlashList } from './SlashList.js';
 import { useInput } from './InputController.js';
+import { ModelIndicator } from './ModelIndicator.js';
+import { CwdIndicator } from './CwdIndicator.js';
+import { ContextBar } from '../chat/ContextBar.js';
 
-export function Input() {
-  const {
-    value,
-    setValue,
-    isExitHint,
-    isWelcome,
-    modelLabel,
-    cwdLabel,
-  } = useInput();
+interface InputProps {
+  /** Show welcome-mode styling (no context bar, centered layout) */
+  isWelcome?: boolean;
+}
+
+export function Input({ isWelcome = false }: InputProps) {
+  const { value, setValue, isExitHint } = useInput();
 
   const isCommandMode = value.startsWith('/') && !value.includes(' ');
   const borderColor = isExitHint ? 'red' : (isCommandMode ? 'blue' : 'cyan');
   const placeholder = isWelcome ? 'Ask anything to start...' : 'Type a message...';
 
   return (
-    <Box 
-      flexDirection="column" 
-      width={isWelcome ? 80 : '100%'}
-      backgroundColor="#161625"
-      paddingY={1}
-    >
+    <Box flexDirection="column" width={isWelcome ? 80 : '100%'} flexGrow={0} flexShrink={0} backgroundColor="#161625" paddingY={1}>
       <SlashList inputValue={value} setInputValue={setValue} />
       <Box paddingY={1}>
         <InputField value={value} placeholder={placeholder} isCommandMode={isCommandMode} />
@@ -32,28 +28,24 @@ export function Input() {
 
       <Box height={1} />
 
-      <Box paddingX={1} justifyContent="space-between">
-        {isExitHint ? (
-          <Box width="100%" justifyContent="center">
-            <Text color="white" backgroundColor="red" bold> 再按一次 Ctrl+C 或 Ctrl+D 退出 </Text>
+      {isExitHint ? (
+        <Box width="100%" paddingX={1} justifyContent="center">
+          <Text color="white" backgroundColor="red" bold> 再按一次 Ctrl+C 或 Ctrl+D 退出 </Text>
+        </Box>
+      ) : (
+        <Box width="100%" paddingX={1} justifyContent="space-between">
+          <Box flexShrink={0} flexDirection="row">
+            <ModelIndicator />
+            {!isWelcome && (
+              <>
+                <Text color="gray">  </Text>
+                <ContextBar />
+              </>
+            )}
           </Box>
-        ) : (
-          <>
-            <Text>
-              <Text color="gray">Model: </Text>
-              {modelLabel ? (
-                <Text color="blue" bold>{modelLabel}</Text>
-              ) : (
-                <Text color="red" italic>not configured</Text>
-              )}
-            </Text>
-            <Box paddingLeft={2}>
-              <Text color="gray">CWD: </Text>
-              <Text color="yellow" dimColor>{cwdLabel}</Text>
-            </Box>
-          </>
-        )}
-      </Box>
+          <CwdIndicator />
+        </Box>
+      )}
     </Box>
   );
 }

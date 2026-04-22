@@ -20,7 +20,7 @@ export function WelcomePage() {
           <Text dimColor>运行 /config 选择 provider 并输入 API Key</Text>
         </Box>
       )}
-      <Input />
+      <Input isWelcome={true} />
     </Box>
   );
 }
