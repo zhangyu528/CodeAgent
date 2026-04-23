@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, useStdout } from 'ink';
 import { Input } from '../../components/inputs/index.js';
 import { ChatHeader } from '../../components/chat/ChatHeader.js';
-import { MessageList } from '../../components/chat/MessageList.js';
+import { VirtualMessageList } from '../../components/chat/VirtualMessageList.js';
 import { useChatStore } from '../../store/index.js';
 import { useAgentEvents } from '../../hooks/useAgentEvents.js';
 import { getAgentSession } from '@codeagent/core';
@@ -22,13 +22,10 @@ export function ChatPage() {
     };
   }, [stdout]);
 
-  const {
-    hydrateFromAgentState,
-    appendUserMessage,
-  } = useAgentEvents(session, {
+  const { hydrateFromAgentState, appendUserMessage } = useAgentEvents(session, {
     isRawModeSupported: false,
     onRawModeChange: () => {},
-    onTurnSettled: (status) => {
+    onTurnSettled: status => {
       useChatStore.getState().persistCurrentSession(status, agent.state.messages as any);
     },
   });
@@ -61,11 +58,7 @@ export function ChatPage() {
       <Box flexShrink={0}>
         <ChatHeader session={currentSession} />
       </Box>
-      <MessageList
-        messages={messages}
-        scrollEnabled={true}
-        availableRows={viewportHeight}
-      />
+      <VirtualMessageList messages={messages} availableRows={viewportHeight} />
       <Box flexShrink={0}>
         <Input />
       </Box>
