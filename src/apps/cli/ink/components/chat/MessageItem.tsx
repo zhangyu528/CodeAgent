@@ -7,7 +7,8 @@ interface MessageItemProps {
   message: ChatMessage;
 }
 
-// Helper functions
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
 function roleColor(role: ChatMessageRole): string {
   switch (role) {
     case 'user':
@@ -35,84 +36,91 @@ function formatToolSummary(text: string): string {
   return `[Tools]\n${formatted}`;
 }
 
-function renderBlock(message: ChatMessage, block: ChatMessageBlock, isDimmed: boolean | undefined, key: string) {
-  // Handle collapsed thinking
-  if (block.kind === 'thinking') {
-    const collapsed = block.collapsed !== false;
-    if (collapsed) {
+// ─── Block renderer ────────────────────────────────────────────────────────
+
+function renderBlock(block: ChatMessageBlock, key: string) {
+  switch (block.kind) {
+    case 'thinking': {
+      const collapsed = block.collapsed !== false;
+      if (collapsed) {
+        return (
+          <Box key={key}>
+            <Text color="gray" dimColor>▸ [Thinking]</Text>
+          </Box>
+        );
+      }
       return (
-        <Box key={key}>
-          <Text color="gray" dimColor={!!isDimmed}>
-            ▸ [Thinking]
-          </Text>
+        <Box key={key} flexDirection="column" paddingLeft={2}>
+          <Text color="gray" dimColor>▾ [Thinking]</Text>
+          <Text color="gray" dimColor>{block.text}</Text>
         </Box>
       );
     }
-    return (
-      <Box key={key} flexDirection="column" paddingLeft={2}>
-        <Text color="gray" dimColor={!!isDimmed}>▾ [Thinking]</Text>
-        <Text color="gray" dimColor={!!isDimmed}>{block.text}</Text>
-      </Box>
-    );
-  }
 
-  // Handle reasoning block
-  if (block.kind === 'reasoning') {
-    const collapsed = block.collapsed !== false;
-    if (collapsed) {
+    case 'reasoning': {
+      const collapsed = block.collapsed !== false;
+      if (collapsed) {
+        return (
+          <Box key={key}>
+            <Text color="gray" dimColor>▸ [Reasoning]</Text>
+          </Box>
+        );
+      }
       return (
-        <Box key={key}>
-          <Text color="gray" dimColor={!!isDimmed}>
-            ▸ [Reasoning]
-          </Text>
+        <Box key={key} flexDirection="column" paddingLeft={2}>
+          <Text color="gray" dimColor>▾ [Reasoning]</Text>
+          <Text color="gray" dimColor>{block.text}</Text>
         </Box>
       );
     }
-    return (
-      <Box key={key} flexDirection="column" paddingLeft={2}>
-        <Text color="gray" dimColor={!!isDimmed}>▾ [Reasoning]</Text>
-        <Text color="gray" dimColor={!!isDimmed}>{block.text}</Text>
-      </Box>
-    );
-  }
 
-  // Handle collapsed toolSummary
-  if (block.kind === 'toolSummary') {
-    const collapsed = block.collapsed !== false;
-    if (collapsed) {
+    case 'toolSummary': {
+      const collapsed = block.collapsed !== false;
+      if (collapsed) {
+        return (
+          <Box key={key}>
+            <Text color="gray" dimColor>▸ [Tools]</Text>
+          </Box>
+        );
+      }
       return (
-        <Box key={key}>
-          <Text color="gray" dimColor={!!isDimmed}>
-            ▸ [Tools]
-          </Text>
+        <Box key={key} flexDirection="column" paddingLeft={2}>
+          <Text color="gray" dimColor>▾ [Tools]</Text>
+          <Text color="gray" dimColor>{formatToolSummary(block.text)}</Text>
         </Box>
       );
     }
-    const formatted = formatToolSummary(block.text);
-    return (
-      <Box key={key} flexDirection="column" paddingLeft={2}>
-        <Text color="gray" dimColor={!!isDimmed}>▾ [Tools]</Text>
-        <Text color="gray" dimColor={!!isDimmed}>{formatted}</Text>
-      </Box>
-    );
-  }
 
-  // Handle text block
-  return (
-    <Box key={key}>
-      <Text color="white" dimColor={!!isDimmed}>{block.text}</Text>
-    </Box>
-  );
+    case 'text':
+    default:
+      return (
+        <Box key={key}>
+          <Text color="white">{block.text}</Text>
+        </Box>
+      );
+  }
 }
+
+// ─── Component ────────────────────────────────────────────────────────────
 
 export const MessageItem = memo(
   function MessageItem({ message }: MessageItemProps) {
-    const totalTextLength = message.blocks.reduce((sum, block) => sum + block.text.length, 0);
-    const isWaiting = message.status === 'streaming' && totalTextLength === 0;
-    const isGenerating = message.status === 'streaming';
-
     const color = roleColor(message.role);
     const isUser = message.role === 'user';
+    const isWaiting = message.status === 'streaming' && message.blocks.length === 0;
+    const isGenerating = message.status === 'streaming' && !isWaiting;
+
+    // 是否在两个 text block 之间（用于分隔线）
+    const hasTextBetweenTexts = (blocks: ChatMessageBlock[], idx: number): boolean => {
+      const prev = blocks[idx - 1];
+      const next = blocks[idx + 1];
+      const curr = blocks[idx];
+      return (
+        curr?.kind === 'text' &&
+        prev?.kind === 'text' &&
+        next?.kind === 'text'
+      );
+    };
 
     return (
       <Box
@@ -126,25 +134,26 @@ export const MessageItem = memo(
         borderRight={false}
         borderBottom={false}
       >
-        <Box backgroundColor={isUser ? '#383838' : undefined} paddingLeft={2} paddingRight={2} paddingY={1}>
-          <Box flexDirection="column" justifyContent="center" flexGrow={1}>
-            <TypingIndicator isThinking={isWaiting} isGenerating={isGenerating && !isWaiting} />
+        <Box
+          backgroundColor={isUser ? '#383838' : undefined}
+          paddingLeft={2}
+          paddingRight={2}
+          paddingY={1}
+        >
+          <Box flexDirection="column" flexGrow={1}>
+            <TypingIndicator isThinking={isWaiting} isGenerating={isGenerating} />
+
             {message.blocks.map((block, index) => {
-              const prevBlock = index > 0 ? message.blocks[index - 1] : null;
-              const nextBlock = index < message.blocks.length - 1 ? message.blocks[index + 1] : null;
-              // Only compute isTextBetweenTexts when block is text (prev/next blocks exist)
-              const isTextBetweenTexts = block.kind === 'text'
-                && (prevBlock as any)?.kind === 'text'
-                && (nextBlock as any)?.kind === 'text';
+              const showDivider = hasTextBetweenTexts(message.blocks, index);
 
               return (
                 <Box key={`${message.id}-${index}`} flexDirection="column">
-                  {isTextBetweenTexts && (
-                    <Box>
+                  {showDivider && (
+                    <Box paddingY={1}>
                       <Text color="gray" dimColor>───</Text>
                     </Box>
                   )}
-                  {renderBlock(message, block, false, `${message.id}-${index}`)}
+                  {renderBlock(block, `${message.id}-${index}`)}
                 </Box>
               );
             })}
@@ -153,7 +162,7 @@ export const MessageItem = memo(
       </Box>
     );
   },
-  // Custom comparison: re-render only when id, status, or block content changes
+  // Custom comparison: re-render only when id, status, or blocks change
   (prevProps, nextProps) =>
     prevProps.message.id === nextProps.message.id &&
     prevProps.message.status === nextProps.message.status &&
