@@ -7,31 +7,60 @@ function normalizeRole(role: string | undefined): ChatMessageRole {
   return 'system';
 }
 
-function extractText(content: unknown): string {
-  if (typeof content === 'string') return content;
+function extractBlocks(
+  content: unknown
+): Array<
+  | { kind: 'text'; text: string }
+  | { kind: 'thinking'; text: string; collapsed?: boolean }
+  | { kind: 'reasoning'; text: string; collapsed?: boolean }
+> {
+  if (typeof content === 'string') {
+    return [{ kind: 'text', text: content }];
+  }
 
   if (Array.isArray(content)) {
-    return content
-      .map((item: unknown) => {
-        if (typeof item === 'string') return item;
+    const blocks: Array<
+      | { kind: 'text'; text: string }
+      | { kind: 'thinking'; text: string; collapsed?: boolean }
+      | { kind: 'reasoning'; text: string; collapsed?: boolean }
+    > = [];
+    for (const item of content) {
+      if (typeof item === 'string') {
+        blocks.push({ kind: 'text', text: item });
+      } else if (item && typeof item === 'object') {
         const obj = item as Record<string, unknown>;
-        if (obj && typeof obj.text === 'string') return obj.text;
-        if (obj && typeof obj.content === 'string') return obj.content;
-        if (obj && typeof obj.input_text === 'string') return obj.input_text;
-        return '';
-      })
-      .filter(Boolean)
-      .join(' ');
+        if (obj.kind === 'thinking') {
+          blocks.push({ kind: 'thinking', text: String(obj.text ?? ''), collapsed: true });
+        } else if (obj.kind === 'reasoning') {
+          blocks.push({ kind: 'reasoning', text: String(obj.text ?? ''), collapsed: true });
+        } else if (obj.kind === 'toolSummary') {
+          // toolSummary 降级为 text block
+          blocks.push({ kind: 'text', text: String(obj.text ?? '') });
+        } else {
+          // 其他 object，统一提取 text
+          const text =
+            (obj.text as string) ?? (obj.content as string) ?? (obj.input_text as string) ?? '';
+          if (text) blocks.push({ kind: 'text', text });
+        }
+      }
+    }
+    return blocks.length > 0 ? blocks : [{ kind: 'text', text: '' }];
   }
 
   if (content && typeof content === 'object') {
     const value = content as Record<string, unknown>;
-    if (typeof value.text === 'string') return value.text;
-    if (typeof value.content === 'string') return value.content;
-    if (typeof value.input_text === 'string') return value.input_text;
+    if (value.kind === 'thinking') {
+      return [{ kind: 'thinking', text: String(value.text ?? ''), collapsed: true }];
+    }
+    if (value.kind === 'reasoning') {
+      return [{ kind: 'reasoning', text: String(value.text ?? ''), collapsed: true }];
+    }
+    const text =
+      (value.text as string) ?? (value.content as string) ?? (value.input_text as string) ?? '';
+    return [{ kind: 'text', text }];
   }
 
-  return '';
+  return [{ kind: 'text', text: '' }];
 }
 
 /**
@@ -41,18 +70,24 @@ function extractText(content: unknown): string {
 export function agentMessagesToChatMessages(messages: any[]): ChatMessage[] {
   return messages.map((message: any, index: number) => {
     const role = normalizeRole(message.role);
-    const text = extractText(message.content);
-    const createdAt = typeof message.createdAt === 'number'
-      ? message.createdAt
-      : Date.now() + index;
+    const blocks = extractBlocks(message.content);
+    const createdAt =
+      typeof message.createdAt === 'number' ? message.createdAt : Date.now() + index;
 
     return {
       id: message.id || `${role}-${createdAt}-${index}`,
       role,
-      title: role === 'user' ? 'You' : role === 'assistant' ? 'Assistant' : role === 'error' ? 'Error' : 'System',
+      title:
+        role === 'user'
+          ? 'You'
+          : role === 'assistant'
+            ? 'Assistant'
+            : role === 'error'
+              ? 'Error'
+              : 'System',
       createdAt,
       status: role === 'error' ? 'error' : 'completed',
-      blocks: [{ kind: 'text', text }],
+      blocks,
     };
   });
 }
