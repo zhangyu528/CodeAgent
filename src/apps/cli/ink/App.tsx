@@ -9,9 +9,6 @@ import { EscapeApp } from '../escape/index.js';
 
 import type { AgentSession } from '@codeagent/core';
 
-// Escape chat mode: enabled via CODEAGENT_ESCAPE_CHAT=1
-const USE_ESCAPE_CHAT = process.env.CODEAGENT_ESCAPE_CHAT === '1';
-
 interface AppProps {
   initPromise: Promise<AgentSession>;
 }
@@ -19,8 +16,8 @@ interface AppProps {
 export function App({ initPromise }: AppProps) {
   const { page, terminalSize } = useAppController({ initPromise });
 
-  // Use EscapeApp for chat/welcome pages (full Escape Sequence rendering)
-  if (USE_ESCAPE_CHAT && page !== 'init') {
+  // Full Escape Sequence rendering for all non-init pages
+  if (page !== 'init') {
     return (
       <ErrorBoundary>
         <EscapeApp initPromise={initPromise} />
@@ -31,10 +28,7 @@ export function App({ initPromise }: AppProps) {
   return (
     <ErrorBoundary>
       <Box flexDirection="column" width={terminalSize.width} height={terminalSize.height}>
-        {page === 'init' && <InitPage />}
-        {page === 'welcome' && <WelcomePage />}
-        {page === 'chat' && <ChatPage />}
-        <ModalContainer />
+        <InitPage />
       </Box>
     </ErrorBoundary>
   );
