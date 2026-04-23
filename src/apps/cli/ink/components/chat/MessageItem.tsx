@@ -27,11 +27,13 @@ function formatToolSummary(text: string): string {
   const lines = text.split('\n').filter(l => l.trim());
   if (lines.length === 0) return text;
 
-  const formatted = lines.map((line, i) => {
-    const isLast = i === lines.length - 1;
-    const prefix = isLast ? '└── ' : '├── ';
-    return `${prefix}${line}`;
-  }).join('\n');
+  const formatted = lines
+    .map((line, i) => {
+      const isLast = i === lines.length - 1;
+      const prefix = isLast ? '└── ' : '├── ';
+      return `${prefix}${line}`;
+    })
+    .join('\n');
 
   return `[Tools]\n${formatted}`;
 }
@@ -45,14 +47,20 @@ function renderBlock(block: ChatMessageBlock, key: string) {
       if (collapsed) {
         return (
           <Box key={key}>
-            <Text color="gray" dimColor>▸ [Thinking]</Text>
+            <Text color="gray" dimColor>
+              ▸ [Thinking]
+            </Text>
           </Box>
         );
       }
       return (
         <Box key={key} flexDirection="column" paddingLeft={2}>
-          <Text color="gray" dimColor>▾ [Thinking]</Text>
-          <Text color="gray" dimColor>{block.text}</Text>
+          <Text color="gray" dimColor>
+            ▾ [Thinking]
+          </Text>
+          <Text color="gray" dimColor>
+            {block.text}
+          </Text>
         </Box>
       );
     }
@@ -62,14 +70,20 @@ function renderBlock(block: ChatMessageBlock, key: string) {
       if (collapsed) {
         return (
           <Box key={key}>
-            <Text color="gray" dimColor>▸ [Reasoning]</Text>
+            <Text color="gray" dimColor>
+              ▸ [Reasoning]
+            </Text>
           </Box>
         );
       }
       return (
         <Box key={key} flexDirection="column" paddingLeft={2}>
-          <Text color="gray" dimColor>▾ [Reasoning]</Text>
-          <Text color="gray" dimColor>{block.text}</Text>
+          <Text color="gray" dimColor>
+            ▾ [Reasoning]
+          </Text>
+          <Text color="gray" dimColor>
+            {block.text}
+          </Text>
         </Box>
       );
     }
@@ -79,14 +93,20 @@ function renderBlock(block: ChatMessageBlock, key: string) {
       if (collapsed) {
         return (
           <Box key={key}>
-            <Text color="gray" dimColor>▸ [Tools]</Text>
+            <Text color="gray" dimColor>
+              ▸ [Tools]
+            </Text>
           </Box>
         );
       }
       return (
         <Box key={key} flexDirection="column" paddingLeft={2}>
-          <Text color="gray" dimColor>▾ [Tools]</Text>
-          <Text color="gray" dimColor>{formatToolSummary(block.text)}</Text>
+          <Text color="gray" dimColor>
+            ▾ [Tools]
+          </Text>
+          <Text color="gray" dimColor>
+            {formatToolSummary(block.text)}
+          </Text>
         </Box>
       );
     }
@@ -115,11 +135,7 @@ export const MessageItem = memo(
       const prev = blocks[idx - 1];
       const next = blocks[idx + 1];
       const curr = blocks[idx];
-      return (
-        curr?.kind === 'text' &&
-        prev?.kind === 'text' &&
-        next?.kind === 'text'
-      );
+      return curr?.kind === 'text' && prev?.kind === 'text' && next?.kind === 'text';
     };
 
     return (
@@ -134,11 +150,13 @@ export const MessageItem = memo(
         borderRight={false}
         borderBottom={false}
       >
+        {/* User: full-width background; Assistant: transparent */}
         <Box
           backgroundColor={isUser ? '#383838' : undefined}
           paddingLeft={2}
           paddingRight={2}
           paddingY={1}
+          width="100%"
         >
           <Box flexDirection="column" flexGrow={1}>
             <TypingIndicator isThinking={isWaiting} isGenerating={isGenerating} />
@@ -150,7 +168,9 @@ export const MessageItem = memo(
                 <Box key={`${message.id}-${index}`} flexDirection="column">
                   {showDivider && (
                     <Box paddingY={1}>
-                      <Text color="gray" dimColor>───</Text>
+                      <Text color="gray" dimColor>
+                        ───
+                      </Text>
                     </Box>
                   )}
                   {renderBlock(block, `${message.id}-${index}`)}

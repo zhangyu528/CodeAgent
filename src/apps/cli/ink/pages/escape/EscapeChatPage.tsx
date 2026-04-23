@@ -46,19 +46,27 @@ const cc = {
 
 function roleColorANSI(role: string): string {
   switch (role) {
-    case 'user': return cc.cyan;
-    case 'assistant': return cc.blue;
-    case 'error': return '\x1b[31m';
-    default: return cc.cyan;
+    case 'user':
+      return cc.cyan;
+    case 'assistant':
+      return cc.blue;
+    case 'error':
+      return '\x1b[31m';
+    default:
+      return cc.cyan;
   }
 }
 
 function roleLabel(role: string): string {
   switch (role) {
-    case 'user': return 'You';
-    case 'assistant': return 'Assistant';
-    case 'error': return 'Error';
-    default: return role;
+    case 'user':
+      return 'You';
+    case 'assistant':
+      return 'Assistant';
+    case 'error':
+      return 'Error';
+    default:
+      return role;
   }
 }
 
@@ -219,7 +227,9 @@ function EscapeMessageList({ messages }: EscapeMessageListProps) {
       }
     };
     process.stdout.on('resize', handleResize);
-    return () => process.stdout.off('resize', handleResize);
+    return () => {
+      process.stdout.off('resize', handleResize);
+    };
   }, [exitAltScreen, enterAltScreen, renderMessages]);
 
   // Return empty box - alternate screen handles all rendering
@@ -241,16 +251,15 @@ export function EscapeChatPage() {
   useEffect(() => {
     const onResize = () => setTerminalRows(stdout.rows);
     stdout.on('resize', onResize);
-    return () => stdout.off('resize', onResize);
+    return () => {
+      stdout.off('resize', onResize);
+    };
   }, [stdout]);
 
-  const {
-    hydrateFromAgentState,
-    appendUserMessage,
-  } = useAgentEvents(session, {
+  const { hydrateFromAgentState, appendUserMessage } = useAgentEvents(session, {
     isRawModeSupported: false,
     onRawModeChange: () => {},
-    onTurnSettled: (status) => {
+    onTurnSettled: status => {
       useChatStore.getState().persistCurrentSession(status, agent.state.messages as any);
     },
   });

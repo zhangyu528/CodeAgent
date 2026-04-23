@@ -388,6 +388,22 @@ export const VirtualMessageList = React.forwardRef<VirtualListRef, VirtualMessag
     const scrollPercent = Math.min(100, Math.max(0, rawPercent));
 
     // ── Render ────────────────────────────────────────────────────────────────
+    console.error(
+      '[VML] messages.length=',
+      messages.length,
+      'groups=',
+      groups.length,
+      'totalHeight=',
+      totalHeight,
+      'availableRows=',
+      availableRows,
+      'scrollOffset=',
+      scrollOffset,
+      'visibleRange=',
+      visibleRange.start,
+      '-',
+      visibleRange.end
+    );
     if (messages.length === 0) {
       return (
         <Box flexGrow={1} justifyContent="center" alignItems="center">

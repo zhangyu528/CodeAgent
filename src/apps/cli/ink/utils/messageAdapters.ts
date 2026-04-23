@@ -71,6 +71,14 @@ export function agentMessagesToChatMessages(messages: any[]): ChatMessage[] {
   return messages.map((message: any, index: number) => {
     const role = normalizeRole(message.role);
     const blocks = extractBlocks(message.content);
+    console.error(
+      '[adapter] msg id=',
+      message.id,
+      'role=',
+      role,
+      'blocks=',
+      JSON.stringify(blocks)
+    );
     const createdAt =
       typeof message.createdAt === 'number' ? message.createdAt : Date.now() + index;
 
