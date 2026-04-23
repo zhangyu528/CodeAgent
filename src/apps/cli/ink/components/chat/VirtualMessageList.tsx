@@ -20,7 +20,9 @@ import React, {
   useMemo,
 } from 'react';
 import { Box, Text, measureElement, useInput } from 'ink';
-import { ChatMessage, ChatMessageRole } from '../../pages/types.js';
+import { ChatMessage } from '../../pages/types.js';
+import { MessageItem } from './MessageItem.js';
+import { DateDivider, formatDateLabel } from './DateDivider.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -35,38 +37,9 @@ function pad(n: number, width: number = 2): string {
   return n.toString().padStart(width, '0');
 }
 
-function formatDateLabel(timestamp: number): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-  const messageDate = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate()
-  );
-
-  if (messageDate.getTime() === today.getTime()) return '今天';
-  if (messageDate.getTime() === yesterday.getTime()) return '昨天';
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-
 function toDateKey(timestamp: number): string {
   const d = new Date(timestamp);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function roleColor(role: ChatMessageRole): string {
-  switch (role) {
-    case 'user':
-      return 'cyan';
-    case 'assistant':
-      return 'blue';
-    case 'error':
-      return 'red';
-    default:
-      return 'yellow';
-  }
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -412,15 +385,12 @@ export const VirtualMessageList = React.forwardRef<
                   flexGrow={0}
                   flexShrink={0}
                 >
-                  <Text color="gray" dimColor>
-                    ─── {item.groupLabel} ───
-                  </Text>
+                  <DateDivider label={item.groupLabel!} />
                 </Box>
               );
             }
 
             const msg = item.message!;
-            const color = roleColor(msg.role);
 
             return (
               <Box
@@ -431,21 +401,7 @@ export const VirtualMessageList = React.forwardRef<
                 flexGrow={0}
                 flexShrink={0}
               >
-                <Box flexDirection="column" marginBottom={1} marginRight={3}>
-                  <Box
-                    borderStyle="bold"
-                    borderLeft={true}
-                    borderLeftColor={color}
-                    borderTop={false}
-                    borderRight={false}
-                    borderBottom={false}
-                  >
-                    <Text color={color}>{msg.role}: </Text>
-                  </Box>
-                  <Box paddingLeft={2}>
-                    <Text>{msg.blocks.map(b => b.text).join('\n')}</Text>
-                  </Box>
-                </Box>
+                <MessageItem message={msg} />
               </Box>
             );
           })}
