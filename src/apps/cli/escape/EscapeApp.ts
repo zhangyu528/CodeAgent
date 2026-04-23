@@ -17,8 +17,6 @@ import {
   clearScreen,
   cursorTo,
   getTerminalSize,
-  enterAlternateScreen,
-  exitAlternateScreen,
   hideCursor,
   showCursor,
 } from './core/Terminal.js';
@@ -54,7 +52,6 @@ export class EscapeApp {
   stop(): void {
     this.inputCtrl?.stop();
     write(showCursor());
-    write(exitAlternateScreen());
   }
 
   private onPageChange(page: string): void {
@@ -83,7 +80,6 @@ export class EscapeApp {
   }
 
   private renderWelcome(rows: number, cols: number): void {
-    write(enterAlternateScreen());
     write(hideCursor());
     write(clearScreen());
 
@@ -115,7 +111,6 @@ export class EscapeApp {
   }
 
   private renderChat(rows: number, cols: number): void {
-    write(enterAlternateScreen());
     write(hideCursor());
     write(clearScreen());
 
