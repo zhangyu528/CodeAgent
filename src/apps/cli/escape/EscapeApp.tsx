@@ -1,16 +1,14 @@
 /**
- * EscapeApp — 全 Escape Sequence 渲染的 App
+ * EscapeApp — 全 Escape Sequence 渲染，纯函数，不依赖 Ink 渲染
  *
- * 替代 src/apps/cli/ink/App.tsx
+ * React 只用于：
+ * - useEffect 生命周期（mount/unount/dependency changes）
+ * - store 订阅（通过 useAppStore.getState()）
  *
- * 架构：
- * - EscapeApp 自身不渲染任何 Ink 元素
- * - 统一管理 alternate screen 进入/退出
- * - 每个页面组件只需在 useEffect 里调用 renderXxx() 即可
+ * 不渲染任何 Ink 组件，process.stdout 完全由 escape sequences 控制。
  */
 
 import React, { useEffect } from 'react';
-import { Box } from 'ink';
 import { ErrorBoundary } from '../ink/components/ErrorBoundary.js';
 import { InitPage } from '../ink/pages/init/InitPage.js';
 import { useAppStore } from '../ink/store/uiStore.js';
@@ -28,14 +26,15 @@ import {
 } from './core/Terminal.js';
 import { ASCII_LOGO } from '../ink/pages/welcome/constants.js';
 import { computeLayout } from './core/Layout.js';
-import type { Layout } from './core/Layout.js';
 
 interface EscapeAppProps {
   initPromise?: Promise<AgentSession>;
 }
 
+// EscapeApp 本身不是一个 React 组件——它只是一个启动器
+// 返回 null，因为所有 UI 都通过 escape sequence 直接写入 stdout
 export function EscapeApp({ initPromise }: EscapeAppProps) {
-  const { page, setPage } = useAppStore();
+  const page = useAppStore(s => s.page);
 
   useKeyboardShortcuts();
 
@@ -44,7 +43,7 @@ export function EscapeApp({ initPromise }: EscapeAppProps) {
     if (page !== 'init' || !initPromise) return;
 
     initPromise.then(async () => {
-      setPage('welcome');
+      useAppStore.getState().setPage('welcome');
 
       const providers = await ensureProvidersLoaded();
       for (const provider of providers) {
@@ -57,9 +56,22 @@ export function EscapeApp({ initPromise }: EscapeAppProps) {
         }
       }
     });
-  }, [page, initPromise, setPage]);
+  }, [page]);
 
-  // ── Cleanup alternate screen on unmount ────────────────────────────────
+  // ── Render based on page ────────────────────────────────────────────────
+  useEffect(() => {
+    if (page === 'init') return;
+
+    const { rows, cols } = getTerminalSize();
+
+    if (page === 'welcome') {
+      renderWelcome(rows, cols);
+    } else if (page === 'chat') {
+      renderChat(rows, cols);
+    }
+  }, [page]);
+
+  // ── Cleanup on unmount ──────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       write(exitAlternateScreen());
@@ -74,117 +86,78 @@ export function EscapeApp({ initPromise }: EscapeAppProps) {
     );
   }
 
-  return (
-    <ErrorBoundary>
-      <Box flexDirection="column" width={getTerminalSize().cols} height={getTerminalSize().rows}>
-        {page === 'welcome' && <WelcomePage />}
-        {page === 'chat' && <ChatPage />}
-      </Box>
-    </ErrorBoundary>
-  );
-}
-
-// ─── Welcome Page ──────────────────────────────────────────────────────────────
-
-function WelcomePage() {
-  useEffect(() => {
-    const { rows, cols } = getTerminalSize();
-    const layout = computeLayout(rows, cols);
-
-    write(enterAlternateScreen());
-    write(clearScreen());
-
-    // Logo 居中 (5 行 logo + 1 行版本)
-    const logoStart = Math.floor((rows - 6) / 2);
-    const logoWidth = ASCII_LOGO[0].length;
-    const logoLeft = Math.floor((cols - logoWidth) / 2);
-
-    for (let i = 0; i < ASCII_LOGO.length; i++) {
-      write(cursorTo(logoStart + i, logoLeft));
-      write(`${T.fg.cyan}${ASCII_LOGO[i]}${T.reset}`);
-    }
-
-    // Version
-    const versionRow = logoStart + ASCII_LOGO.length + 1;
-    write(cursorTo(versionRow, 1));
-    write(cursorTo(versionRow, Math.floor((cols - 20) / 2)));
-    write(`${T.bold}${T.fg.blue}CodeAgent${T.reset} ${T.dim}v0.1.0${T.reset}`);
-
-    // 提示：输入消息开始
-    const promptRow = versionRow + 3;
-    write(cursorTo(promptRow, 1));
-    write(cursorTo(promptRow, Math.floor((cols - 30) / 2)));
-    write(`${T.dim}Type a message to start...${T.reset}`);
-
-    // 输入框提示
-    const inputRow = rows - 3;
-    write(cursorTo(inputRow, 1));
-    write(cursorTo(inputRow, 1));
-    write(`${T.fg.cyan} CHAT ${T.reset} `);
-    write(`${T.dim}Type a message...${T.reset}`);
-    write(cursorTo(inputRow, logoLeft + 8));
-
-    return () => {
-      write(exitAlternateScreen());
-    };
-  }, []);
-
+  // All non-init pages: render nothing via React, all output via escape sequences
   return null;
 }
 
-// ─── Chat Page ───────────────────────────────────────────────────────────────
+// ─── Welcome ────────────────────────────────────────────────────────────────
 
-function ChatPage() {
-  useEffect(() => {
-    const { rows, cols } = getTerminalSize();
-    const layout = computeLayout(rows, cols);
+function renderWelcome(rows: number, cols: number): void {
+  write(enterAlternateScreen());
+  write(clearScreen());
 
-    write(enterAlternateScreen());
-    write(clearScreen());
+  // Logo 居中
+  const logoWidth = ASCII_LOGO[0].length;
+  const logoLeft = Math.floor((cols - logoWidth) / 2);
+  const logoStart = Math.floor((rows - 7) / 2);
 
-    // 渲染 header
-    renderChatHeader(layout, null);
+  for (let i = 0; i < ASCII_LOGO.length; i++) {
+    write(cursorTo(logoStart + i, logoLeft));
+    write(`${T.fg.cyan}${ASCII_LOGO[i]}${T.reset}`);
+  }
 
-    // 渲染输入区
-    renderInput(layout, false);
+  // Version
+  const vRow = logoStart + ASCII_LOGO.length + 1;
+  write(cursorTo(vRow, Math.floor((cols - 20) / 2)));
+  write(`${T.bold}${T.fg.blue}CodeAgent${T.reset} ${T.dim}v0.1.0${T.reset}`);
 
-    // 光标移到输入行
-    const inputRow = layout.inputTop + 1;
-    write(cursorTo(inputRow, 8));
+  // 首次使用提示
+  write(cursorTo(vRow + 3, Math.floor((cols - 30) / 2)));
+  write(`${T.dim}Type a message to start${T.reset}`);
 
-    return () => {
-      write(exitAlternateScreen());
-    };
-  }, []);
-
-  return null;
-}
-
-// ─── 渲染函数 ───────────────────────────────────────────────────────────────
-
-function renderChatHeader(layout: Layout, session: { title?: string; status?: string } | null): void {
-  const { cols, headerTop, headerBottom } = layout;
-
-  // Row 1: 标题
-  write(cursorTo(headerTop, 1));
-  write(`${T.bold}${T.fg.cyan}${session?.title || 'CodeAgent'}${T.reset}  `);
-  write(`${T.dim}${session?.status || ''}${T.reset}`);
-
-  // Row 2: 分隔线
-  write(cursorTo(headerBottom, 1));
-  write(`${T.dim}${'─'.repeat(cols)}${T.reset}`);
-}
-
-function renderInput(layout: Layout, isWelcome: boolean): void {
-  const { rows, cols, inputTop } = layout;
-  const line = inputTop + 1;
-
-  write(cursorTo(line, 1));
+  // 输入行
+  const inputRow = rows - 4;
+  write(cursorTo(inputRow, 1));
+  write(cursorTo(inputRow, Math.floor((cols - 40) / 2)));
   write(`${T.fg.cyan} CHAT ${T.reset} `);
-  write(`${T.dim}${isWelcome ? 'Type a message...' : 'Message the assistant...'}${T.reset}`);
+  write(`${T.dim}Your message...${T.reset}`);
+  write(cursorTo(inputRow, Math.floor((cols - 40) / 2) + 8));
 
-  // 底部信息行
   write(cursorTo(rows, 1));
-  write(`${T.dim}Ctrl+C=exit${T.reset}${' '.repeat(Math.max(1, cols - 20))}${T.dim}${process.cwd()}${T.reset}`);
-  write(cursorTo(line, 8));
+  write(`${T.dim}Ctrl+C to exit${T.reset}`);
+}
+
+// ─── Chat ──────────────────────────────────────────────────────────────────
+
+function renderChat(rows: number, cols: number): void {
+  write(enterAlternateScreen());
+  write(clearScreen());
+
+  const scrollTop = 3;
+  const scrollBottom = rows - 6;
+
+  // Header
+  write(cursorTo(1, 1));
+  write(`${T.bold}${T.fg.cyan}CodeAgent${T.reset}  `);
+  write(`${T.dim}chat${T.reset}  ${T.dim}0 msgs${T.reset}`);
+
+  write(cursorTo(2, 1));
+  write(`${T.dim}${'─'.repeat(cols)}${T.reset}`);
+
+  // Scroll region
+  write(cursorTo(scrollTop, 1));
+  write(`${T.dim}${' '.repeat(cols)}${T.reset}`);
+
+  // Input area
+  const inputRow = rows - 4;
+  write(cursorTo(inputRow, 1));
+  write(cursorTo(inputRow, 1));
+  write(`${T.fg.cyan} CHAT ${T.reset} `);
+
+  // Footer
+  write(cursorTo(rows, 1));
+  write(`${T.dim}Ctrl+C=exit${' '.repeat(Math.max(1, cols - 20))}${process.cwd()}${T.reset}`);
+
+  // Cursor to input
+  write(cursorTo(inputRow, 8));
 }
