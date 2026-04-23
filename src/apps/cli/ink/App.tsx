@@ -19,16 +19,35 @@ export function App({ initPromise }: AppProps) {
   // Mount/unmount EscapeApp when page leaves 'init'
   useEffect(() => {
     if (page !== 'init' && !escapeAppRef.current) {
-      escapeAppRef.current = new EscapeApp({ initPromise });
+      escapeAppRef.current = new EscapeApp({
+        onPageChange: (p) => {
+          // Currently EscapeApp drives itself via setPage from outside
+        },
+        onSubmit: (prompt) => {
+          // TODO: hook into chat flow
+        },
+      });
       escapeAppRef.current.start();
     }
+
+    if (escapeAppRef.current) {
+      if (page === 'init') {
+        escapeAppRef.current.stop();
+        escapeAppRef.current = null;
+      } else if (page === 'welcome') {
+        escapeAppRef.current.setPage('welcome');
+      } else if (page === 'chat') {
+        escapeAppRef.current.setPage('chat');
+      }
+    }
+
     return () => {
       if (escapeAppRef.current) {
         escapeAppRef.current.stop();
         escapeAppRef.current = null;
       }
     };
-  }, [page, initPromise]);
+  }, [page]);
 
   if (page === 'init') {
     return (
@@ -40,8 +59,6 @@ export function App({ initPromise }: AppProps) {
     );
   }
 
-  // Non-init pages: EscapeApp handles all rendering — return empty Box
-  // EscapeApp writes directly to stdout, so Ink just mounts an empty container
   return (
     <ErrorBoundary>
       <Box width={terminalSize.width} height={terminalSize.height} />

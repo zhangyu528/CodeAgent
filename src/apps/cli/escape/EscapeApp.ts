@@ -1,16 +1,23 @@
 /**
  * EscapeApp — Pure JS escape sequence renderer, zero React/Ink dependencies
  *
+ * Architecture: state is pushed in from outside via setPage/setModel/updateMessages.
+ * EscapeApp does not read from any shared store.
+ *
  * Usage:
  *   import { EscapeApp } from './EscapeApp.js';
- *   const app = new EscapeApp({ initPromise });
+ *   const app = new EscapeApp({
+ *     onPageChange: (page) => { /* update ink store *\/ },
+ *     onSubmit: (prompt) => { /* handle prompt *\/ },
+ *   });
  *   app.start();
- *   // later: app.stop()
+ *   app.setPage('welcome');
+ *   app.setPage('chat');
+ *   app.stop();
  */
 
-import { checkApiKeyConfigured, getModels, ensureProvidersLoaded } from '@codeagent/core';
-import type { AgentSession } from '@codeagent/core';
-import { useAppStore } from '../ink/store/uiStore.js';
+import { InputController } from './InputController.js';
+
 import {
   T,
   write,
@@ -20,42 +27,35 @@ import {
   hideCursor,
   showCursor,
 } from './core/Terminal.js';
-import { ASCII_LOGO } from '../ink/pages/welcome/constants.js';
-import { InputController } from './InputController.js';
+
+export type EscapePage = 'welcome' | 'chat';
 
 export interface EscapeAppOptions {
-  initPromise?: Promise<AgentSession>;
+  onPageChange?: (page: EscapePage) => void;
+  onSubmit?: (prompt: string) => void;
 }
 
 export class EscapeApp {
+  private page: EscapePage | null = null;
+  private model: string = 'unknown';
+  private messageCount: number = 0;
   private inputCtrl: InputController | null = null;
-  private page: 'init' | 'welcome' | 'chat' = 'init';
-  private initPromise?: Promise<AgentSession>;
+  private opts: EscapeAppOptions;
 
-  constructor(options: EscapeAppOptions = {}) {
-    this.initPromise = options.initPromise;
-    // Subscribe to store changes
-    useAppStore.subscribe(() => {
-      const newPage = useAppStore.getState().page;
-      if (newPage !== this.page) {
-        this.page = newPage;
-        this.onPageChange(newPage);
-      }
-    });
+  constructor(opts: EscapeAppOptions = {}) {
+    this.opts = opts;
   }
 
-  start(): void {
-    this.page = useAppStore.getState().page;
-    this.onPageChange(this.page);
-  }
+  start(): void {}
 
   stop(): void {
     this.inputCtrl?.stop();
     write(showCursor());
   }
 
-  private onPageChange(page: string): void {
-    if (page === 'init') return;
+  setPage(page: EscapePage): void {
+    if (page === this.page) return;
+    this.page = page;
 
     const { rows, cols } = getTerminalSize();
 
@@ -67,8 +67,7 @@ export class EscapeApp {
         rows,
         cols,
         onSubmit: (value: string) => {
-          useAppStore.getState().setPendingPrompt?.(value);
-          useAppStore.getState().setPage('chat');
+          this.opts.onSubmit?.(value);
         },
       });
       this.inputCtrl.start();
@@ -79,20 +78,50 @@ export class EscapeApp {
     }
   }
 
+  setModel(model: string): void {
+    this.model = model;
+    if (this.page === 'chat') {
+      const { rows } = getTerminalSize();
+      write(cursorTo(1, 1));
+      write(`${T.bold}${T.fg.cyan}CodeAgent${T.reset}  `);
+      write(`${T.dim}${this.model}${T.reset}  ${T.dim}${this.messageCount} msgs${T.reset}`);
+    }
+  }
+
+  setMessageCount(count: number): void {
+    this.messageCount = count;
+    if (this.page === 'chat') {
+      const { rows } = getTerminalSize();
+      write(cursorTo(1, 1));
+      write(`${T.bold}${T.fg.cyan}CodeAgent${T.reset}  `);
+      write(`${T.dim}${this.model}${T.reset}  ${T.dim}${this.messageCount} msgs${T.reset}`);
+    }
+  }
+
   private renderWelcome(rows: number, cols: number): void {
     write(hideCursor());
     write(clearScreen());
 
-    const logoWidth = ASCII_LOGO[0].length;
+    // ASCII logo
+    const logoLines = [
+      '  ██████╗██╗  ██╗███████╗███╗   ██╗',
+      ' ██╔════╝██║  ██║██╔════╝████╗  ██║',
+      ' ██║     ███████║█████╗  ██╔██╗ ██║',
+      ' ██║     ██╔══██║██╔══╝  ██║╚██╗██║',
+      ' ╚██████╗██║  ██║███████╗██║ ╚████║',
+      '  ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝',
+      '       C O D E   A G E N T',
+    ];
+    const logoWidth = logoLines[0].length;
     const logoLeft = Math.floor((cols - logoWidth) / 2);
     const logoStart = Math.floor((rows - 7) / 2);
 
-    for (let i = 0; i < ASCII_LOGO.length; i++) {
+    for (let i = 0; i < logoLines.length; i++) {
       write(cursorTo(logoStart + i, logoLeft));
-      write(`${T.fg.cyan}${ASCII_LOGO[i]}${T.reset}`);
+      write(`${T.fg.cyan}${logoLines[i]}${T.reset}`);
     }
 
-    const vRow = logoStart + ASCII_LOGO.length + 1;
+    const vRow = logoStart + logoLines.length + 2;
     write(cursorTo(vRow, Math.floor((cols - 20) / 2)));
     write(`${T.bold}${T.fg.blue}CodeAgent${T.reset} ${T.dim}v0.1.0${T.reset}`);
 
@@ -116,7 +145,7 @@ export class EscapeApp {
 
     write(cursorTo(1, 1));
     write(`${T.bold}${T.fg.cyan}CodeAgent${T.reset}  `);
-    write(`${T.dim}chat${T.reset}  ${T.dim}0 msgs${T.reset}`);
+    write(`${T.dim}${this.model}${T.reset}  ${T.dim}${this.messageCount} msgs${T.reset}`);
 
     write(cursorTo(2, 1));
     write(`${T.dim}${'─'.repeat(cols)}${T.reset}`);
