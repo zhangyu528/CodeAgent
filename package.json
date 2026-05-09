@@ -11,17 +11,21 @@
     "README.md"
   ],
   "scripts": {
-    "dev": "bun run src/apps/cli/index.tsx",
-    "build": "bun build src/apps/cli/index.tsx --target=node --outfile=dist/cli/index.js",
-    "start": "bun run dist/cli/index.js",
+    "dev:cli": "bun run src/apps/cli/index.tsx",
+    "build:cli": "bun build src/apps/cli/index.tsx --target=node --outfile=dist/cli/index.js",
+    "start:cli": "bun run dist/cli/index.js",
+    "dev:electron": "bun run src/apps/electron/dev.ts",
+    "build:electron": "bun run scripts/build-electron.js",
+    "start:electron": "electron dist/electron/main.js",
+    "package:electron": "bun run build:electron && electron-builder",
     "test": "vitest",
     "test:run": "vitest run",
-    "lint": "eslint src/",
+    "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --coverage --reporter=json",
-    "test:ui": "vitest --ui",
-    "prepare": "husky",
-    "audit": "bun pm scan"
+    "lint": "eslint src/",
+    "audit": "bun pm scan",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
@@ -34,17 +38,20 @@
     "url": "https://github.com/zhangyu528/CodeAgent/issues"
   },
   "homepage": "https://github.com/zhangyu528/CodeAgent#readme",
+  "overrides": {
+    "ink": "npm:@jrichman/ink@6.6.9"
+  },
   "dependencies": {
     "@byteland/ink-scroll-bar": "^1.0.0",
     "@mariozechner/pi-coding-agent": "^0.61.1",
     "ink": "^6.8.0",
     "react": "^19.0.0",
+    "win32": "^8.0.0",
     "winston": "^3.19.0",
     "zod": "^4.3.6",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.4.0",
@@ -53,6 +60,9 @@
     "@typescript-eslint/parser": "^8.58.1",
     "@vitest/coverage-v8": "^4.1.2",
     "@vitest/ui": "^4.1.2",
+    "electron": "^41.5.0",
+    "electron-builder": "^26.0.0",
+    "esbuild": "^0.28.0",
     "eslint": "^10.0.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -62,6 +72,7 @@
     "prettier": "^3.8.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.58.1",
+    "vite": "^6.0.0",
     "vitest": "^4.1.2"
   },
   "lint-staged": {
