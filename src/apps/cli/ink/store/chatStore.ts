@@ -12,12 +12,13 @@ import { randomUUID } from 'crypto';
 import {
   listSessions,
   newSession as coreNewSession,
-  switchSession,
+  activateSession,
   getSessionId,
   getSessionName,
   setSessionName,
   getSessionMessages,
   getSessionFile,
+  logger,
 } from '@codeagent/core';
 import {
   ChatMessageSchema,
@@ -60,6 +61,22 @@ function extractSessionTitle(text: string): string {
   return normalized.length > 40 ? `${normalized.slice(0, 40)}...` : normalized;
 }
 
+/**
+ * Extract project CWD from a session file path.
+ * Session path format: ~/.pi/agent/sessions/--{encoded_cwd}--/{timestamp}_{id}.jsonl
+ */
+function projectCwdFromSessionPath(sessionPath: string): string {
+  const match = sessionPath.match(/[\\/]sessions[\\/](--[^\\/]+--)[\\/]/);
+  if (!match || !match[1]) return '';
+  const encoded = match[1]!;
+  const inner = encoded.slice(2, -2);
+  const parts = inner.split('--');
+  if (parts[0] && parts[0].length === 1 && /[A-Za-z]/.test(parts[0])) {
+    return parts[0] + ':\\' + parts.slice(1).join('\\');
+  }
+  return '/' + parts.join('/');
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -80,6 +97,7 @@ interface ChatStore {
   refreshHistory: (limit?: number) => Promise<SessionInfo[]>;
   persistCurrentSession: (status?: SessionStatus, messages?: ChatMessage[]) => void;
   restoreSessionByPath: (sessionPath: string) => Promise<boolean>;
+  restoreSessionById: (sessionId: string) => Promise<boolean>;
   ensureSessionForPrompt: (userInput: string) => string;
 
   // Pending Prompt Actions
@@ -97,7 +115,7 @@ interface ChatStore {
    * Clears all session and message state.
    * This is an atomic operation - either everything is cleared or nothing.
    */
-  clearAll: () => void;
+  clearAll: () => Promise<void>;
 }
 
 // ============================================================================
@@ -182,8 +200,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   restoreSessionByPath: async (sessionPath: string) => {
     try {
-      const success = await switchSession(sessionPath);
-      if (!success) return false;
+      // activateSession expects (sessionPath, projectCwd)
+      // We extract projectCwd from the sessionPath
+      const projectCwd = projectCwdFromSessionPath(sessionPath);
+      await activateSession(sessionPath, projectCwd);
 
       const sessionName = getSessionName() || 'Untitled Session';
 
@@ -203,6 +223,27 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       return true;
     } catch (err) {
       console.error('[ChatStore] Failed to restore session:', err);
+      // Reset state on failure to avoid inconsistent state
+      set({
+        activeSessionId: null,
+        currentSession: null,
+        messages: [],
+      });
+      return false;
+    }
+  },
+
+  restoreSessionById: async (sessionId: string) => {
+    try {
+      const allSessions = await listSessions();
+      const session = allSessions.find((s: any) => s.id === sessionId);
+      if (!session) {
+        console.error('[ChatStore] Session not found:', sessionId);
+        return false;
+      }
+      return await get().restoreSessionByPath(session.path);
+    } catch (err) {
+      console.error('[ChatStore] Failed to restore session by id:', sessionId, err);
       return false;
     }
   },
@@ -259,7 +300,20 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // Message Actions
   setMessages: messages => set({ messages }),
 
-  addMessage: msg => set(state => ({ messages: [...state.messages, msg] })),
+  addMessage: msg => {
+    // Capture full stack trace for every call
+    const err = new Error();
+    const frames = (err.stack || '').split('\n').slice(1);
+    const callerInfo = frames.slice(0, 5).map(f => f.trim()).join(' || ');
+    // Duplicate guard - check if message with same ID already exists
+    const existing = useChatStore.getState().messages.find(m => m.id === msg.id);
+    if (existing) {
+      logger.warn(`DUPLICATE id=${msg.id} role=${msg.role} text=${msg.blocks[0]?.text?.slice(0, 15)} stack=${callerInfo.slice(0, 150)}`);
+      return;
+    }
+    logger.debug(`ADD id=${msg.id} role=${msg.role} text=${msg.blocks[0]?.text?.slice(0, 15)} stack=${callerInfo.slice(0, 100)}`);
+    set(state => ({ messages: [...state.messages, msg] }));
+  },
 
   updateLastMessage: update =>
     set(state => {
@@ -274,8 +328,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   setUsage: usage => set({ usage }),
 
   // Combined Actions
-  clearAll: () => {
-    coreNewSession();
+  clearAll: async () => {
+    await coreNewSession();
     set({
       activeSessionId: getSessionId(),
       currentSession: null,

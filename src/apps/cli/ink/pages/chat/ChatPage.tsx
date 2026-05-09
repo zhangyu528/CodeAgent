@@ -1,8 +1,20 @@
+/**
+ * ChatPage.tsx — Back to pure Ink scrolling with overflowToBackbuffer.
+ *
+ * Layout:
+ *   [Header — fixed]
+ *   [ScrollableMessageList — flexGrow=1, overflowY="scroll" overflowToBackbuffer]
+ *   [Input — fixed at bottom]
+ *
+ * overflowToBackbuffer={true} pushes completed messages into terminal scrollback.
+ * stableScrollback={true} keeps scrollback stable when content shrinks.
+ * Mouse wheel: handled by overflowToBackbuffer mechanism (terminal native scroll).
+ */
 import React, { useEffect, useState } from 'react';
 import { Box, useStdout } from 'ink';
 import { Input } from '../../components/inputs/index.js';
 import { ChatHeader } from '../../components/chat/ChatHeader.js';
-import { VirtualMessageList } from '../../components/chat/VirtualMessageList.js';
+import { ScrollableMessageList } from '../../components/chat/ScrollableMessageList.js';
 import { useChatStore } from '../../store/index.js';
 import { useAgentEvents } from '../../hooks/useAgentEvents.js';
 import { getAgentSession } from '@codeagent/core';
@@ -10,16 +22,13 @@ import { getAgentSession } from '@codeagent/core';
 export function ChatPage() {
   const session = getAgentSession();
   const agent = session.agent;
-  const messages = useChatStore(state => state.messages);
   const { stdout } = useStdout();
   const [terminalRows, setTerminalRows] = useState(stdout.rows || 24);
 
   useEffect(() => {
-    const onResize = () => setTerminalRows(stdout.rows);
-    stdout.on('resize', onResize);
-    return () => {
-      stdout.off('resize', onResize);
-    };
+    const handleResize = () => setTerminalRows(stdout.rows);
+    stdout.on('resize', handleResize);
+    return () => stdout.off('resize', handleResize);
   }, [stdout]);
 
   const { hydrateFromAgentState, appendUserMessage } = useAgentEvents(session, {
@@ -30,35 +39,29 @@ export function ChatPage() {
     },
   });
 
-  // Handle pending prompt from WelcomePage - runs once when component mounts
+  // Handle pending prompt from WelcomePage
   useEffect(() => {
-    // Get pending prompt from WelcomePage
     const pending = useChatStore.getState().getAndClearPendingPrompt();
-
     if (!pending) {
-      // No pending prompt - hydrate from agent state if available
       hydrateFromAgentState();
       return;
     }
-
-    // Has pending prompt - create session, add user message, and send to agent
     useChatStore.getState().ensureSessionForPrompt(pending);
     appendUserMessage(pending);
     void agent.prompt(pending);
-  }, []); // Run only once on mount
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentSession = useChatStore(state => state.currentSession);
-  const headerRows = currentSession ? 2 : 0;
-  // Account for header, input (approx 7 rows + 2 margin), and debug panel hint (1 row)
-  const availableRows = Math.max(1, terminalRows - headerRows - 9);
-  const viewportHeight = availableRows;
+  const headerRows = currentSession ? 2 : 1;
+  const inputRows = 8;
+  const availableRows = Math.max(1, terminalRows - headerRows - inputRows);
 
   return (
-    <Box flexDirection="column" paddingX={2} flexGrow={1}>
+    <Box flexDirection="column" flexGrow={1}>
       <Box flexShrink={0}>
         <ChatHeader session={currentSession} />
       </Box>
-      <VirtualMessageList messages={messages} availableRows={viewportHeight} />
+      <ScrollableMessageList messages={useChatStore(state => state.messages)} availableRows={availableRows} />
       <Box flexShrink={0}>
         <Input />
       </Box>

@@ -3,9 +3,8 @@ import { Box, Text } from 'ink';
 import { InputField } from './InputField.js';
 import { SlashList } from './SlashList.js';
 import { useInput } from './InputController.js';
-import { ModelIndicator } from './ModelIndicator.js';
+import { StatusBar } from './StatusBar.js';
 import { CwdIndicator } from './CwdIndicator.js';
-import { ContextBar } from '../chat/ContextBar.js';
 
 interface InputProps {
   /** Show welcome-mode styling (no context bar, centered layout) */
@@ -34,14 +33,8 @@ export function Input({ isWelcome = false }: InputProps) {
         </Box>
       ) : (
         <Box width="100%" paddingX={1} justifyContent="space-between">
-          <Box flexShrink={0} flexDirection="row">
-            <ModelIndicator />
-            {!isWelcome && (
-              <>
-                <Text color="gray">  </Text>
-                <ContextBar />
-              </>
-            )}
+          <Box flexShrink={0}>
+            <StatusBar compact={isWelcome} />
           </Box>
           <CwdIndicator />
         </Box>

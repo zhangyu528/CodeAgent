@@ -1,8 +1,12 @@
 /**
  * useAgentEvents - Agent 事件订阅
  * 使用 useChatStore 共享消息状态
- * 
- * Performance: Streaming delta updates are throttled using a 150ms buffer
+ *
+ * Streaming architecture (hybrid):
+ * - Streaming deltas → store (React overlay) + chatHistoryRenderer (terminal)
+ * - Completed messages → store (React overlay) + written to terminal history
+ *
+ * Performance: Streaming delta updates are throttled using a 50ms buffer
  * to reduce React re-renders from high-frequency token updates.
  */
 import { useEffect, useRef, useCallback } from 'react';
@@ -10,9 +14,10 @@ import { AgentSession, AgentSessionEvent } from '@codeagent/core';
 import { useChatStore } from '../store/index.js';
 import { ChatMessage } from '../pages/types.js';
 import { agentMessagesToChatMessages } from '../utils/messageAdapters.js';
+import { chatHistoryRenderer } from '../utils/chatHistoryRenderer.js';
 
 // Throttle configuration
-const THROTTLE_INTERVAL_MS = 150;
+const THROTTLE_INTERVAL_MS = 50;
 
 interface DeltaBuffer {
   textDeltas: string[];
@@ -43,48 +48,56 @@ export function useAgentEvents(session: AgentSession, options: UseAgentEventsOpt
   const setThinking = (thinking: boolean) => useChatStore.setState({ thinking });
   const setUsage = (usage: { input: number; output: number; cost: number }) => useChatStore.setState({ usage });
 
-  // Flush accumulated deltas to store
+  // Flush accumulated deltas to store AND terminal
   const flushDeltas = useCallback(() => {
     const { textDeltas, thinkingDeltas } = deltaBufferRef.current;
-    
+
     // Skip if nothing to flush
     if (textDeltas.length === 0 && thinkingDeltas.length === 0) {
       return;
     }
 
-    // Batch text delta update
-    if (textDeltas.length > 0) {
-      const textDelta = textDeltas.join('');
-      useChatStore.getState().updateLastMessage(msg => {
-        if (!msg) return msg;
-        const blockIndex = msg.blocks.findIndex(block => block.kind === 'text');
-        if (blockIndex >= 0) {
-          const nextBlocks = [...msg.blocks];
-          const textBlock = nextBlocks[blockIndex] as { kind: 'text'; text: string };
-          nextBlocks[blockIndex] = { kind: 'text', text: textBlock.text + textDelta };
-          return { ...msg, status: 'streaming', blocks: nextBlocks };
-        }
-        return { ...msg, status: 'streaming', blocks: [...msg.blocks, { kind: 'text', text: textDelta }] };
-      });
-    }
+    const textDelta = textDeltas.join('');
+    const thinkingDelta = thinkingDeltas.join('');
 
-    // Batch thinking delta update
-    if (thinkingDeltas.length > 0) {
-      const thinkingDelta = thinkingDeltas.join('');
-      useChatStore.getState().updateLastMessage(msg => {
-        if (!msg) return msg;
-        const blockIndex = msg.blocks.findIndex(block => block.kind === 'thinking');
-        if (blockIndex >= 0) {
-          const nextBlocks = [...msg.blocks];
-          const thinkingBlock = nextBlocks[blockIndex] as { kind: 'thinking'; text: string };
-          nextBlocks[blockIndex] = { kind: 'thinking', text: thinkingBlock.text + thinkingDelta, collapsed: true };
-          return { ...msg, status: 'streaming', blocks: nextBlocks };
-        }
-        return { ...msg, status: 'streaming', blocks: [{ kind: 'thinking', text: thinkingDelta, collapsed: true }, ...msg.blocks] };
-      });
-    }
+    useChatStore.getState().updateLastMessage(msg => {
+      if (!msg) return msg;
 
-    // Clear buffer after flush
+      let nextBlocks = [...msg.blocks] as ChatMessage['blocks'];
+
+      // Text delta
+      if (textDelta) {
+        const blockIndex = nextBlocks.findIndex(b => b.kind === 'text');
+        if (blockIndex >= 0) {
+          nextBlocks = [...nextBlocks];
+          nextBlocks[blockIndex] = { kind: 'text', text: (nextBlocks[blockIndex] as { kind: 'text'; text: string }).text + textDelta };
+        } else {
+          nextBlocks = [...nextBlocks, { kind: 'text', text: textDelta }];
+        }
+      }
+
+      // Thinking delta
+      if (thinkingDelta) {
+        const blockIndex = nextBlocks.findIndex(b => b.kind === 'thinking');
+        if (blockIndex >= 0) {
+          nextBlocks = [...nextBlocks];
+          nextBlocks[blockIndex] = {
+            kind: 'thinking',
+            text: (nextBlocks[blockIndex] as { kind: 'thinking'; text: string }).text + thinkingDelta,
+            collapsed: true,
+          };
+        } else {
+          nextBlocks = [{ kind: 'thinking', text: thinkingDelta, collapsed: true }, ...nextBlocks];
+        }
+      }
+
+      // Update terminal
+      if (textDelta) chatHistoryRenderer.updatePending(textDelta, false);
+      if (thinkingDelta) chatHistoryRenderer.updatePending(thinkingDelta, true);
+
+      return { ...msg, status: 'streaming', blocks: nextBlocks };
+    });
+
     deltaBufferRef.current = { textDeltas: [], thinkingDeltas: [] };
   }, []);
 

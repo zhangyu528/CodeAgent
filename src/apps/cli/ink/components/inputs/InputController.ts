@@ -34,10 +34,11 @@ export function useInput(): InputControllerResult {
   const ensureSessionForPrompt = useChatStore(state => state.ensureSessionForPrompt);
   const setPendingPrompt = useChatStore(state => state.setPendingPrompt);
   const addMessage = useChatStore(state => state.addMessage);
+  const thinking = useChatStore(state => state.thinking);
 
   const hasModal = useModalOpenState();
 
-  const submitPrompt = useCallback((currentValue: string) => {
+  const submitPrompt = useCallback((currentValue: string,来源:string='unknown') => {
     const trimmed = currentValue.trim();
     if (!trimmed) return;
 
@@ -69,6 +70,9 @@ export function useInput(): InputControllerResult {
   }, [currentModel, page, modelConfig, setPage, ensureSessionForPrompt, setPendingPrompt, session, addMessage]);
 
   useKeyboardInput((input, key) => {
+    // Ignore all input while agent is thinking
+    if (thinking) return;
+
     // Return - submit or execute slash command
     // Also handle \r (carriage return) which Windows Terminal sends
     if (key.return || input === '\r') {

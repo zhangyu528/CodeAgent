@@ -45,8 +45,10 @@ export function useSlashHandlers(modelConfig: UseModelConfigResult) {
   const handlers = useMemo(() => ({
     onHelp: () => showNotice({ title: 'Help', message: HELP_MESSAGE }),
     onNew: () => {
-      useChatStore.getState().clearAll();
-      setPage('welcome');
+      void (async () => {
+        await useChatStore.getState().clearAll();
+        setPage('welcome');
+      })();
     },
     onModel: () => modelConfig.startConfig(),
     onHistory: () => { void openHistoryModal(); },
