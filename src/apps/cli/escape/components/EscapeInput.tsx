@@ -23,7 +23,7 @@ import { T, cursorTo, clearLine, write, getTerminalSize } from '../core/Terminal
 import { computeLayout } from '../core/Layout.js';
 import { useChatStore } from '../../ink/store/index.js';
 import { useAppStore } from '../../ink/store/uiStore.js';
-import { getAgentSession } from '@codeagent/core';
+import { getAgentSession } from '@codeagent/backend';
 
 const ESC = '\x1b';
 const PROMPT = ' CHAT ';

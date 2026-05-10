@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { Logo } from './Logo.js';
 import { Input } from '../../components/inputs/index.js';
-import { isFirstRun as checkFirstRun } from '@codeagent/core';
+import { isFirstRun as checkFirstRun } from '@codeagent/backend';
 
 export function WelcomePage() {
   const [isFirst, setIsFirst] = React.useState(false);

@@ -4,7 +4,7 @@
  */
 
 import { AuthStorage, getAgentDir } from '@mariozechner/pi-coding-agent';
-import { logger } from './logger.js';
+import { logger } from '../logger.js';
 import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 

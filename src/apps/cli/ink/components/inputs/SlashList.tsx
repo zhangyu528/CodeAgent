@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useSlashList } from './SlashListController.js';
 import { useModelConfig } from '../../hooks/useModelConfig.js';
-import { getAgentSession } from '@codeagent/core';
+import { getAgentSession } from '@codeagent/backend';
 import { padToWidth, truncateToWidth } from '../modals/textLayout.js';
 
 interface SlashListProps {

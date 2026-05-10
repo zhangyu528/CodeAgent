@@ -45,7 +45,7 @@ import {
   removeApiKey,
   reloadProviders,
   isFirstRun,
-} from '../../core/index.js';
+} from '@codeagent/backend';
 import { getAgentDir } from '@mariozechner/pi-coding-agent';
 import type { AgentSessionEvent } from '@mariozechner/pi-coding-agent';
 

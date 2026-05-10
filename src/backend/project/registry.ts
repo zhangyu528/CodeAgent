@@ -15,7 +15,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { getAgentDir } from '@mariozechner/pi-coding-agent';
-import { logger } from './logger.js';
+import { logger } from '../logger.js';
 
 export interface ProjectInfo {
   path: string; // absolute directory path

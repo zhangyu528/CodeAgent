@@ -3,7 +3,7 @@
  * Non-interactive NDJSON output for programmatic use
  */
 
-import { ensureAgentInitialized } from '@codeagent/core';
+import { ensureAgentInitialized } from '@codeagent/backend';
 import { initJsonMode, handleAgentEvent } from './JsonMode.js';
 import { emit } from './emitter.js';
 

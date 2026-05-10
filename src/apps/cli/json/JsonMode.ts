@@ -4,7 +4,7 @@
  */
 
 import { emit, setJsonMode } from './emitter.js';
-import type { AgentSessionEvent } from '@codeagent/core';
+import type { AgentSessionEvent } from '@codeagent/backend';
 
 /**
  * Initialize JSON mode with the agent

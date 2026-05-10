@@ -13,8 +13,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@codeagent/core": ["./src/core/index.ts"],
-      "@codeagent/core/*": ["./src/core/*"]
+      "@codeagent/backend": ["./src/backend/index.ts"],
+      "@codeagent/backend/*": ["./src/backend/*"]
     }
   },
   "include": ["src/**/*"],

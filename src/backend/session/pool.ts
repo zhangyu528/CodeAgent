@@ -21,10 +21,10 @@ import {
   grepTool,
   lsTool,
 } from '@mariozechner/pi-coding-agent';
-import { logger } from './logger.js';
-import { getAuthStorage } from './auth.js';
-import { getModelRegistry } from './modelRegistry.js';
-import { getSettingsManager } from './settingsManager.js';
+import { logger } from '../logger.js';
+import { getAuthStorage } from '../auth/index.js';
+import { getModelRegistry } from '../model/index.js';
+import { getSettingsManager } from '../model/index.js';
 import { getAgentDir } from '@mariozechner/pi-coding-agent';
 import type { AgentSessionEvent } from '@mariozechner/pi-coding-agent';
 import { join } from 'path';
@@ -36,7 +36,7 @@ import {
   renameProject,
   getOrCreateDefaultProject,
   type ProjectInfo,
-} from './projects.js';
+} from '../project/index.js';
 
 // ============================================================================
 // Types

@@ -3,7 +3,7 @@
  */
 import { SessionManager } from '@mariozechner/pi-coding-agent';
 import type { SessionInfo } from '@mariozechner/pi-coding-agent';
-import { logger } from './logger.js';
+import { logger } from '../logger.js';
 
 let sessionManagerInstance: SessionManager | null = null;
 

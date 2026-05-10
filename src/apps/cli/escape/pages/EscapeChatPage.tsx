@@ -15,7 +15,7 @@ import { computeLayout } from '../core/Layout.js';
 import { useChatStore } from '../../ink/store/index.js';
 import { useAppStore } from '../../ink/store/uiStore.js';
 import { useAgentEvents } from '../../ink/hooks/useAgentEvents.js';
-import { getAgentSession } from '@codeagent/core';
+import { getAgentSession } from '@codeagent/backend';
 
 export function EscapeChatPage() {
   const { rows, cols } = getTerminalSize();

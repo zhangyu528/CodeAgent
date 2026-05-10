@@ -3,8 +3,8 @@
  */
 
 import { ModelRegistry } from '@mariozechner/pi-coding-agent';
-import { logger } from './logger.js';
-import { getAuthStorage } from './auth.js';
+import { logger } from '../logger.js';
+import { getAuthStorage } from '../auth/index.js';
 
 type AllowedProvider = 'zai' | 'minimax-cn';
 

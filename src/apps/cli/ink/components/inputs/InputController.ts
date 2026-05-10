@@ -7,7 +7,7 @@ import { useChatStore } from '../../store/index.js';
 import { shortenPath } from '../../utils.js';
 import { useModelConfig } from '../../hooks/useModelConfig.js';
 import { useInput as useKeyboardInput } from 'ink';
-import { getAgentSession } from '@codeagent/core';
+import { getAgentSession } from '@codeagent/backend';
 import { useModalOpenState } from '../modals/index.js';
 
 export interface InputControllerResult {

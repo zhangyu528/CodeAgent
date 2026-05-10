@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import type { AgentSession } from '@codeagent/core';
-import { saveApiKey } from '@codeagent/core';
+import type { AgentSession } from '@codeagent/backend';
+import { saveApiKey } from '@codeagent/backend';
 import { showNotice } from '../components/modals/index.js';
 import { useAppStore } from '../store/uiStore.js';
 import {
@@ -9,7 +9,7 @@ import {
   getModels,
   checkApiKeyConfigured,
   removeApiKey,
-} from '@codeagent/core';
+} from '@codeagent/backend';
 import { showProviderSelection, showModelSelection, showApiKeyInput, showSelectOne } from './useProviderConfig.js';
 
 export type ConfigStep = 'idle' | 'selecting_provider' | 'entering_api_key' | 'selecting_model';

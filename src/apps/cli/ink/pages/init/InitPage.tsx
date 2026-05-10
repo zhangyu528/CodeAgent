@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { isFirstRun } from '@codeagent/core';
+import { isFirstRun } from '@codeagent/backend';
 
 export function InitPage() {
   return (

@@ -17,7 +17,7 @@ import { Input } from '../../components/inputs/index.js';
 import { ChatHeader } from '../../components/chat/ChatHeader.js';
 import { useChatStore } from '../../store/index.js';
 import { useAgentEvents } from '../../hooks/useAgentEvents.js';
-import { getAgentSession } from '@codeagent/core';
+import { getAgentSession } from '@codeagent/backend';
 import { ChatMessage } from '../types.js';
 
 const ESC = '\x1b';

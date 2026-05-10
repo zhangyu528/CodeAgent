@@ -6,7 +6,7 @@ import { render } from 'ink';
 import { App } from './ink/App.js';
 import { parseFlags } from './json/flags.js';
 import { runJsonCli } from './json/cli.js';
-import { ensureAgentInitialized, logger } from '@codeagent/core';
+import { ensureAgentInitialized, logger } from '@codeagent/backend';
 import { join } from 'path';
 import { homedir } from 'os';
 

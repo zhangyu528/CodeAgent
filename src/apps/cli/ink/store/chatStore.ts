@@ -19,7 +19,7 @@ import {
   getSessionMessages,
   getSessionFile,
   logger,
-} from '@codeagent/core';
+} from '@codeagent/backend';
 import {
   ChatMessageSchema,
   ChatSessionInfoSchema,

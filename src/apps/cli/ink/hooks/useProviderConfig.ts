@@ -9,7 +9,7 @@ import {
   getProviders,
   getModels,
   checkApiKeyConfigured,
-} from '@codeagent/core';
+} from '@codeagent/backend';
 import { showNotice, showSelectOne, showAsk } from '../components/modals/index.js';
 export { showSelectOne };
 

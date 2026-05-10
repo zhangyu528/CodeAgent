@@ -7,7 +7,7 @@
 import React from 'react';
 import { Text } from 'ink';
 import { useContextWindow } from '../../hooks/useContextWindow.js';
-import { getAgentSession } from '@codeagent/core';
+import { getAgentSession } from '@codeagent/backend';
 
 const BAR_WIDTH = 10;
 
