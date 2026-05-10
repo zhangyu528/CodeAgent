@@ -20,7 +20,8 @@
         const sessionListEl = document.getElementById("session-list");
         const newProjectBtn = document.getElementById("new-project-btn");
         const abSidebarBtn = document.getElementById("ab-sidebar");
-        const sidebar = document.getElementById("sidebar");
+        const abSettingsBtn = document.getElementById("ab-settings");
+        const projectView = document.getElementById("project-view");
         const abortBtn = document.getElementById("abort-btn");
         const settingsOverlay = document.getElementById("settings-overlay");
         const settingsClose = document.getElementById("settings-close");
@@ -1421,29 +1422,75 @@
         }
 
         async function openSettings() {
-          settingsOverlay.classList.add("open");
-          settingsStatus.textContent = "";
-          settingsStatus.className = "";
-          settingsStep = "idle";
-          selectedProvider = null;
-          const cfg = await window.agent.getConfig();
-          setModelDisplay(cfg.currentModel);
+          // Hide project-view and main, show settings page
+          projectView.style.display = 'none';
+          document.getElementById('main').style.display = 'none';
+          document.getElementById('settings-page').style.display = 'flex';
+
+          // Load providers
           const providers = await window.agent.getProviders();
-          providerSelect.innerHTML = '<option value="">-- Select --</option>';
-          for (const p of providers) {
-            const opt = document.createElement("option");
-            opt.value = p.id;
-            opt.textContent = p.id.toUpperCase() + (p.hasApiKey ? " ✓" : " (API key required)");
-            providerSelect.appendChild(opt);
+          const cfg = await window.agent.getConfig();
+          const providerList = document.getElementById('provider-list');
+          providerList.innerHTML = '';
+
+          for (const provider of providers) {
+            const card = document.createElement('div');
+            card.className = 'provider-card';
+            card.dataset.provider = provider.id;
+
+            card.innerHTML = `
+              <div class="provider-card-name">${provider.id.toUpperCase()}</div>
+              <div class="provider-card-status ${provider.hasApiKey ? 'configured' : 'unconfigured'}">
+                ${provider.hasApiKey ? '✓ 已配置' : '未配置'}
+              </div>
+            `;
+
+            card.addEventListener('click', () => {
+              openProviderConfig(provider.id, provider.hasApiKey);
+            });
+
+            providerList.appendChild(card);
           }
-          apiKeySection.style.display = "none";
-          modelSection.style.display = "none";
+        }
+
+        async function openProviderConfig(providerId, hasApiKey) {
+          const providerList = document.getElementById('provider-list');
+          const status = document.getElementById('settings-status');
+          status.textContent = '';
+
+          if (!hasApiKey) {
+            // Show API key input with back button
+            providerList.innerHTML = `
+              <div class="provider-card">
+                <div class="provider-card-name">配置 ${providerId.toUpperCase()}</div>
+                <button id="back-btn" style="position: absolute; top: 24px; right: 24px; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px;">← 返回</button>
+                <div style="margin-top: 12px;">
+                  <input type="password" id="api-key-input" placeholder="输入 API Key..."
+                    style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #e4e4e4; font-size: 14px; outline: none; box-sizing: border-box;">
+                  <button id="save-api-key-btn" class="btn btn-primary" style="width: 100%; margin-top: 12px;">保存</button>
+                </div>
+              </div>
+            `;
+
+            document.getElementById('back-btn').addEventListener('click', openSettings);
+            document.getElementById('save-api-key-btn').addEventListener('click', async () => {
+              const apiKey = document.getElementById('api-key-input').value.trim();
+              if (!apiKey) return;
+              const result = await window.agent.saveApiKey(providerId, apiKey);
+              if (result.success) {
+                openSettings();
+              } else {
+                status.textContent = '保存失败';
+                status.style.color = '#f48771';
+              }
+            });
+          }
         }
 
         function closeSettings() {
-          settingsOverlay.classList.remove("open");
-          settingsStep = "idle";
-          selectedProvider = null;
+          document.getElementById('settings-page').style.display = 'none';
+          projectView.style.display = 'flex';
+          document.getElementById('main').style.display = 'flex';
         }
 
         async function onProviderChange(providerId) {
@@ -1548,9 +1595,16 @@
 
         // Toggle sidebar via Activity Bar button
         abSidebarBtn?.addEventListener("click", () => {
-          sidebar.classList.toggle("collapsed");
-          const isCollapsed = sidebar.classList.contains("collapsed");
-          abSidebarBtn.classList.toggle("active", !isCollapsed);
+          // Show project view (main-container)
+          closeSettings();
+          abSidebarBtn.classList.add("active");
+          abSettingsBtn?.classList.remove("active");
+        });
+
+        abSettingsBtn?.addEventListener("click", () => {
+          openSettings();
+          abSettingsBtn.classList.add("active");
+          abSidebarBtn?.classList.remove("active");
         });
 
 
@@ -1609,8 +1663,8 @@
 
         document.addEventListener('keydown', (e) => {
           if (settingsStep !== 'idle') return;
-          const sidebarEl = document.getElementById('sidebar');
-          if (!sidebarEl || sidebarEl.classList.contains('collapsed')) return;
+          const projectViewEl = document.getElementById('project-view');
+          if (!projectViewEl || projectViewEl.style.display === 'none') return;
 
           const items = [...sessionListEl.querySelectorAll('.session-item')];
           const totalItems = items.length;

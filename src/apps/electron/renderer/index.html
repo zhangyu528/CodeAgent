@@ -29,6 +29,7 @@
       color: var(--text);
       height: 100vh;
       display: flex;
+      flex-direction: column;
       overflow: hidden;
       -webkit-font-smoothing: antialiased;
     }
@@ -69,8 +70,8 @@
     }
     #activity-bar .ab-spacer { flex: 1; }
 
-    /* ─── Sidebar ─────────────────────────────────────────────── */
-    #sidebar {
+    /* ─── Project View ──────────────────────────────────────────── */
+    #project-view {
       width: 240px;
       min-width: 240px;
       background: var(--sidebar-bg);
@@ -79,19 +80,11 @@
       flex-direction: column;
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
-      transition: width 0.2s, min-width 0.2s, margin 0.2s, opacity 0.2s;
       overflow: hidden;
       opacity: 1;
     }
-    #sidebar.collapsed {
-      width: 0;
-      min-width: 0;
-      margin-left: -1px;
-      border-right: none;
-      opacity: 0;
-    }
 
-    #sidebar-header {
+    #project-view-header {
       padding: 12px 14px;
       font-size: 11px;
       color: var(--text-dim);
@@ -102,24 +95,16 @@
       align-items: center;
       justify-content: space-between;
     }
-    #sidebar.collapsed #sidebar-header,
-    #sidebar.collapsed #new-project-btn {
-      display: none;
-    }
-
-    #toggle-sidebar {
-      background: none;
-      border: none;
+    #project-view-header {
+      padding: 12px 14px;
+      font-size: 11px;
       color: var(--text-dim);
-      cursor: pointer;
-      font-size: 14px;
-      padding: 4px 8px;
-      border-radius: 4px;
-      transition: background 0.15s, color 0.15s;
-    }
-    #toggle-sidebar:hover {
-      background: rgba(255,255,255,0.06);
-      color: var(--text);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
     #session-list {
@@ -588,6 +573,49 @@
     #compact-btn:hover { opacity: 0.85; }
     #compact-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    /* ─── Settings Page ─────────────────────────────────────────── */
+    #settings-page {
+      position: absolute;
+      top: 0;
+      left: 48px;
+      right: 0;
+      bottom: 0;
+      padding: 24px;
+      overflow-y: auto;
+      background: var(--bg);
+      z-index: 10;
+    }
+
+    /* ─── Provider Card ─────────────────────────────────────────── */
+    .provider-card {
+      position: relative;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+    }
+    .provider-card:hover {
+      background: rgba(255,255,255,0.05);
+    }
+    .provider-card-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .provider-card-status {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+    .provider-card-status.configured {
+      color: #4ec9b0;
+    }
+    .provider-card-status.unconfigured {
+      color: #f48771;
+    }
+
     /* ─── Settings Modal ─────────────────────────────────────────── */
     #settings-overlay {
       display: none;
@@ -813,58 +841,72 @@
 </head>
 <body>
 
-  <!-- Activity Bar -->
-  <div id="activity-bar">
-    <button class="ab-btn active" id="ab-sidebar" title="项目">&#9776;</button>
-    <div class="ab-spacer"></div>
-  </div>
-
-  <!-- Sidebar: session list -->
-  <div id="sidebar">
-    <div id="sidebar-header">
-      <span>PROJECTS</span>
+  <!-- Main Container with Activity Bar + Sidebar -->
+  <div id="main-container" style="display: flex; flex: 1; overflow: hidden;">
+    <!-- Activity Bar -->
+    <div id="activity-bar">
+      <button class="ab-btn" id="ab-settings" title="设置">&#9881;</button>
+      <button class="ab-btn active" id="ab-sidebar" title="项目">&#9776;</button>
+      <div class="ab-spacer"></div>
     </div>
-    <div id="session-list"></div>
-    <button id="new-project-btn">+ 新项目</button>
-  </div>
 
-  <!-- Main: messages + input -->
-  <div id="main">
-    <!-- Project breadcrumb (visible when not in welcome state) -->
-    <div id="project-breadcrumb" style="display:none;">
-      <span id="project-breadcrumb-label">Global</span>
-      <span class="chevron">&#9662;</span>
-    </div>
-    <!-- Project switcher dropdown -->
-    <div id="project-switcher"></div>
-    <div id="welcome-card">
-      <div id="welcome-icon">🤖</div>
-      <div id="welcome-title">CodeAgent</div>
-      <div id="welcome-subtitle">Ask me anything about your codebase.</div>
-      <div id="welcome-tips">
-        Try: <span class="tip-msg">"What files were modified today?"</span><br>
-        Try: <span class="tip-msg">"Explain the auth module"</span>
+    <!-- Project View -->
+    <div id="project-view">
+      <div id="project-view-header">
+        <span>PROJECTS</span>
       </div>
+      <div id="session-list"></div>
+      <button id="new-project-btn">+ 新项目</button>
     </div>
-    <div id="messages"></div>
-    <div id="input-area">
-      <div id="input-wrapper">
-        <textarea id="msg-input" rows="1" placeholder="Send a message..."></textarea>
-        <div class="input-btn-group">
-          <button id="send-btn" aria-label="发送" title="发送">发送</button>
-          <button id="abort-btn" class="input-btn" aria-label="停止" title="停止">停止</button>
+
+    <!-- Content Area: Chat View / Settings Page -->
+    <div id="content-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+      <!-- Chat View -->
+      <div id="main" style="display: flex; flex-direction: column; flex: 1;">
+        <!-- Project breadcrumb (visible when not in welcome state) -->
+        <div id="project-breadcrumb" style="display:none;">
+          <span id="project-breadcrumb-label">Global</span>
+          <span class="chevron">&#9662;</span>
+        </div>
+        <!-- Project switcher dropdown -->
+        <div id="project-switcher"></div>
+        <div id="welcome-card">
+          <div id="welcome-icon">🤖</div>
+          <div id="welcome-title">CodeAgent</div>
+          <div id="welcome-subtitle">Ask me anything about your codebase.</div>
+          <div id="welcome-tips">
+            Try: <span class="tip-msg">"What files were modified today?"</span><br>
+            Try: <span class="tip-msg">"Explain the auth module"</span>
+          </div>
+        </div>
+        <div id="messages"></div>
+        <div id="input-area">
+          <div id="input-wrapper">
+            <textarea id="msg-input" rows="1" placeholder="Send a message..."></textarea>
+            <div class="input-btn-group">
+              <button id="send-btn" aria-label="发送" title="发送">发送</button>
+              <button id="abort-btn" class="input-btn" aria-label="停止" title="停止">停止</button>
+            </div>
+          </div>
+        </div>
+        <div id="status">
+          <span id="status-text">Ready</span>
+          <span id="status-sep" style="opacity:0.3;"> · </span>
+          <span id="status-model"></span>
+          <span id="status-sep" style="opacity:0.3;"> · </span>
+          <span id="thinking-level" title="点击切换思考深度"></span>
+          <span id="status-sep" style="opacity:0.3;"> · </span>
+          <span id="status-ctx"><span id="ctx-bar"></span> <span id="ctx-text"></span></span>
         </div>
       </div>
     </div>
-    <div id="status">
-      <span id="status-text">Ready</span>
-      <span id="status-sep" style="opacity:0.3;"> · </span>
-      <span id="status-model"></span>
-      <span id="status-sep" style="opacity:0.3;"> · </span>
-      <span id="thinking-level" title="点击切换思考深度"></span>
-      <span id="status-sep" style="opacity:0.3;"> · </span>
-      <span id="status-ctx"><span id="ctx-bar"></span> <span id="ctx-text"></span></span>
-    </div>
+  </div>
+
+  <!-- Settings Page -->
+  <div id="settings-page" style="display:none;">
+    <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 24px;">设置</h2>
+    <div id="provider-list"></div>
+    <div id="settings-status"></div>
   </div>
 
   <!-- Compact button (shown when context is high) -->
