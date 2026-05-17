@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "CodeAgent.WinUI (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "CodeAgent.WinUI (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

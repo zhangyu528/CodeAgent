@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bun x *)"
+      "Bash(bun x *)",
+      "Bash(rm -rf obj bin)",
+      "Bash(dotnet restore *)",
+      "Bash(dotnet build *)"
     ]
   }
 }

@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+
+# WinUI generated files
+*.xbf
+*.g.cs
+*.g.h
+
+# NuGet
+packages/
+
+# User settings (may contain secrets)
+Properties/Default.rd.xml
