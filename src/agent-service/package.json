@@ -11,7 +11,13 @@
     "start": "bun run bin/rpc-server.ts",
     "dev": "bun run bin/rpc-server.ts",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:smoke": "vitest run tests/smoke",
+    "test:regression": "vitest run tests/regression --reporter=verbose",
+    "test:performance": "vitest run tests/performance --reporter=verbose",
+    "test:contract": "vitest run tests/contract",
+    "test:chaos": "vitest run tests/chaos",
+    "test:snapshot": "vitest run tests/snapshot"
   },
   "dependencies": {
     "@mariozechner/pi-coding-agent": "^0.61.1"
